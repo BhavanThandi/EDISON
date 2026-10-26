@@ -27,14 +27,17 @@
 // on e35–e39), 470 Ω each: b c35–c30 fed tp_30→a30; c h36–h32 fed
 // bp_32→j32; a b36–b32 fed tp_32→a32; commons a37→tn_37 and j37→bn_37;
 // BAT1 on tp_63/tn_63; tp_1→bp_1 and tn_1→bn_1 join the bottom rails.
-// The board is flipped (row a nearest the viewer, a chip's pins run
-// counter-clockwise), and this is the COLUMN REFLECTION of the old layout
-// (display at f30 facing right; columns c → 69 − c about its span 30..39,
-// Ruling 21), so the + → tp, COM → tn, − → bn conventions are unchanged.
+// The board is flipped (row a nearest the viewer). The by-hand test turns the
+// display to face left, so its digit is upside down on screen (its pins 1–5
+// run left; segment a is below segment d). The AI build below is the
+// recipe's upright seat (Ruling 24): the old layout (display at f30 facing
+// right) through the row map, so e30 facing right, rows swapped, columns kept;
+// segment a is above segment d and the dot at the bottom right.
 const { test, expect } = require('@playwright/test');
 
 const STRADDLE = 'a chip must sit across the centre gap (rows e and f).';
 const SEGMENTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
+const LEGS_E30 = ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'];
 const LEGS_F39 = ['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39'];
 
 function watchErrors(page) {
@@ -144,6 +147,25 @@ const litSegments = page => page.evaluate(segs => {
   }
   return out;
 }, SEGMENTS);
+// Where the face of the placed display really is on screen: the projected
+// pixel position of the bars seg-a, seg-d and the dot seg-dp (y grows
+// downward on screen, so a smaller y is higher up).
+const faceOnScreen = page => page.evaluate(() => {
+  const c = App.state.components.find(p => p.type === 'seven_segment');
+  if (!c || !c.group) return null;
+  App.camera.updateMatrixWorld();
+  const r = App.renderer.domElement.getBoundingClientRect();
+  const out = {};
+  for (const s of ['a', 'd', 'dp']) {
+    const o = c.group.getObjectByName('seg-' + s);
+    if (!o) return null;
+    const v = new THREE.Vector3();
+    o.getWorldPosition(v);
+    v.project(App.camera);
+    out[s] = { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+  }
+  return out;
+});
 const onlyLit = lit => Object.fromEntries(SEGMENTS.map(s => [s, lit.includes(s)]));
 
 // ── By hand: pick, hover (refused, then allowed), place, wire the 1, Run ──
@@ -204,6 +226,11 @@ test('by hand: pick it in the sidebar, the ghost refuses b39 (facing left) with 
   await expect(page.locator('#sim-results')).toBeVisible();
   await expect.poll(() => simText(page)).toMatch(/shows 1\b/);
   expect(await litSegments(page)).toEqual(onlyLit(['b', 'c']));
+  // The face turns with the part: facing left, segment a is below segment d on
+  // screen (the digit is upside down), the dot at the top left of the digit.
+  const hand = await faceOnScreen(page);
+  expect(hand.a.y, 'facing left: seg-a is lower on screen than seg-d').toBeGreaterThan(hand.d.y + 3);
+  expect(hand.dp.x, 'facing left: the dot is left of seg-d').toBeLessThan(hand.d.x);
 
   await page.evaluate(() => App.stopSimulation());
   expect(await litSegments(page), 'Stop darkens every segment').toEqual(onlyLit([]));
@@ -212,26 +239,17 @@ test('by hand: pick it in the sidebar, the ghost refuses b39 (facing left) with 
 
 // ── A stubbed AI build of the digit 7 ─────────────────────────────────────
 
-const wireA = (from, to, color = 'green') => ({ tool: 'add_wire', from, to, color });
+// The AI's build is the app's own recipe (what the server writes into the
+// prompt as numbered steps), as the actions it stands for, so this checks what
+// a student really gets. Ruling 24: the old f30-right layout through the row
+// map, i.e. display e30 right (a = R1 i33–i37 fed bp_37→j37, b = R2 h34–h39
+// fed bp_39→j39, c = R3 c33–c37 joined to column 37's top by e37→f37, com2
+// f32 to ground by j32→bn_32, bridges tp_1→bp_1 and tn_1→bn_1), asserted by
+// hand below so a wrong recipe cannot pass by being its own expectation.
+const { recipeActions } = require('../test/fixtures/recipe-steps.js');
 const SEVEN_BUILD = {
   reply: 'Built a 7 on the seven-segment display: segments a, b and c, each through its own 470 Ω resistor.',
-  actions: [
-    { tool: 'delete_all' },
-    { tool: 'place_battery' },
-    wireA('BAT1.0', 'tp_63', 'red'),
-    wireA('BAT1.1', 'tn_63', 'black'),
-    wireA('tp_1', 'bp_1', 'red'),
-    wireA('tn_1', 'bn_1', 'black'),
-    { tool: 'place_seven_segment', hole: 'f39', direction: 'left' },
-    { tool: 'place_resistor', holeA: 'b36', holeB: 'b32' },   // a
-    wireA('tp_32', 'a32', 'red'),
-    { tool: 'place_resistor', holeA: 'c35', holeB: 'c30' },   // b
-    wireA('tp_30', 'a30', 'red'),
-    { tool: 'place_resistor', holeA: 'h36', holeB: 'h32' },   // c
-    wireA('bp_32', 'j32', 'red'),
-    wireA('a37', 'tn_37', 'black'),                           // com2
-    wireA('j37', 'bn_37', 'black'),                           // com1
-  ],
+  actions: recipeActions(require('../circuit3d/js/parts').get('seven_segment').ai.recipe),
 };
 
 test('a stubbed AI reply to "Show the number 7 on a seven-segment display" applies on Accept, and Run shows 7 with a, b and c lit', async ({ page }) => {
@@ -248,7 +266,15 @@ test('a stubbed AI reply to "Show the number 7 on a seven-segment display" appli
     const c = App.state.components.find(p => p.type === 'seven_segment');
     return c && Parts.legsOf(c).map(l => l.hole);
   });
-  expect(legs).toEqual(LEGS_F39);
+  expect(legs).toEqual(LEGS_E30);
+
+  // The real face on screen is upright: segment a above segment d, the dot at
+  // the bottom right (projected positions, not just mesh names).
+  const face = await faceOnScreen(page);
+  expect(face, 'the placed display has seg-a, seg-d and seg-dp').not.toBeNull();
+  expect(face.a.y, 'seg-a is higher on screen than seg-d').toBeLessThan(face.d.y - 3);
+  expect(face.dp.y, 'the dot is below seg-a').toBeGreaterThan(face.a.y);
+  expect(face.dp.x, 'the dot is right of seg-d').toBeGreaterThan(face.d.x);
 
   await page.locator('#sim-run-btn').click();
   await expect(page.locator('#sim-results')).toBeVisible();

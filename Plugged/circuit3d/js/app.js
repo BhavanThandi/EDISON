@@ -58,7 +58,8 @@
   App.BATTERY_MARGIN = Bench.MARGIN;
 
   // Where the AI's battery goes: just past the right-hand end of the board,
-  // right behind the top + and − rails so its wires drop straight in.
+  // level with the tp / tn rails (beside row a, nearest the viewer) so its
+  // wires drop straight in.
   App.batterySpot = function () {
     const { BOARD_W, ROW_Z } = App.BOARD_GEOMETRY;
     return { x: BOARD_W / 2 + App.BATTERY_MARGIN, z: (ROW_Z.tp + ROW_Z.tn) / 2 };

@@ -114,3 +114,40 @@ test('autosave and reload keeps a v2 board as it is', async ({ page }) => {
   expect((await holesOf(page)).U1).toEqual(TL072_V2);
   expect(await directionOfChip(page)).toBe('right');
 });
+
+// Ruling 28 (guard): a v1 file opened the way a student opens one (the file
+// chooser, the preview, Load Circuit, which is App.loadCircuitData), then an
+// edit, undo and redo: every snapshot restores through the same migrating
+// rebuild, and a v2 record passes through it unchanged, so the holes stay where
+// the migration put them. A second flip would send the TL072 back to its v1 holes.
+test('open a v1 file, edit, undo, redo: the holes stay migrated (no second flip)', async ({ page }) => {
+  await boot(page);
+  const chooser = page.waitForEvent('filechooser');
+  await page.evaluate(() => { App.loadCircuit(); });
+  await (await chooser).setFiles(path.join(FIX, 'v1-tl072.sparky'));
+  await expect(page.locator('#lpm-confirm')).toBeVisible();
+  await page.locator('#lpm-confirm').click();
+  await page.waitForFunction(() => App.state.components.some(c => c.type === 'tl072'));
+
+  const opened = await holesOf(page);
+  const openedWires = await wireEnds(page);
+  expect(opened.U1, 'File -> Open migrates the v1 chip').toEqual(TL072_V2);
+
+  // An edit: one more resistor, in free holes.
+  await page.evaluate(() => {
+    const hole = s => { const { col, row } = App.parseHole(s); return App.state.breadboard.getHole(col, row); };
+    App.placePart('resistor', [hole('d50'), hole('d54')], { resistance: 1000 });
+  });
+  const edited = await holesOf(page);
+  expect(Object.keys(edited).length, 'the edit added a part').toBe(Object.keys(opened).length + 1);
+  expect(edited.U1).toEqual(TL072_V2);
+
+  await page.evaluate(() => App.undo());
+  expect(await holesOf(page), 'undo restores the opened board, still migrated').toEqual(opened);
+  expect(await wireEnds(page)).toEqual(openedWires);
+
+  await page.evaluate(() => App.redo());
+  expect(await holesOf(page), 'redo restores the edited board, still migrated').toEqual(edited);
+  expect((await holesOf(page)).U1).toEqual(TL072_V2);
+  expect(await wireEnds(page)).toEqual(openedWires);
+});

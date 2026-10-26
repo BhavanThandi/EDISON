@@ -64,4 +64,28 @@ function partition(ex) {
   return [...groups.values()].map(g => g.sort().join(' ')).sort();
 }
 
-module.exports = { reflect, partition, span, isBody, isRail };
+// Ruling 24: the 7-segment's UPRIGHT version of an ORIGINAL recipe/example. T_A
+// (a<->j, b<->i, c<->h, d<->g, e<->f, tp<->bp, tn<->bn; columns kept) applied
+// to the original's body holes, and to a rail end only when the wire's other
+// end is a body hole (so the picture is the original's, turned onto the
+// flipped board). Terminal -> rail wires (BAT1.0 -> tp_63) and rail <-> rail
+// bridges are unchanged. A recipe that lacks them gains tp_1 -> bp_1 and
+// tn_1 -> bn_1, so the bp / bn rails the mapped wires land on are tied to the
+// + / ground rails the battery feeds. The row map is written out here, not
+// read from the app.
+const T_A = { a: 'j', b: 'i', c: 'h', d: 'g', e: 'f', f: 'e', g: 'd', h: 'c', i: 'b', j: 'a', tp: 'bp', tn: 'bn', bp: 'tp', bn: 'tn' };
+const viaTA = h => { const m = /^(tp|tn|bp|bn|[a-j])(_?)(\d+)$/.exec(h); return m ? T_A[m[1]] + m[2] + m[3] : h; };
+const BRIDGES = [['tp_1', 'bp_1'], ['tn_1', 'bn_1']];
+
+function upright(ex) {
+  const wires = ex.wires.map(([a, b]) => {
+    if (isBody(a) && isRail(b)) return [viaTA(a), viaTA(b)];
+    if (isRail(a) && isBody(b)) return [viaTA(a), viaTA(b)];
+    return [viaTA(a), viaTA(b)].map((h, i) => (isBody([a, b][i]) ? h : [a, b][i]));
+  });
+  const has = ([x, y]) => wires.some(([a, b]) => (a === x && b === y) || (a === y && b === x));
+  for (const w of BRIDGES) if (!has(w)) wires.push(w.slice());
+  return { ...ex, wires, parts: ex.parts.map(p => (p.holes ? { ...p, holes: p.holes.map(viaTA) } : { ...p })) };
+}
+
+module.exports = { reflect, upright, viaTA, partition, span, isBody, isRail };

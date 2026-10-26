@@ -69,7 +69,7 @@
       "holeRefs": null,
       "position": {
         "x": 15.8,
-        "z": -3.15
+        "z": 3.15
       },
       "controls": {
         "mode": "series"
@@ -89,7 +89,7 @@
       "holeRefs": null,
       "position": {
         "x": 15.8,
-        "z": 0.45
+        "z": -0.45
       },
       "controls": {
         "mode": "series"

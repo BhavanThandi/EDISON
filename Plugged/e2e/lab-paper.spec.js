@@ -170,7 +170,7 @@ test('Hint shows the step\'s hint; Explain asks Edison about the step (explain: 
   expect(asks[0].explain, 'an explain ask, not an edit').toBe(true);
   expect(JSON.stringify(asks[0]), 'it names step 1').toContain('step 1 of LAB-02');
 
-  // The student wires PS1 + to the top + rail by hand, then asks for the rest.
+  // The student wires PS1 + to the + rail beside row a (tp) by hand, then asks for the rest.
   await page.evaluate(() => {
     const pm = App.state.components.find(c => c.label === 'PS1').pinMeshes[0];
     const { col, row } = App.parseHole('tp_63'); const h = App.state.breadboard.getHole(col, row);
@@ -180,7 +180,12 @@ test('Hint shows the step\'s hint; Explain asks Edison about the step (explain: 
   const before = await page.evaluate(() => App.state.wires.length);
   await step2.locator('.lab-step-give').click();
   expect(await page.evaluate(() => App.state.wires.length) - before, 'the 5 wires not already there').toBe(5);
-  await expect(step2.locator('.lab-step-given')).toContainText('Skipped (a hole is already in use): PS1 + (+12 V) to the top + rail');
+  await expect(step2.locator('.lab-step-given')).toContainText('Skipped (a hole is already in use): PS1 + (+12 V) to the + rail beside row a (tp)');
+  // Ruling 26: rails are named by the row they sit beside; "top" and "bottom"
+  // read backwards on the flipped board, so none remains in the sheet's text.
+  const sheetText = (await page.locator('#lab-sheet').textContent()) || '';
+  expect(sheetText, 'the sheet names the rails by their row').toMatch(/rail beside row [aj] \((tp|tn|bp|bn)\)/);
+  expect(sheetText, 'no "top rail" / "bottom rail" wording in the lab sheet').not.toMatch(/\b(top|bottom)\b[^.;:]{0,12}\brails?\b/i);
   await expect(step2.locator('.lab-step-status'), 'the supply is wired: step 1 confirms').toHaveText(/passed/i);
   expect(errors).toEqual([]);
 });

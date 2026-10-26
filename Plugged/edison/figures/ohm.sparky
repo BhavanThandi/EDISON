@@ -3,7 +3,7 @@
   "name": "Textbook figure 1.1: 10 V across 1 kΩ",
   "thumbnail": "",
   "components": [
-    {"type":"bench_supply","id":"PS1","label":"PS1","values":{"voltage":10,"limit":0.5},"holeRefs":null,"position":{"x":16.4,"z":-1},"v":2},
+    {"type":"bench_supply","id":"PS1","label":"PS1","values":{"voltage":10,"limit":0.5},"holeRefs":null,"position":{"x":16.4,"z":1},"v":2},
     {"type":"resistor","id":"R1","label":"R1","values":{"resistance":1000},"holeRefs":[{"pin":"lead1","col":29,"row":"a"},{"pin":"lead2","col":33,"row":"a"}],"position":{"x":0,"z":0},"v":2}
   ],
   "wires": [

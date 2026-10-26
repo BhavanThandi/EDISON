@@ -10,6 +10,10 @@
 //   1. chip-less boards keep every hole; only `v: 2` is stamped;
 //   2. boards with a TL072 / 7-segment are column-reflected (reflect() in
 //      test/fixtures/recipe-reflect.js) and stamped `v: 2`;
+//   (Ruling 25: an off-board source stays beside the rails it is wired to, so in
+//   the Ruling-named content files below its position.z is negated; the
+//   landing hero's edison/demo/led.sparky instead takes T_A for its holes and
+//   keeps its positions. docs/boards/* are photo-faithful and keep theirs.)
 //   3. the photo-tied samples match the photo's printed holes: thandi-blinker
 //      by T_A, ensc-lab by columns c -> 64 - c with right <-> left.
 
@@ -58,6 +62,18 @@ const refOf  = (name, like) => {
   return { ...like, col: Number(m[2] || m[4]) - 1, row: m[1] || m[3] };
 };
 const sameRefs = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Ruling 25. The Ruling-named content files, whose off-board sources move to
+// the other side of the board with their rails (z -> -z).
+const NEGATE_Z = new Set([
+  'Plugged/demo.sparky', 'Plugged/circuit3d/labs/lab1.sparky', 'Plugged/circuit3d/labs/lab1-start.sparky',
+  'Plugged/circuit3d/labs/lab2.sparky', 'Plugged/edison/demo/inverting-amp.sparky',
+  'Plugged/edison/figures/divider.sparky', 'Plugged/edison/figures/ohm.sparky',
+  'Plugged/edison/figures/inverting.sparky', 'Plugged/edison/figures/non-inverting.sparky',
+]);
+const offboard = c => !Array.isArray(c.holeRefs);
+const negZ = z => (z === 0 ? 0 : -z);
+const negateOffboard = recs => ({ ...recs, components: recs.components.map(c => (offboard(c) && c.position ? { ...c, position: { ...c.position, z: negZ(c.position.z) } } : c)) });
 
 function toExample(data) {
   // older files leave a part's label off; the page names it by placement order
@@ -270,25 +286,119 @@ test('every content file is v2', () => {
 });
 
 // ── 4. Rule 1: chip-less content keeps its holes ──
-test('chip-less content keeps its holes', () => {
+// (Ruling 25: its off-board parts' z is negated, except the landing hero's
+// led.sparky, which is tested on its own below.)
+const HERO = 'Plugged/edison/demo/led.sparky';
+test('chip-less content keeps its holes (off-board parts keep x and negate z)', () => {
   const changed = [];
-  for (const [rel, fx, chip] of FILES.filter(f => !f[2])) {
-    const orig = original(fx), now = load(rel);
+  for (const [rel, fx, chip] of FILES.filter(f => !f[2] && f[0] !== HERO)) {
+    const orig = NEGATE_Z.has(rel) ? negateOffboard(original(fx)) : original(fx), now = load(rel);
+    assert.ok(NEGATE_Z.has(rel), `${rel} is in the negate list`);
     if (now.components.length !== orig.components.length || now.wires.length !== orig.wires.length) { changed.push(`${rel}: record counts`); continue; }
-    now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), orig.components[i])) changed.push(`${rel} component ${i} (${c.label})`); });
+    now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), orig.components[i])) changed.push(`${rel} component ${i} (${c.label}): ${JSON.stringify(c.position)} want ${JSON.stringify(orig.components[i].position)}`); });
     now.wires.forEach((w, i) => { if (!sameRefs(withoutV(w), orig.wires[i])) changed.push(`${rel} wire ${i}`); });
     assert.equal(chip, false);
   }
   assert.deepStrictEqual(changed, []);
 });
 
+// The landing hero's first frame (Ruling 25): led.sparky is display-only, so it
+// takes the full T_A (holes and rails through the row map, as a v1 save would
+// migrate), which restores the picture it always showed, and keeps its positions.
+test('edison/demo/led.sparky is the T_A of its original: holes and rails through the row map, positions unchanged', () => {
+  const orig = original('edison_demo_led.sparky'), now = load(HERO);
+  const m = r => (r ? { ...r, row: T_A[r.row] } : r);
+  const want = {
+    components: orig.components.map(c => (Array.isArray(c.holeRefs) ? { ...c, holeRefs: c.holeRefs.map(m) } : { ...c })),
+    wires: orig.wires.map(w => ({ ...w, ...(w.startHole ? { startHole: m(w.startHole) } : {}), ...(w.endHole ? { endHole: m(w.endHole) } : {}) })),
+  };
+  assert.strictEqual(now.components.length, want.components.length);
+  assert.strictEqual(now.wires.length, want.wires.length);
+  const off = [];
+  now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), want.components[i])) off.push(`component ${i} (${c.label}): ${JSON.stringify(c.holeRefs)} ${JSON.stringify(c.position)} want ${JSON.stringify(want.components[i].holeRefs)} ${JSON.stringify(want.components[i].position)}`); });
+  now.wires.forEach((w, i) => { if (!sameRefs(withoutV(w), want.wires[i])) off.push(`wire ${i}: ${JSON.stringify(w.startHole)} ${JSON.stringify(w.endHole)} want ${JSON.stringify(want.wires[i].startHole)} ${JSON.stringify(want.wires[i].endHole)}`); });
+  assert.deepStrictEqual(off, []);
+  const bat = now.components.find(c => c.label === 'BAT1');
+  assert.deepStrictEqual(bat.position, orig.components[0].position, 'the battery stays where it was');
+});
+
+// Ruling 25: an off-board source sits beside the rails it is wired to. After the
+// flip the a / tp / tn side is +z (ROW_Z) and the j / bp / bn side is -z. A
+// part's side is where its wires land on the board: on a body row if any wire
+// ends on one (the supply that feeds a pin of the circuit), else on the side
+// of most of its rail holes (tp / tn against bp / bn). A part with no wires
+// (a starter) has nothing to compare and is covered by the negation test above.
+const sideOf = row => Math.sign(ROW_Z[row]);
+function landings(data, idx) {
+  const out = [];
+  for (const w of data.wires) {
+    if (w.startCompIdx === idx && w.endHole) out.push(w.endHole.row);
+    if (w.endCompIdx === idx && w.startHole) out.push(w.startHole.row);
+  }
+  return out;
+}
+function wantedSide(rows) {
+  const body = rows.filter(r => G.BODY_ROWS.includes(r));
+  const pool = body.length ? body : rows;
+  const sum = pool.reduce((t, r) => t + sideOf(r), 0);
+  return Math.sign(sum);
+}
+
+test('every off-board source sits beside the rails it is wired to (z > 0 beside a / tp / tn, z < 0 beside j / bp / bn; a part at z 0 is on neither side)', () => {
+  const off = [];
+  let checked = 0;
+  for (const [rel] of FILES.filter(f => !f[0].startsWith('docs/'))) {
+    const d = load(rel);
+    d.components.forEach((c, i) => {
+      if (!offboard(c) || !c.position) return;
+      const rows = landings(d, i);
+      if (!rows.length) return;
+      checked++;
+      const want = wantedSide(rows), z = c.position.z;
+      if (want === 0 || !(z === 0 || Math.sign(z) === want)) off.push(`${rel} ${c.label} at z ${z}: wired to ${rows.join(', ')}, which is the ${want > 0 ? '+z (a / tp / tn)' : '-z (j / bp / bn)'} side`);
+    });
+  }
+  assert.ok(checked >= 10, `sanity: ${checked} off-board parts compared`);
+  assert.deepStrictEqual(off, []);
+});
+
+// The landing hero, as a number: the battery and the rails its two wires land
+// on are on the same side of the board, so the wires are short (the Euclidean
+// z gap is a lower bound on a wire's length). The picture before this fix had
+// the battery 8.5 behind the board from rails drawn in front: two long arcs.
+test('the landing hero\'s battery is level with the rails its wires land on: both wires span less than 2.5 in z', () => {
+  const d = load(HERO);
+  const idx = d.components.findIndex(c => c.label === 'BAT1');
+  const bat = d.components[idx];
+  const gaps = [];
+  for (const w of d.wires) {
+    const rail = w.startCompIdx === idx ? w.endHole : w.endCompIdx === idx ? w.startHole : null;
+    if (rail) gaps.push([rail.row, Math.abs(bat.position.z - ROW_Z[rail.row])]);
+  }
+  assert.strictEqual(gaps.length, 2, 'two battery wires');
+  for (const [row, gap] of gaps) assert.ok(gap < 2.5, `BAT1 (z ${bat.position.z}) to rail ${row} (z ${ROW_Z[row]}): ${gap.toFixed(2)} apart`);
+});
+
+// Pin (passes today): where the app itself puts an off-board source (the AI's
+// battery, a bench's first spots) is the +z side, beside tp / tn. Samples and
+// AI builds place sources by these spots, so their BAT1.0 -> tp_N wires are short.
+test('pin: the app\'s own battery spot and first bench spots are on the tp / tn side (z > 0)', () => {
+  const Bench = require('../circuit3d/js/bench.js');
+  const spot = { x: G.BOARD_W / 2 + Bench.MARGIN, z: (ROW_Z.tp + ROW_Z.tn) / 2 };
+  assert.ok(spot.z > 0);
+  for (const type of ['battery', 'bench_supply', 'function_generator', 'multimeter']) {
+    assert.ok(Bench.spotFor(type, [], type === 'battery' ? spot : null).z > 0, type);
+  }
+});
+
 // ── 5. Rule 2: chip content is the column reflection of the original ──
 test('chip content is the column reflection of the original (photo11: the ensc-lab column map c -> 64 - c)', () => {
   const off = [];
   for (const [rel, fx] of FILES.filter(f => f[2])) {
-    const want = rel.endsWith('photo11-ensc-lab-bench.sparky') ? columnMapRecords(original(fx)) : reflectedRecords(original(fx)), now = load(rel);
+    const mapped = rel.endsWith('photo11-ensc-lab-bench.sparky') ? columnMapRecords(original(fx)) : reflectedRecords(original(fx));
+    const want = NEGATE_Z.has(rel) ? negateOffboard(mapped) : mapped, now = load(rel);
     if (now.components.length !== want.components.length || now.wires.length !== want.wires.length) { off.push(`${rel}: record counts`); continue; }
-    now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), want.components[i])) off.push(`${rel} component ${i} (${c.label}): ${JSON.stringify(c.holeRefs)} want ${JSON.stringify(want.components[i].holeRefs)}`); });
+    now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), want.components[i])) off.push(`${rel} component ${i} (${c.label}): ${JSON.stringify(c.holeRefs)} ${JSON.stringify(c.position)} want ${JSON.stringify(want.components[i].holeRefs)} ${JSON.stringify(want.components[i].position)}`); });
     now.wires.forEach((w, i) => { if (!sameRefs(withoutV(w), want.wires[i])) off.push(`${rel} wire ${i}`); });
   }
   assert.deepStrictEqual(off, []);

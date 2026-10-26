@@ -17,8 +17,8 @@
       "label": "R1",
       "values": { "resistance": 470 },
       "holeRefs": [
-        { "pin": "lead1", "col": 27, "row": "b" },
-        { "pin": "lead2", "col": 31, "row": "b" }
+        { "pin": "lead1", "col": 27, "row": "i" },
+        { "pin": "lead2", "col": 31, "row": "i" }
       ],
       "position": { "x": 0, "z": 0 },
       "v": 2
@@ -29,8 +29,8 @@
       "label": "LED1",
       "values": { "color": "red" },
       "holeRefs": [
-        { "pin": "cathode", "col": 33, "row": "c" },
-        { "pin": "anode", "col": 31, "row": "c" }
+        { "pin": "cathode", "col": 33, "row": "h" },
+        { "pin": "anode", "col": 31, "row": "h" }
       ],
       "position": { "x": 0, "z": 0 },
       "v": 2
@@ -40,7 +40,7 @@
     {
       "id": "W1",
       "startHole": null,
-      "endHole": { "col": 26, "row": "tp" },
+      "endHole": { "col": 26, "row": "bp" },
       "startCompIdx": 0,
       "startPinIdx": 0,
       "endCompIdx": -1,
@@ -52,7 +52,7 @@
     {
       "id": "W2",
       "startHole": null,
-      "endHole": { "col": 35, "row": "tn" },
+      "endHole": { "col": 35, "row": "bn" },
       "startCompIdx": 0,
       "startPinIdx": 1,
       "endCompIdx": -1,
@@ -63,8 +63,8 @@
     },
     {
       "id": "W3",
-      "startHole": { "col": 27, "row": "tp" },
-      "endHole": { "col": 27, "row": "a" },
+      "startHole": { "col": 27, "row": "bp" },
+      "endHole": { "col": 27, "row": "j" },
       "startCompIdx": -1,
       "startPinIdx": -1,
       "endCompIdx": -1,
@@ -74,8 +74,8 @@
     },
     {
       "id": "W4",
-      "startHole": { "col": 33, "row": "a" },
-      "endHole": { "col": 33, "row": "tn" },
+      "startHole": { "col": 33, "row": "j" },
+      "endHole": { "col": 33, "row": "bn" },
       "startCompIdx": -1,
       "startPinIdx": -1,
       "endCompIdx": -1,

@@ -3,8 +3,8 @@
   "name": "Textbook figure 1.2: a non-inverting amplifier, gain 2",
   "thumbnail": "",
   "components": [
-    {"type":"bench_supply","id":"PS1","label":"PS1","values":{"voltage":12,"limit":0.5},"holeRefs":null,"position":{"x":16.4,"z":-1},"v":2},
-    {"type":"bench_supply","id":"PS2","label":"PS2","values":{"voltage":0.5,"limit":0.5},"holeRefs":null,"position":{"x":-16.4,"z":1},"v":2},
+    {"type":"bench_supply","id":"PS1","label":"PS1","values":{"voltage":12,"limit":0.5},"holeRefs":null,"position":{"x":16.4,"z":1},"v":2},
+    {"type":"bench_supply","id":"PS2","label":"PS2","values":{"voltage":0.5,"limit":0.5},"holeRefs":null,"position":{"x":-16.4,"z":-1},"v":2},
     {"type":"tl072","id":"U1","label":"U1","values":{},"holeRefs":[{"pin":"out1","col":31,"row":"f"},{"pin":"in1n","col":30,"row":"f"},{"pin":"in1p","col":29,"row":"f"},{"pin":"vneg","col":28,"row":"f"},{"pin":"in2p","col":28,"row":"e"},{"pin":"in2n","col":29,"row":"e"},{"pin":"out2","col":30,"row":"e"},{"pin":"vpos","col":31,"row":"e"}],"position":{"x":0,"z":0},"v":2},
     {"type":"resistor","id":"R1","label":"R1","values":{"resistance":10000},"holeRefs":[{"pin":"lead1","col":34,"row":"h"},{"pin":"lead2","col":30,"row":"h"}],"position":{"x":0,"z":0},"v":2},
     {"type":"resistor","id":"R2","label":"R2","values":{"resistance":10000},"holeRefs":[{"pin":"lead1","col":30,"row":"i"},{"pin":"lead2","col":26,"row":"i"}],"position":{"x":0,"z":0},"v":2}

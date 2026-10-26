@@ -73,7 +73,7 @@ const holesOf = (page, label) => page.evaluate(label => {
   return c ? c.holeRefs.map(r => r.row + (r.col + 1)) : null;
 }, label);
 
-// Battery beside the board, wired to the top rails (tp = +9 V, tn = 0 V),
+// Battery beside the board (z +3.15), wired to the tp / tn rails beside row a (tp = +9 V, tn = 0 V),
 // plus any hole-to-hole wires and resistors given, through the same calls
 // the other specs use.
 function build(page, { resistors = [], wires = [] }) {

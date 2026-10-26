@@ -7,7 +7,7 @@
 ## 2026-10-26: mirror fix shipped
 - Row a and tp / tn are now nearest the viewer; footprint rows run toward a; camera FOV is 48. Details: "Key decisions" in `docs/ARCHITECTURE.md` and "Board handedness" in `docs/API-CONTRACT.md`.
 - **AI bank after the flip:** 38/48 runs pass, median 22.4 s (was 24/48). The variant that mapped recipes through the row flip scored 37/48 and broke the tp/tn/bn conventions.
-- **A future session must know:** user saves migrate on open (v1 records go through `T_A`, then are `v: 2`); content files are `v: 2`; AI recipes and guides keep the tp/tn/bn conventions through a per-recipe column reflection (do not map them through `T_A`).
+- **A future session must know:** user saves migrate on open (v1 records go through `T_A`, then are `v: 2`); content files are `v: 2`; TL072 recipes and guides keep the tp/tn/bn conventions through a per-recipe column reflection (do not map them through `T_A`); the 7-segment's go through `T_A` (digit upright, Ruling 24).
 - **Next:** the photo fix Part B (see `docs/TODO.md`).
 
 ## 2026-10-25: photo baseline and the mirror decision (read this first)

@@ -546,36 +546,37 @@ test("ai: keywords include 7 segment, seven segment, digit display, number displ
 // #43 follow-up: from the compressed "e d com1 c dp on f30–f34" the model
 // mis-mapped letters to columns. The guide names each pin's hole for the
 // documented placement, pin then hole ("a e36", "a=e36" or "a: e36").
-// Ruling 21: the guide's display is the recipe's display, so it follows the
-// recipe's local column reflection (columns 30–39, c -> 69 − c; rows kept):
-// the original f30 right is f39 left. The holes below come from that rule
-// applied to the ORIGINAL recipe (test/fixtures/recipes-original.js), not from
-// the app.
+// Ruling 24: the guide's display is the recipe's display, and the recipe is the
+// ORIGINAL through T_A (the digit upright): the original f30 right is e30
+// right. The holes below come from that rule applied to the ORIGINAL recipe
+// (test/fixtures/recipes-original.js), and must be what the app's own seat
+// Parts.footprintLegs('seven_segment', 'e30', 0) gives, not from the guide.
 const ORIGINAL = require('./fixtures/recipes-original.js').seven_segment;
-const { reflect } = require('./fixtures/recipe-reflect.js');
-const GUIDE_HOLES = reflect(ORIGINAL.recipe).parts.find(p => p.type === 'seven_segment').holes;
+const { upright } = require('./fixtures/recipe-reflect.js');
+const GUIDE_HOLES = upright(ORIGINAL.recipe).parts.find(p => p.type === 'seven_segment').holes;
 
-test('the guide has a pin→hole table for hole f39 facing left: all 10 pins, each with its hole, in ≤ 400 characters', () => {
+test('the guide has a pin→hole table for hole e30 facing right (e{C} right): all 10 pins, each with its hole, in ≤ 400 characters', () => {
   const { ai } = seg();
   assert.ok(ai.guide.length <= 400, `at most 400 characters; got ${ai.guide.length}`);
-  assert.deepStrictEqual(GUIDE_HOLES, ['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39'], 'the rule applied to the original f30 right');
-  assert.match(ai.guide, /\bf39\b/, ai.guide);
-  assert.match(ai.guide, /\bleft\b/, ai.guide);
-  const legs = Parts.footprintLegs('seven_segment', 'f39', 180);
-  assert.deepStrictEqual(legs.map(l => l.row + (l.col + 1)), GUIDE_HOLES, 'f39 facing left seats the display exactly there');
+  assert.deepStrictEqual(GUIDE_HOLES, ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'], 'T_A applied to the original f30 right');
+  assert.match(ai.guide, /\be30\b/, ai.guide);
+  assert.match(ai.guide, /\bright\b/, ai.guide);
+  assert.doesNotMatch(ai.guide, /\bleft\b|\bf39\b/, 'the old reflected seat is gone: ' + ai.guide);
+  const legs = Parts.footprintLegs('seven_segment', 'e30', 0);
+  assert.deepStrictEqual(legs.map(l => l.row + (l.col + 1)), GUIDE_HOLES, 'e30 facing right seats the display exactly there');
   const pairs = legs.map(l => [l.pin, l.row + (l.col + 1)]);
   const missing = pairs.filter(([pin, hole]) => !new RegExp(`(^|[^a-z0-9])${pin}\\s*[:=]?\\s*${hole}(?![0-9])`).test(ai.guide))
     .map(([pin, hole]) => `${pin} ${hole}`);
   assert.deepStrictEqual(missing, [], `the guide should name each pin's hole ("${missing.join('", "')}" missing): ${ai.guide}`);
 });
 
-test('the guide names the strips by their rows: row f pins are the top half (feed from rows g–j), row e pins the bottom half (feed from rows a–d), and com2 goes to ground from a37', () => {
+test('the guide names the strips by their rows: row f pins are the top half (feed from rows g–j), row e pins the bottom half (feed from rows a–d), and com2 (f32) goes to ground from j32 to bn', () => {
   const { ai } = seg();
   assert.match(ai.guide, /top half, feed from rows g[–-]j/, ai.guide);
   assert.match(ai.guide, /bottom half, feed from rows a[–-]d/, ai.guide);
-  assert.match(ai.guide, /\ba37\b[^.]*com2|com2[^.]*\ba37\b/, ai.guide);
-  assert.match(ai.guide, /\btn\b/, ai.guide);
-  assert.doesNotMatch(ai.guide, /\bbn\b|\bbp\b/, ai.guide);
+  assert.match(ai.guide, /\bj32\b[^.]*com2|com2[^.]*\bj32\b/, 'the original "a32 (com2) to tn" through T_A: ' + ai.guide);
+  assert.match(ai.guide, /\bbn\b/, ai.guide);
+  assert.doesNotMatch(ai.guide, /\ba37\b|\btn\b/, ai.guide);
 });
 
 for (const message of [

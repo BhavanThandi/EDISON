@@ -7,6 +7,15 @@
 // columns (test/fixtures/recipe-reflect.js), so a chip seated "f30 right" is
 // seated "f33 left", and runs counter-clockwise seen from above like a real DIP.
 //
+// Ruling 24 supersedes that for the 7-segment display: its face is a digit, and
+// the column reflection turns it upside down on the flipped board (a 180
+// degree turn of the old picture, not a left-right flip). So its guide,
+// recipe and example are the ORIGINAL mapped through T_A (restores the old
+// picture exactly): pins 1-5 on row e running right, body holes and the
+// rail-to-body wires through the row map, BAT1 -> tp_63 / tn_63 kept, and the
+// tp_1 -> bp_1 / tn_1 -> bn_1 bridges present (upright() in
+// test/fixtures/recipe-reflect.js). The TL072 keeps Ruling 21.
+//
 // Pure logic: the recipes' own data, the board model and the geometry. No
 // network, no browser.
 
@@ -15,7 +24,7 @@ const Parts    = require('../circuit3d/js/parts');
 const Board    = require('../circuit3d/js/board-model.js');
 const Geometry = require('../circuit3d/js/board-geometry.js');
 const ORIGINAL = require('./fixtures/recipes-original.js');
-const { reflect, partition } = require('./fixtures/recipe-reflect.js');
+const { reflect, upright, partition } = require('./fixtures/recipe-reflect.js');
 const { recipeActions } = require('./fixtures/recipe-steps.js');
 
 const TYPES = ['tl072', 'seven_segment'];
@@ -24,6 +33,7 @@ const current = type => { const d = Parts.get(type); return listOf({ recipe: d.a
 const original = type => listOf(ORIGINAL[type]);
 
 const CASES = [];
+const REFLECTED = c => c[0] === 'tl072';     // Ruling 21 cases; the 7-segment is Ruling 24 (below)
 for (const type of TYPES) {
   const now = current(type), was = original(type);
   test(`${type}: the app has the same number of recipes and examples as the original (${was.length})`, () => {
@@ -53,10 +63,10 @@ const signedArea = holes => {
   return s / 2;
 };
 
-test('(b) every straddle chip in a recipe or example runs counter-clockwise (pins 1 → N, signed area > 0)', () => {
+test('(b) every TL072 in a recipe or example runs counter-clockwise (pins 1 → N, signed area > 0)', () => {
   const bad = [];
   let chips = 0;
-  for (const [type, ex] of CASES) {
+  for (const [type, ex] of CASES.filter(REFLECTED)) {
     for (const p of ex.parts) {
       if (!Parts.get(p.type).place.straddle) continue;
       chips++;
@@ -64,7 +74,7 @@ test('(b) every straddle chip in a recipe or example runs counter-clockwise (pin
       if (!(area > 0)) bad.push(`${type} "${ex.name}": ${p.label} ${p.holes.join(' ')} has signed area ${area}`);
     }
   }
-  assert.ok(chips >= 5, `sanity: ${chips} chips seen`);
+  assert.ok(chips >= 4, `sanity: ${chips} chips seen`);
   assert.deepStrictEqual(bad, []);
 });
 
@@ -76,9 +86,9 @@ test('(b, sanity) the original chips ran clockwise on the old board, and the rul
 
 // (c) The netlist equals the original's under the reflection: the partition
 // of part pins and off-board terminals into nodes is the same.
-test('(c) each recipe/example has the netlist of the original recipe reflected (same partition of part pins into nodes)', () => {
+test('(c) each TL072 recipe/example has the netlist of the original recipe reflected (same partition of part pins into nodes)', () => {
   const bad = [];
-  for (const [type, ex, orig] of CASES) {
+  for (const [type, ex, orig] of CASES.filter(REFLECTED)) {
     const want = partition(reflect(orig)), got = partition(ex);
     // the original's own partition (reflection keeps nodes), as a check on the helper
     assert.deepStrictEqual(partition(orig), want, `${type} "${orig.name}": reflecting must not change the netlist`);
@@ -89,9 +99,9 @@ test('(c) each recipe/example has the netlist of the original recipe reflected (
 
 // (c') and literally: the same holes, the same wires, the rule's own result.
 const pair = w => w.slice().sort().join(' ~ ');
-test('(c) each recipe/example is exactly the original with its columns reflected: every part\'s holes and every wire', () => {
+test('(c) each TL072 recipe/example is exactly the original with its columns reflected: every part\'s holes and every wire', () => {
   const bad = [];
-  for (const [type, ex, orig] of CASES) {
+  for (const [type, ex, orig] of CASES.filter(REFLECTED)) {
     const want = reflect(orig);
     const holes = e => e.parts.map(p => `${p.label}: ${(p.holes || []).join(' ')}`);
     if (JSON.stringify(holes(ex)) !== JSON.stringify(holes(want))) bad.push(`${type} "${ex.name}" parts:\n  got  ${holes(ex).join(' | ')}\n  want ${holes(want).join(' | ')}`);
@@ -130,4 +140,86 @@ test('(c) the TL072 guide seats the chip as the reflected original: "hole=fC, le
   assert.ok(guide.includes('hole=fC, left'), guide);
   assert.ok(guide.includes('1-4 fC..fC-3'), guide);
   assert.ok(guide.includes('8-5 eC..eC-3'), guide);
+});
+
+
+// ── Ruling 24: the 7-segment recipe and examples are upright ──────────────────
+
+const SEVEN = CASES.filter(c => c[0] === 'seven_segment');
+const holeNames = legs => legs.map(l => l.row + (l.col + 1));
+
+test('7-segment: the app has the digit-7 recipe and the digit-1 example, and each seats the display at e30 facing right (Parts.footprintLegs)', () => {
+  assert.strictEqual(SEVEN.length, 2, SEVEN.map(c => c[1].name).join(' | '));
+  const want = holeNames(Parts.footprintLegs('seven_segment', 'e30', 0));
+  assert.deepStrictEqual(want, ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30']);
+  for (const [, ex] of SEVEN) {
+    assert.deepStrictEqual(ex.parts.find(p => p.type === 'seven_segment').holes, want, ex.name);
+  }
+});
+
+test('7-segment: each recipe/example is exactly the ORIGINAL through T_A: every part\'s holes and every wire, plus the tp_1 -> bp_1 and tn_1 -> bn_1 bridges', () => {
+  const bad = [];
+  for (const [, ex, orig] of SEVEN) {
+    const want = upright(orig);
+    const holes = e => e.parts.map(p => `${p.label}: ${(p.holes || []).join(' ')}`);
+    if (JSON.stringify(holes(ex)) !== JSON.stringify(holes(want))) bad.push(`"${ex.name}" parts:\n  got  ${holes(ex).join(' | ')}\n  want ${holes(want).join(' | ')}`);
+    const wires = e => e.wires.map(pair).sort();
+    if (JSON.stringify(wires(ex)) !== JSON.stringify(wires(want))) bad.push(`"${ex.name}" wires:\n  got  ${wires(ex).join(' | ')}\n  want ${wires(want).join(' | ')}`);
+    // by hand, for the digit-7 recipe: the bridges and the mapped feeds
+    for (const w of ['tp_1 ~ bp_1', 'tn_1 ~ bn_1', 'BAT1.0 ~ tp_63', 'BAT1.1 ~ tn_63']) {
+      if (!wires(ex).includes(w)) bad.push(`"${ex.name}" lacks the wire ${w}`);
+    }
+  }
+  assert.deepStrictEqual(bad, []);
+});
+
+test('7-segment: the netlist equals the original\'s (same partition of part pins into nodes); the two bridges only join the new bp / bn rails to tp / tn', () => {
+  const bad = [];
+  for (const [, ex, orig] of SEVEN) {
+    const got = partition(ex), want = partition(orig);
+    if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(`"${ex.name}":\n  got  ${JSON.stringify(got)}\n  want ${JSON.stringify(want)}`);
+  }
+  assert.deepStrictEqual(bad, []);
+});
+
+// The display's face, from the real geometry. The part (parts/seven_segment.js
+// view.build) turns its face group about y by atan2(-right.z, right.x), right =
+// pin 5 - pin 1 in the world; a bar sits at (x + shift - z * SLANT, z) in that
+// group, with a at z = -H2 (the digit's top) and d at +H2, the dot at
+// (W2 + shift + 0.2 - H2 * SLANT, H2). The screen's up is -z (ROW_Z: larger z is
+// nearer the viewer) and its right is +x (the column).
+const DIGIT_W = 0.78, DIGIT_H = 1.26, SLANT = 0.1, SHIFT = -0.1;
+const W2 = DIGIT_W / 2, H2 = DIGIT_H / 2;
+const BAR_AT = {
+  a:  [0 + SHIFT - (-H2) * SLANT, -H2],
+  d:  [0 + SHIFT - (H2) * SLANT, H2],
+  dp: [W2 + SHIFT + 0.2 - H2 * SLANT, H2],
+};
+function faceOnScreen(holes) {
+  const pts = holes.map(h => ({ x: Number(h.slice(1)) * Geometry.HS, z: Geometry.ROW_Z[h[0]] }));
+  const mid = { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, z: pts.reduce((s, p) => s + p.z, 0) / pts.length };
+  const right = { x: pts[4].x - pts[0].x, z: pts[4].z - pts[0].z };
+  const th = Math.atan2(-right.z, right.x);
+  const out = {};
+  for (const [name, [lx, lz]] of Object.entries(BAR_AT)) {
+    out[name] = { x: mid.x + lx * Math.cos(th) + lz * Math.sin(th), up: -(mid.z - lx * Math.sin(th) + lz * Math.cos(th)) };
+  }
+  return out;
+}
+
+test('7-segment (sanity of the face helper): the old f39 left seat has segment a BELOW segment d (the "7" read as "L"), e30 right has it above', () => {
+  const left = faceOnScreen(['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39']);
+  assert.ok(left.a.up < left.d.up, JSON.stringify(left));
+  const right = faceOnScreen(holeNames(Parts.footprintLegs('seven_segment', 'e30', 0)));
+  assert.ok(right.a.up > right.d.up, JSON.stringify(right));
+});
+
+test('the 7-segment face is upright in every recipe and example: segment a projects above segment d, the decimal point at the bottom right', () => {
+  const bad = [];
+  for (const [, ex] of SEVEN) {
+    const f = faceOnScreen(ex.parts.find(p => p.type === 'seven_segment').holes);
+    if (!(f.a.up > f.d.up)) bad.push(`"${ex.name}": segment a is not above d (screen up a ${f.a.up.toFixed(2)}, d ${f.d.up.toFixed(2)})`);
+    if (!(f.dp.up < f.a.up && f.dp.x > f.a.x && f.dp.x > f.d.x)) bad.push(`"${ex.name}": the dot is not at the bottom right: ${JSON.stringify(f)}`);
+  }
+  assert.deepStrictEqual(bad, []);
 });

@@ -126,3 +126,28 @@ test("an unknown part type's holeRefs mirror too", () => {
   assert.equal(out.components[0].holeRefs[0].row, 'i');
   assert.equal(out.components[0].holeRefs[0].col, 1);
 });
+
+// Ruling 27: a null (or undefined) record is returned as it is, so a
+// file with a hole in its component or wire list loads as it did before the
+// migration (the loader turns the null into a placeholder), and the records
+// around it still migrate.
+test('migrateRecords keeps null and undefined records as they are and migrates the others', () => {
+  const comp = { type: 'resistor', label: 'R1', holeRefs: [ref('lead1', 4, 'b'), ref('lead2', 8, 'tp')] };
+  const wire = { startHole: { col: 3, row: 'a' }, endHole: { col: 9, row: 'bn' }, color: 'red' };
+  const out = BM.migrateRecords({ components: [null, comp], wires: [null, wire] });
+  assert.equal(out.components.length, 2);
+  assert.equal(out.wires.length, 2);
+  assert.strictEqual(out.components[0], null);
+  assert.strictEqual(out.wires[0], null);
+  assert.deepStrictEqual(out.components[1].holeRefs, [ref('lead1', 4, 'i'), ref('lead2', 8, 'bp')]);
+  assert.equal(out.components[1].v, 2);
+  assert.deepStrictEqual(out.wires[1].startHole, { col: 3, row: 'j' });
+  assert.deepStrictEqual(out.wires[1].endHole, { col: 9, row: 'tn' });
+  assert.equal(out.wires[1].v, 2);
+
+  const odd = BM.migrateRecords({ components: [undefined, comp], wires: [undefined, wire] });
+  assert.strictEqual(odd.components[0], undefined);
+  assert.strictEqual(odd.wires[0], undefined);
+  assert.equal(odd.components[1].holeRefs[0].row, 'i');
+  assert.equal(odd.wires[1].startHole.row, 'j');
+});

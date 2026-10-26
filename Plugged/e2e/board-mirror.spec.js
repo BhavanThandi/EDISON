@@ -36,8 +36,8 @@ const holesOf = page => page.evaluate(() => {
 const directionOfChip = page => page.evaluate(() => {
   const c = App.state.components.find(x => x.type === 'tl072');
   const want = (App.saveHoleRefs(c) || []).map(r => r.row + (r.col + 1)).join();
-  return Object.keys(Chat.ROTATION).find(dir => {
-    const legs = Parts.footprintLegs('tl072', want.split(',')[0], Chat.ROTATION[dir]);
+  return Object.keys(SparkyChat.ROTATION).find(dir => {
+    const legs = Parts.footprintLegs('tl072', want.split(',')[0], SparkyChat.ROTATION[dir]);
     return legs && legs.map(l => l.hole).join() === want;
   }) || null;
 });

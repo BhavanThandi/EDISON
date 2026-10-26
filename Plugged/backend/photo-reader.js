@@ -180,15 +180,34 @@ function retryDelayMs(text) {
   }
 }
 
-// POSTs JSON; a non-2xx throws, fatal on 400/401/403 (a bad request or key),
+// The per-request usage tally: every HTTP request sent to Gemini, the 429s
+// and the tokens its replies report (usageMetadata; a missing field adds 0).
+const USAGE_KEYS = ['calls', 'http429', 'promptTokens', 'outputTokens', 'thoughtTokens'];
+function newTally() { return { retries: 0, calls: 0, http429: 0, promptTokens: 0, outputTokens: 0, thoughtTokens: 0 }; }
+function usageOf(tally) {
+  const t = tally || {};
+  return Object.fromEntries(USAGE_KEYS.map(k => [k, Number(t[k]) || 0]));
+}
+function tallyUsage(tally, data) {
+  const u = obj(obj(data).usageMetadata);
+  const n = v => (Number.isFinite(v) && v > 0 ? v : 0);
+  tally.promptTokens  += n(u.promptTokenCount);
+  tally.outputTokens  += n(u.candidatesTokenCount);
+  tally.thoughtTokens += n(u.thoughtsTokenCount);
+}
+
+// POSTs JSON (ctx.tally, when given, counts the request, a 429 and the usage); a non-2xx throws, fatal on 400/401/403 (a bad request or key),
 // with a 429's retryDelay as retryAfterMs. No error quotes the upstream
 // body: they end up in the logs.
 async function postJSON(ctx, signal, who, url, headers, body) {
+  const tally = ctx.tally && Object.assign(ctx.tally, Object.fromEntries(USAGE_KEYS.filter(k => !(k in ctx.tally)).map(k => [k, 0])));
+  if (tally) tally.calls++;
   const res = await ctx.fetch(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
   if (!res.ok) {
     const e = failed(`${who} ${res.status}`);
     if ([400, 401, 403].includes(res.status)) e.fatal = true;
     if (res.status === 429) {
+      if (tally) tally.http429++;
       let text = '';
       try { text = await res.text(); } catch { /* no body: the usual wait */ }
       e.retryAfterMs = retryDelayMs(text);
@@ -196,7 +215,10 @@ async function postJSON(ctx, signal, who, url, headers, body) {
     throw e;
   }
   const text = await res.text();
-  try { return JSON.parse(text); } catch { throw failed(`${who}: the reply is not JSON`); }
+  let data;
+  try { data = JSON.parse(text); } catch { throw failed(`${who}: the reply is not JSON`); }
+  if (tally) tallyUsage(tally, data);   // counted even if the reply is then rejected: the tokens were spent
+  return data;
 }
 
 // ── Gemini's retry rule (#172), for both photo rounds ────────
@@ -214,8 +236,8 @@ async function postJSON(ctx, signal, who, url, headers, body) {
 // opts.signal aborts the race (the deadline); opts.slot(run, kind) runs run()
 // once a call may go out (the crop round's cap; kind is 'first', 'retry' or
 // 'resend') and run returns the call's promise, or null when the race ended
-// while it waited. stats ({ calls,
-// retries, resent, why }) is kept up to date, opts.stats when given.
+// while it waited. stats ({ retries, resent, why }) is kept up to date,
+// opts.stats when given (calls are counted by postJSON, in ctx.tally).
 // Returns { result, stop(reason), stats }. result rejects with the last
 // error (.fatal, or .spent when every call failed) or the abort's reason.
 const BOX_MAX_CALLS = 4;
@@ -225,7 +247,7 @@ function raceGemini(call, opts = {}) {
   const hedge  = opts.hedgeMs > 0 ? opts.hedgeMs : photoHedgeMs();
   const parent = opts.signal;
   const slot   = opts.slot || (run => run());   // (run, kind)
-  const stats  = Object.assign(opts.stats || {}, { calls: 0, retries: 0, resent: false, why: '' });
+  const stats  = Object.assign(opts.stats || {}, { retries: 0, resent: false, why: '' });
   const sent   = [];   // { ctrl, live, hedge }
   let settled = false, waiting = false, hedged = false, retry = null, resolve, reject;
   const result = new Promise((res, rej) => { resolve = res; reject = rej; });
@@ -250,7 +272,6 @@ function raceGemini(call, opts = {}) {
       if (settled) return null;
       const c = { ctrl: new AbortController(), live: true };
       sent.push(c);
-      stats.calls++;
       if (kind === 'retry') stats.retries++;
       if (kind === 'resend') stats.resent = true;
       c.hedge = setTimeout(() => stalled(c), hedge);
@@ -497,15 +518,15 @@ async function readPhoto(input, opts = {}) {
   const key         = fixtureKey(input);
   const replayOnly  = names.length === 1 && (names[0] === 'fixture' || names[0] === fixtureProvider);
   const deadlineMs  = opts.deadlineMs || photoTimeoutMs();
-  const tally       = { retries: 0 };
+  const tally       = newTally();
   const ctxBase     = { fetch: opts.fetch || globalThis.fetch, fixturesDir, key, tally, deadlineAt: Date.now() + deadlineMs };
-  const counted     = e => Object.assign(e, { retries: tally.retries });
+  const counted     = e => Object.assign(e, { retries: tally.retries, usage: usageOf(tally) });
 
   const fromFixture = fallback => {
     const file = loadFixture(fixturesDir, key);
     if (!file) return null;
     const { reading, notes } = validateReading(file.reading);
-    return { reading, provider: 'fixture', model: file.model, fallback, notes, key, retries: tally.retries };
+    return { reading, provider: 'fixture', model: file.model, fallback, notes, key, retries: tally.retries, usage: usageOf(tally) };
   };
 
   // Use sample photo (the demo's photo beat, and the button on every photo
@@ -525,7 +546,7 @@ async function readPhoto(input, opts = {}) {
         try {
           const got = await p.read(input, { ...ctxBase, signal });
           const { reading, notes } = validateReading(got && got.reading);
-          return { reading, provider: p.name, model: got.model, fallback: i > 0 || got.fallback === true, notes, key, retries: tally.retries };
+          return { reading, provider: p.name, model: got.model, fallback: i > 0 || got.fallback === true, notes, key, retries: tally.retries, usage: usageOf(tally) };
         } catch (e) {
           console.warn(`photo: ${p.name} failed: ${e.message}`);
           if (signal.aborted) throw e;
@@ -556,6 +577,6 @@ async function readPhoto(input, opts = {}) {
 module.exports = {
   readPhoto, validateReading, parseLooseJSON, PROVIDERS, isSafeId,
   // Shared with photo-leads.js (#159, #172).
-  GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini,
+  GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
   loadFixture, failed, num, obj, list,
 };

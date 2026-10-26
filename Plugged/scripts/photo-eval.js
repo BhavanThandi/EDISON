@@ -229,6 +229,7 @@ async function readNet(r, n) {
     Object.assign(n, { provider: d.provider, model: d.model });
     if (Array.isArray(d.items)) n.items = { n: d.items.length, timeout: d.items.filter(x => x.error === 'AI_TIMEOUT').length, failed: d.items.filter(x => x.error === 'AI_FAILED').length };
     if (d.code) n.code = d.code;
+    if (d.usage) n.usage = d.usage;
   } catch { /* not JSON */ }
 }
 
@@ -300,17 +301,32 @@ async function runPhoto(browser, base, photo, shots, tag) {
 const frac = (a, b) => `${a}/${b}`;
 const secs = ms => (ms == null ? '-' : (ms / 1000).toFixed(1));
 
+// Calls, 429s, tokens in and tokens out (thought included) over a photo's two responses.
+function usageSum(net) {
+  const t = { calls: 0, http429: 0, tokensIn: 0, tokensOut: 0 };
+  for (const k of ['/api/photo', '/api/photo/leads']) {
+    const u = (net && net[k] && net[k].usage) || {};
+    t.calls += Number(u.calls) || 0;
+    t.http429 += Number(u.http429) || 0;
+    t.tokensIn += Number(u.promptTokens) || 0;
+    t.tokensOut += (Number(u.outputTokens) || 0) + (Number(u.thoughtTokens) || 0);
+  }
+  return t;
+}
+
 function row(r) {
+  const us = usageSum(r.net);
   const s = r.score, p = r.net['/api/photo'] || {}, l = r.net['/api/photo/leads'] || {};
   const leads = l.items ? `${(l.s || 0).toFixed(1)}s ${l.items.n - l.items.timeout - l.items.failed}/${l.items.n}${l.items.timeout ? ` t${l.items.timeout}` : ''}${l.items.failed ? ` f${l.items.failed}` : ''}` : (l.status ? String(l.status) : '-');
   return [r.id + (r.run > 1 ? `#${r.run}` : ''), secs(r.ms), secs(r.placedMs), p.status ? `${p.status} ${p.provider || p.code || ''} ${(p.s || 0).toFixed(1)}s` : '-', leads,
           s ? frac(s.parts.found, s.parts.truth) : '-', s ? frac(s.legs.right, s.legs.total) : '-',
           s ? frac(s.wires.found, s.wires.truth) : '-', s ? frac(s.ends.right, s.ends.total) : '-',
-          s ? String(s.parts.invented + s.wires.invented) : '-', r.outcome === 'ok' ? '' : r.outcome];
+          s ? String(s.parts.invented + s.wires.invented) : '-',
+          String(us.calls), String(us.http429), String(us.tokensIn), String(us.tokensOut), r.outcome === 'ok' ? '' : r.outcome];
 }
 
 function table(rows) {
-  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'failure'];
+  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'calls', '429', 'tok in', 'tok out', 'failure'];
   const all = [head, ...rows];
   const w = head.map((_, i) => Math.max(...all.map(r => String(r[i]).length)));
   return all.map(r => r.map((c, i) => String(c).padEnd(w[i])).join('  ').trimEnd()).join('\n');
@@ -324,7 +340,12 @@ function totals(results) {
     return times.length ? [Math.round(times[Math.floor((times.length - 1) / 2)] / 100) / 10, Math.round(times[times.length - 1] / 100) / 10] : [null, null];
   };
   const [medianS, maxS] = spread('ms'), [placedMedianS, placedMaxS] = spread('placedMs');
+  const us = results.map(r => usageSum(r.net));
+  const usum = k => us.reduce((n, u) => n + u[k], 0);
+  const tokensIn = usum('tokensIn'), tokensOut = usum('tokensOut');
   return {
+    calls: usum('calls'), http429: usum('http429'), tokensIn, tokensOut,
+    costUsd: tokensIn / 1e6 * 1 + tokensOut / 1e6 * 5,   // $1/M in, $5/M out (thinking included)
     photos: results.length, failures: results.length - ok.length,
     placedTimeouts: results.filter(r => r.outcome.startsWith('PLACED_TIMEOUT')).length,
     medianS, maxS, placedMedianS, placedMaxS,
@@ -388,13 +409,14 @@ async function main() {
   console.log(`\n${t.photos} runs, ${t.failures} failed${t.placedTimeouts ? `, ${t.placedTimeouts} placing timed out` : ''} · ` +
     `confirm screen median ${t.medianS}s, max ${t.maxS}s · legs placed median ${t.placedMedianS}s, max ${t.placedMaxS}s · ` +
     `parts ${t.parts.found}/${t.parts.truth} · legs ${t.legs.right}/${t.legs.total} · wires ${t.wires.found}/${t.wires.truth} · ` +
-    `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known}`);
+    `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known} · ` +
+    `${t.calls} Gemini calls, ${t.http429} 429s, ${t.tokensIn} tokens in, ${t.tokensOut} out · est. $${t.costUsd.toFixed(4)}`);
   if (args.out) {
     fs.writeFileSync(args.out, JSON.stringify({ at: new Date().toISOString(), args, totals: t, results }, null, 1));
     console.log(`wrote ${args.out}`);
   }
 }
 
-module.exports = { nodeOf, shared, pair, score, webRails, webHole, webCorners, loadSet, parseArgs };
+module.exports = { nodeOf, shared, pair, score, row, table, totals, webRails, webHole, webCorners, loadSet, parseArgs };
 
 if (require.main === module) main();

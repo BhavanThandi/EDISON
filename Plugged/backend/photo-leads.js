@@ -40,7 +40,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini,
+const { GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
         loadFixture, parseLooseJSON, isSafeId, failed, num, obj, list } = require('./photo-reader');
 const { PHOTO_CROP_PROMPT, PHOTO_CROP_SCHEMA } = require('./photo-prompt');
 
@@ -127,11 +127,12 @@ async function askGemini(items, model, fetch, settle, signal) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('photo-leads: GEMINI_API_KEY is not set');
-    return { entries: items.map(it => settle({ id: it.id, error: 'AI_FAILED' })), resent: 0, retries: 0, ok: 0 };
+    return { entries: items.map(it => settle({ id: it.id, error: 'AI_FAILED' })), resent: 0, retries: 0, ok: 0, usage: usageOf() };
   }
   if (signal && signal.aborted) {   // nobody is listening: send nothing
-    return { entries: items.map(it => settle({ id: it.id, error: 'AI_TIMEOUT' })), resent: 0, retries: 0, ok: 0 };
+    return { entries: items.map(it => settle({ id: it.id, error: 'AI_TIMEOUT' })), resent: 0, retries: 0, ok: 0, usage: usageOf() };
   }
+  const tally = newTally();
   const who = `gemini ${model}`, url = `${GEMINI_BASE}${model}:generateContent`;
   const slot = limiter(concurrency()), hedgeMs = photoHedgeMs(), deadlineAt = Date.now() + cutoffMs();
   const runs = items.map(item => {
@@ -140,7 +141,7 @@ async function askGemini(items, model, fetch, settle, signal) {
       generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_CROP_SCHEMA, temperature: 1, maxOutputTokens: 32768 },
     };
     const call = async signal => {
-      const data = await postJSON({ fetch }, signal, who, url, { 'x-goog-api-key': apiKey }, body);
+      const data = await postJSON({ fetch, tally }, signal, who, url, { 'x-goog-api-key': apiKey }, body);
       return toEntry(item, parseLooseJSON(geminiText(data, who)));
     };
     return raceGemini(call, { maxCalls: CROP_MAX_CALLS, hedgeMs, deadlineAt, slot });
@@ -160,7 +161,7 @@ async function askGemini(items, model, fetch, settle, signal) {
   const whys = [...new Set(runs.filter((r, i) => lost.has(i) && r.stats.why).map(r => r.stats.why))];
   if (whys.length) console.warn(`photo-leads: ${lost.size} item(s) unanswered: ${whys.join('; ')}`);
   return { entries, resent: runs.filter(r => r.stats.resent).length, retries: runs.reduce((n, r) => n + r.stats.retries, 0),
-           ok: items.length - lost.size };
+           ok: items.length - lost.size, usage: usageOf(tally) };
 }
 
 function record(dir, key, model, items) {
@@ -183,7 +184,7 @@ async function readLeads(body, opts = {}) {
   const names       = photoProviders();
   const replayOnly  = names.length === 1 && names[0] === 'fixture';
   const recording   = process.env.PHOTO_RECORD === '1';
-  const done = (out, provider, model, resent = 0, retries = 0) => ({ items: out, provider, model, ms: Date.now() - started, resent, retries });
+  const done = (out, provider, model, resent = 0, retries = 0, usage = usageOf()) => ({ items: out, provider, model, ms: Date.now() - started, resent, retries, usage });
   const report = e => {   // the caller's onItem never breaks the round
     try { if (typeof opts.onItem === 'function') opts.onItem(e); } catch (err) { console.warn('photo-leads: onItem threw:', err.message); }
     return e;
@@ -204,8 +205,8 @@ async function readLeads(body, opts = {}) {
   const live  = await askGemini(items, model, opts.fetch || globalThis.fetch, settle, opts.signal);
   const out   = live.entries;
   if (recording && live.ok && isSafeId(key)) record(fixturesDir, key, model, out.filter(e => !e.error));
-  return live.ok === 0 && fromFile ? done(out, 'fixture', file.model, live.resent, live.retries)
-    : done(out, 'gemini', model, live.resent, live.retries);
+  return live.ok === 0 && fromFile ? done(out, 'fixture', file.model, live.resent, live.retries, live.usage)
+    : done(out, 'gemini', model, live.resent, live.retries, live.usage);
 }
 
 module.exports = { readLeads };

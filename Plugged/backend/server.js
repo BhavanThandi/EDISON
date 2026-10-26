@@ -20,7 +20,7 @@ const fs   = require('fs');
 const path = require('path');
 const { Readable, pipeline } = require('stream');
 const { makeAsk, isFixRequest } = require('./ai-providers');
-const { readPhoto, isSafeId } = require('./photo-reader');
+const { readPhoto, isSafeId, usageOf } = require('./photo-reader');
 const { readLeads } = require('./photo-leads');
 const Voice = require('./voice');
 // The board's size: the same file the 3D editor builds the board from.
@@ -1793,12 +1793,14 @@ const isPhotoGrid    = g => !!g && typeof g === 'object' && (g.cols === 30 || g.
 
 // The one [photo] line per request. Never the image or an upstream body;
 // a sample that isn't a plain id is shown as '?'.
-function logPhoto({ sample, out, error, started, bytes, retries }) {
+function logPhoto({ sample, out, error, started, bytes, retries, usage }) {
   const id = sample === undefined || sample === null ? '-' : isSafeId(sample) ? sample : '?';
   const r  = out && out.reading;
+  const u  = usageOf(out ? out.usage : usage);
   console.log(`[photo] sample=${id} provider=${out ? out.provider : '-'} model=${out ? out.model : '-'} ` +
     `${((Date.now() - started) / 1000).toFixed(1)}s parts=${r ? r.parts.length : 0} wires=${r ? r.wires.length : 0} ` +
     `fallback=${out && out.fallback ? 'yes' : 'no'} retries=${(out ? out.retries : retries) || 0} ` +
+    `calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} ` +
     `${Math.round(bytes / 1024)}KB${error ? ` error=${error}` : ''}`);
 }
 
@@ -1814,7 +1816,7 @@ async function handlePhoto(req, res) {
   let input;
   try { input = JSON.parse(body || '{}'); } catch { input = {}; }
   const { image, grid, sample } = input && typeof input === 'object' ? input : {};
-  const fail = (code, out, retries) => { logPhoto({ sample, out, error: code, started, bytes, retries }); return photoError(res, code); };
+  const fail = (code, out, retries, usage) => { logPhoto({ sample, out, error: code, started, bytes, retries, usage }); return photoError(res, code); };
   if (!isPhotoDataUrl(image)) return fail('BAD_IMAGE');
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
 
@@ -1822,11 +1824,11 @@ async function handlePhoto(req, res) {
   try {
     out = await readPhoto({ image, grid, sample });
   } catch (e) {
-    return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries);
+    return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries, e.usage);
   }
   if (out.reading.board.visible === false) return fail('NO_BOARD', out);
   logPhoto({ sample, out, started, bytes });
-  return sendJSON(res, 200, { reading: out.reading, provider: out.provider, model: out.model, ms: Date.now() - started, key: out.key });
+  return sendJSON(res, 200, { reading: out.reading, provider: out.provider, model: out.model, ms: Date.now() - started, key: out.key, usage: usageOf(out.usage) });
 }
 
 // ── /api/photo/leads ─────────────────────────────────────────
@@ -1849,10 +1851,11 @@ const isLeadsItem   = it => !!it && typeof it === 'object' && typeof it.id === '
 // a key that isn't a plain id is shown as '?'.
 function logLeads({ key, count, out, error, started, bytes }) {
   const id = key === undefined || key === null ? '-' : isSafeId(key) ? key : '?';
+  const u  = usageOf(out && out.usage);
   const n  = code => (out ? out.items.filter(x => x.error === code).length : 0);
   console.log(`[photo-leads] key=${id} items=${count} ok=${out ? out.items.filter(x => !x.error).length : 0} ` +
     `timeout=${n('AI_TIMEOUT')} failed=${n('AI_FAILED')} resent=${out ? out.resent || 0 : 0} retries=${out ? out.retries || 0 : 0} ` +
-    `provider=${out ? out.provider : '-'} ` +
+    `provider=${out ? out.provider : '-'} calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} ` +
     `${((Date.now() - started) / 1000).toFixed(1)}s ${(bytes / 1048576).toFixed(1)}MB${error ? ` error=${error}` : ''}`);
 }
 
@@ -1897,9 +1900,9 @@ async function handleLeads(req, res) {
     out = { items: items.map(it => ({ id: it.id, error: 'AI_FAILED' })), provider: null, model: null };
   }
   logLeads({ key, count, out, started, bytes });
-  if (!stream) return sendJSON(res, 200, { items: out.items, provider: out.provider, model: out.model, ms: Date.now() - started });
+  if (!stream) return sendJSON(res, 200, { items: out.items, provider: out.provider, model: out.model, ms: Date.now() - started, usage: usageOf(out.usage) });
   for (const e of out.items) if (!sent.has(e.id)) line(e);   // every id gets its line
-  line({ done: true, provider: out.provider, model: out.model, ms: Date.now() - started });
+  line({ done: true, provider: out.provider, model: out.model, ms: Date.now() - started, usage: usageOf(out.usage) });
   if (!res.writableEnded && !res.destroyed) res.end();
 }
 

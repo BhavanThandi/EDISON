@@ -29,7 +29,7 @@ const BoardIO = require('../circuit3d/js/board-io.js');
 const Sim     = require('../circuit3d/js/simulate.js');
 const Ids     = require('../circuit3d/js/ids.js');
 const { recipeActions, parseRecipeSteps } = require('./fixtures/recipe-steps.js');
-const { reflect, span } = require('./fixtures/recipe-reflect.js');
+const { reflect } = require('./fixtures/recipe-reflect.js');
 
 const N    = require('../circuit3d/js/board-geometry.js').COLS;   // 63
 const ROWS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];

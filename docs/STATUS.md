@@ -2,7 +2,7 @@
 
 **Read this first when you pick the project up on any machine.** It's the shared memory: where things stand, what's next, what we learned, and how Aarmen likes to work. Claude Code's own memory lives on one laptop only, so anything worth keeping goes here. Update it at the end of each session (Claude: do it as part of wrapping up).
 
-*Last updated: 2026-10-25, Mac session.*
+*Last updated: 2026-10-26, Mac session.*
 
 ## 2026-10-26: mirror fix shipped
 - Row a and tp / tn are now nearest the viewer; footprint rows run toward a; camera FOV is 48. Details: "Key decisions" in `docs/ARCHITECTURE.md` and "Board handedness" in `docs/API-CONTRACT.md`.

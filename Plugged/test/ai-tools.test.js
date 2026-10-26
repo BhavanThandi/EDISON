@@ -160,12 +160,15 @@ test('the prompt has value lines built from each ValueSpec', () => {
 });
 
 // Issue #51: two circuits, two batteries, on separate rails.
-test('the prompt puts a second battery on the bottom rails (bp_N/bn_N) with its parts in rows f–j', () => {
+test('the prompt puts a second battery on the other rails (bp_N/bn_N), beside row j, with its parts in rows f–j', () => {
   const line = lineWith(prompt(), /second battery/i);
   assert.ok(line, 'no line about a second battery');
   assert.match(line, /\bbp_/);
   assert.match(line, /\bbn_/);
   assert.match(line, /\bf\s*[–-]\s*j\b/);
+  assert.match(line, /goes on the other rails/);
+  assert.match(line, /beside row j/);
+  assert.doesNotMatch(line, /bottom rails|nearest row j/);
 });
 
 // Guard: the recipes, battery rules, wiring rules and board layout stay
@@ -182,7 +185,7 @@ test('the prompt puts a second battery on the bottom rails (bp_N/bn_N) with its 
 const VERBATIM = [
   `You are Edison, a friendly AI electronics tutor. You help beginners build circuits on a virtual ${TOTAL_HOLES}-point breadboard.`,
   "BREADBOARD LAYOUT:",
-  `- Columns 1-${COLS}. Rows a/b/c/d/e = top half. Rows f/g/h/i/j = bottom half.`,
+  `- Columns 1-${COLS}. Rows a/b/c/d/e = bottom half. Rows f/g/h/i/j = top half.`,
   "- Same column + same half = electrically connected (e.g. a14 and e14 share a node).",
   "- The CENTER CHANNEL separates top from bottom. a14 and f14 are NOT connected unless you wire them.",
   "- tp_N = positive (+) power rail at column N. tn_N = GND rail at column N.",

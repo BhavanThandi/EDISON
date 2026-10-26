@@ -97,6 +97,13 @@ test('the AI board description calls bp the + and bn the − bottom rail, names 
     `bn should be the negative (−) bottom rail: "${bn}"`);
   assert.doesNotMatch(bn, /\b(GND|ground)\b/i, `bn should not be called GND: "${bn}"`);
   assert.doesNotMatch(text, /bn = positive/);
+  // Mirror fix (Ruling 19): rails are named by the row they sit beside, not top/bottom.
+  for (const line of [
+    '- To connect the a-e half to the f-j half of the SAME column, you MUST add a wire.',
+    '- tp = positive rail beside row a (+), tn = negative rail beside row a (GND).',
+    '- bp = positive rail beside row j (+), bn = negative rail beside row j (−).',
+  ]) assert.ok(text.split('\n').includes(line), `the board description lacks "${line}":\n${text}`);
+  assert.doesNotMatch(text, /top rail|bottom rail|top half|bottom half/);
   const server = fs.readFileSync(path.join(__dirname, '..', 'backend', 'server.js'), 'utf8');
   assert.match(server, /bp_N \(\+\) and bn_N \(−\)/, 'the server prompt should put + on bp and − on bn');
 });

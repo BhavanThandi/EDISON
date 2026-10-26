@@ -12,6 +12,15 @@ const promptText = () => {
   return Server.SYSTEM_PROMPT;
 };
 
+// Mirror fix (Task 4): row a is nearest the viewer, so rows a–e are the bottom
+// half of the screen and f–j the top half.
+test('the system prompt says rows a–e are the bottom half', () => {
+  const prompt = promptText();
+  assert.ok(prompt.includes('Rows a/b/c/d/e = bottom half'), 'the layout line names rows a/b/c/d/e as the bottom half');
+  assert.ok(prompt.includes('Rows f/g/h/i/j = top half'), 'the layout line names rows f/g/h/i/j as the top half');
+  assert.ok(!prompt.includes('a/b/c/d/e = top half'), 'rows a–e are no longer called the top half');
+});
+
 test('finishAIReply drops malformed actions, fills an empty reply and flags an unwired battery', () => {
   const out = Server.finishAIReply({ reply: '', actions: [
     { tool: 'place_battery' },

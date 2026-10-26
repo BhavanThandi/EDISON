@@ -24,9 +24,9 @@
     return `## Breadboard topology (always true)
 - Columns 1-${COLS}. Holes ${t0}1-${t1}1 share one node; ${b0}1-${b1}1 share another node (center channel divides them).
 - Same rule for every column: ${t0}-${t1} connected together, ${b0}-${b1} connected together.
-- To connect top half (${t0}-${t1}) to bottom half (${b0}-${b1}) of the SAME column, you MUST add a wire.
-- tp = positive top rail (+), tn = negative top rail (GND).
-- bp = positive bottom rail (+), bn = negative bottom rail (−).
+- To connect the ${t0}-${t1} half to the ${b0}-${b1} half of the SAME column, you MUST add a wire.
+- tp = positive rail beside row ${t0} (+), tn = negative rail beside row ${t0} (GND).
+- bp = positive rail beside row ${b1} (+), bn = negative rail beside row ${b1} (−).
 - Rails are NOT connected to body rows — you must wire from rail to a body hole explicitly.
 - ${GEOMETRY.TOTAL_HOLES} holes total: ${COLS} columns × ${ALL_ROWS.length} rows.`;
   };

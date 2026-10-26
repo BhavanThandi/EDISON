@@ -10,6 +10,7 @@ These are the prompts we send to Edison's AI to check that it builds circuits th
 - Pass 3/3: 01, 13, 14. Pass 2/3: 08 (one dangling wire).
 - Fail 3/3: 02, 03, 05, 06, 07, 09, 10, 11 (TL072 pins mixed up: + and − inputs swapped, probes on the wrong column, a wire across the feedback resistor; idle legs and dangling wires), 04 (built without the TL072 or the supply), 12 (LED current outside 5–20 mA), 15 and 16 (logic).
 **Reasoning on (#205), deepseek-flash, `DEEPSEEK_THINKING=1`, 2026-10-03: 24/48 runs pass** (11/48 with reasoning off). Median 36.6 s per build (8–195 s); about 0.6¢ a build.
+**Post-mirror (board flipped: a–e bottom half, f–j top half; TL072 / 7-segment recipes and prompt rows in the new handedness), deepseek-flash, thinking on, 2026-10-26: 37/48 runs pass.** Median 20.0 s per build. Demo (`--only demo`): 3/3, median 6.8 s. Pass 3/3: 01–05, 09, 10, 13–15; 2/3: 06, 07, 08; 1/3: 11; 0/3: 12, 16.
 
 | Case | Off | On | Seconds | What failed (reasoning on) |
 |---|---|---|---|---|

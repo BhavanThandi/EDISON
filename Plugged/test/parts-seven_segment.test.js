@@ -543,18 +543,19 @@ test("ai: keywords include 7 segment, seven segment, digit display, number displ
   assert.match(ai.guide, /common pins go to ground/i, ai.guide);
 });
 
-// #43 follow-up: from the compressed "e d com1 c dp on f30–f34" the model
+// #43 follow-up: from the compressed "e d com1 c dp on e30–e34" the model
 // mis-mapped letters to columns. The guide names each pin's hole for the
-// documented placement, pin then hole ("a e33", "a=e33" or "a: e33").
-test('the guide has a pin→hole table for hole f30 facing right: all 10 pins, each with its hole, in ≤ 400 characters', () => {
+// documented placement, pin then hole ("a f33", "a=f33" or "a: f33").
+// (Mirrored board: the old hole f30 is now e30, every literal through mirrorHoleName.)
+test('the guide has a pin→hole table for hole e30 facing right: all 10 pins, each with its hole, in ≤ 400 characters', () => {
   const { ai } = seg();
   assert.ok(ai.guide.length <= 400, `at most 400 characters; got ${ai.guide.length}`);
-  assert.match(ai.guide, /\bf30\b/, ai.guide);
+  assert.match(ai.guide, /\be30\b/, ai.guide);
   assert.match(ai.guide, /\bright\b/, ai.guide);
-  const legs = Parts.footprintLegs('seven_segment', 'f30', 0);
+  const legs = Parts.footprintLegs('seven_segment', 'e30', 0);
   const pairs = legs.map(l => [l.pin, l.row + (l.col + 1)]);
-  assert.deepStrictEqual(pairs, [['e', 'f30'], ['d', 'f31'], ['com1', 'f32'], ['c', 'f33'], ['dp', 'f34'],
-                                 ['b', 'e34'], ['a', 'e33'], ['com2', 'e32'], ['f', 'e31'], ['g', 'e30']]);
+  assert.deepStrictEqual(pairs, [['e', 'e30'], ['d', 'e31'], ['com1', 'e32'], ['c', 'e33'], ['dp', 'e34'],
+                                 ['b', 'f34'], ['a', 'f33'], ['com2', 'f32'], ['f', 'f31'], ['g', 'f30']]);
   const missing = pairs.filter(([pin, hole]) => !new RegExp(`(^|[^a-z0-9])${pin}\\s*[:=]?\\s*${hole}(?![0-9])`).test(ai.guide))
     .map(([pin, hole]) => `${pin} ${hole}`);
   assert.deepStrictEqual(missing, [], `the guide should name each pin's hole ("${missing.join('", "')}" missing): ${ai.guide}`);

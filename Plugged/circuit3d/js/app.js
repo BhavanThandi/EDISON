@@ -774,7 +774,7 @@
 
     // Build a raw serializable state (cols/rows, not world coords)
     const data = {
-      version:   1,
+      version:   App.BoardMirror.RECORD_VERSION,
       name,
       thumbnail: captureIsometricThumb(),
       // A part this build doesn't know is written back as it was loaded.
@@ -782,6 +782,7 @@
         const rec = {
           type:     c.type,
           id:       App.componentId(state.components, c),
+          v:        App.BoardMirror.RECORD_VERSION,
           label:    c.label,             // on each part, never at file level
           values:   c.values,
           holeRefs: App.saveHoleRefs(c), // with pin names; null for battery
@@ -839,6 +840,9 @@
   // Rebuild components and wires from serialized data onto a cleared board.
   function rebuildBoard(data) {
     const bb = state.breadboard;
+    // Records saved before v: 2 sit on the old board; open them through T_A.
+    // Current records pass through unchanged, so undo snapshots are not flipped twice.
+    data = data && typeof data === 'object' ? App.BoardMirror.migrateRecords(data) : {};
 
     // Rebuild components
     // One slot per saved part, so the wires below still find their parts by
@@ -1196,6 +1200,7 @@
     return {
       components: App.recordsFor(state.components, c => {
         const rec = {
+          v:        App.BoardMirror.RECORD_VERSION,
           type:     c.type,
           label:    c.label,
           values:   c.values,
@@ -1224,6 +1229,7 @@
   // parts this build doesn't know, re-pointed at where those parts now sit.
   function wireRecords() {
     return state.wires.map(w => Object.assign(App.wireRecord(w, state.components), {
+      v: App.BoardMirror.RECORD_VERSION,
       color: w.group?.children?.[0]?.material?.color?.getHex?.() ?? state.wireColor,
     })).concat(App.unknownWireRecords(state.unknownWires, state.components));
   }

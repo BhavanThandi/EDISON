@@ -2,7 +2,26 @@
 
 **Read this first when you pick the project up on any machine.** It's the shared memory: where things stand, what's next, what we learned, and how Aarmen likes to work. Claude Code's own memory lives on one laptop only, so anything worth keeping goes here. Update it at the end of each session (Claude: do it as part of wrapping up).
 
-*Last updated: 2026-10-04 ~5:45 am, Mac session.*
+*Last updated: 2026-10-25, Mac session.*
+
+## 2026-10-25: photo baseline and the mirror decision (read this first)
+No app code changed in this session. Aarmen's full working notes are outside the repo, in `~/Desktop/rework-me/projects/edison.md` and `edison-photo-fix-design.md` (a draft design for the photo fix, not yet approved).
+- **New pitch (Aarmen):** Edison is an AI agent that builds working circuits, plus a vision pipeline that rebuilds a real board from a photo. No "tutor" framing.
+- **Agent check, local, DeepSeek:** "Build an LED circuit" → preview → Accept → Run: CIRCUIT OK, LED1 on at 14.9 mA. A free-form TL072 inverting amp (gain −10, ±12 V, 1 V sine) came back correct in 18 s.
+- **Photo baseline** (`npm run photo-eval -- --set all --only e01,p3`, `gemini-robotics-er-2-preview`, paid key):
+  - DIP chips built **0/2**: both found in roughly the right place, typed `other`, given 2 legs on one side. Capacitors 0/2.
+  - **13 of 29 crop calls lost to HTTP 429** (`photo-leads: … 429`, retries 19 and 17), even on the paid key.
+  - Resistors/LEDs/wires: parts 9/13, legs 16/26, wires 15/18, ends 28/34, invented 5, rail signs 4/6. Legs placed in 31–59 s.
+- **Why:**
+  - `photo-import.js` builds only resistors and LEDs (`BUILT`).
+  - `photo-reader.js:153` turns `ic|capacitor|potentiometer|diode` into `other`.
+  - Every part gets 2 legs (`photo-reader.js:137`, `photo-crops.js:101`, `photo-import.js:210`).
+  - The crop round sends one call per item, 16 at once, against a 5 RPM free tier.
+  - `photo-eval.js` scores only resistors and LEDs.
+  - An import always assumes one 9 V battery.
+- **Gemini limits** (AI Studio): Robotics-ER 2 Preview's free tier is 5 RPM, 250K TPM, 20 RPD. Paid: $1/M input, $5/M output (thinking included) until 2026-12-31, then double.
+- **Keys:** the bare `EDISON/env` key file moved to `Plugged/backend/.env`. `.gitignore` now ignores a bare `/env` too. A prepaid dev Gemini key (auto-reload off) is in that `.env`. The public demo will get a separate free-tier key.
+- **Next:** fix the board mirror (see "Key decisions" in `docs/ARCHITECTURE.md`), then the photo fix: chips placed from body, notch and printed text; capacitors, diodes and pots; one batched crop call; the eval scoring chips, capacitors and pots; ±12 V default power for op-amp boards.
 
 ## Morning of 2026-10-04: read this first (all on `dev` at eb44795; `main` NOT promoted yet)
 Overnight, all shipped to `dev`:

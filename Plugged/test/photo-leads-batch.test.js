@@ -262,3 +262,53 @@ test('PHOTO_LEADS_CONCURRENCY caps batch calls in flight', async () => {
     vi.useRealTimers();
   }
 });
+
+test('a hanging batch is resent once and the cutoff ends all its items AI_TIMEOUT exactly once', async () => {
+  process.env.PHOTO_LEADS_BATCH = '3';
+  const items = many(6);
+  const fake = fakeGemini(c => (c.ids.includes('R1') ? new Promise(() => {}) : batchAnswer(c.ids)));
+  const seen = [];
+  const s = start({ key: 'no-saved-leads', items }, fake, { onItem: e => seen.push(e.id) });
+  await advance(11999);
+  assert.equal(fake.calls.filter(c => c.ids.includes('R1')).length, 1, 'no resend before 12 s');
+  await advance(1);
+  assert.equal(fake.calls.filter(c => c.ids.includes('R1')).length, 2, 'the hanging batch is resent once at 12 s');
+  const out = await finish(s);
+  const sent = fake.calls.length;
+  for (const id of ['R1', 'R2', 'R3']) assert.deepStrictEqual(byId(out, id), { id, error: 'AI_TIMEOUT' });
+  for (const id of ['R4', 'R5', 'R6']) assert.equal(byId(out, id).found, true, `${id} is in the answered batch`);
+  assert.deepStrictEqual([...seen].sort(), items.map(i => i.id).sort(), 'onItem once per id');
+  await advance(60000);
+  assert.equal(fake.calls.length, sent, 'no call after the cutoff');
+  assert.equal(seen.length, 6, 'still once per id after the cutoff');
+  for (const c of fake.calls.filter(c => c.ids.includes('R1'))) assert.ok(c.signal.aborted, 'both calls of the hanging batch are aborted');
+});
+
+test('an abort leaves a queued batch unsent', async () => {
+  process.env.PHOTO_LEADS_BATCH = '3';
+  process.env.PHOTO_LEADS_CONCURRENCY = '1';
+  const items = many(6);
+  const fake = fakeGemini(() => new Promise(() => {}));
+  const seen = [];
+  const ac = new AbortController();
+  const s = start({ key: 'no-saved-leads', items }, fake, { signal: ac.signal, onItem: e => seen.push(e.id) });
+  await advance(100);
+  assert.deepStrictEqual(fake.calls.map(c => c.ids), [['R1', 'R2', 'R3']], 'cap 1: the second batch waits');
+  ac.abort();
+  const out = await finish(s, 1000);
+  await advance(60000);
+  assert.deepStrictEqual(fake.calls.map(c => c.ids), [['R1', 'R2', 'R3']], 'the queued batch is never fetched');
+  assert.deepStrictEqual(out.items, items.map(i => ({ id: i.id, error: 'AI_TIMEOUT' })));
+  assert.deepStrictEqual([...seen].sort(), items.map(i => i.id).sort(), 'onItem once per id');
+});
+
+test('a batch answer naming none of its ids is retried', async () => {
+  process.env.PHOTO_LEADS_BATCH = '3';
+  const items = many(3);
+  const fake = fakeGemini(c => (c.n === 1 ? geminiSays({ items: [] }) : batchAnswer(c.ids)));
+  const seen = [];
+  const out = await readAll({ key: 'no-saved-leads', items }, fake, { onItem: e => seen.push(e.id) });
+  assert.equal(fake.calls.length, 2, `an empty answer is retried once: ${fake.calls.length} calls`);
+  assert.ok(out.items.every(e => e.found === true), JSON.stringify(out.items));
+  assert.deepStrictEqual([...seen].sort(), ['R1', 'R2', 'R3'], 'every item answered once');
+});

@@ -104,12 +104,12 @@ const PHOTO_CROP_SCHEMA = {
 const PHOTO_CROP_PROMPT_BATCH = [
   'Enlarged crops of top-down breadboard photos, each introduced by a line "Crop k: id <id>, <what it shows>, outlined in magenta" and followed by its image. ' +
     'In each crop, hole column numbers are written above and below and row letters a-j (rail rows +/-) at the left and right edges, each aligned with its line of holes. ' +
-    'The part (or wire) a crop is about is outlined by a thin magenta box; read only that one, and ignore its neighbours, hands, multimeter probes and tools.',
+    'The magenta box only marks WHICH part or wire the crop is about; its leads may end on or just past the outline. Ignore neighbouring parts, hands, multimeter probes and tools.',
   'For each crop, find where each metal lead (or wire tip) of the outlined part disappears into the plastic of the board - not where the part body is. ' +
-    'Leads are often bent and may span any number of columns; parts often lean. For a wire point to each end (null if an end leaves the crop/board). ' +
-    'point is [y, x] normalized to 0-1000 over that crop image alone. hole is the hole you read from the margin labels at that point (e.g. "e12"), or null. ' +
+    'Leads are often bent and may span any number of columns; parts often lean. For a part, point to each lead. For a wire, point to each end (null if an end leaves the crop/board). ' +
+    'point is [y, x] normalized to 0-1000 over the whole crop image, not the magenta box. hole is the hole you read from the margin labels at that point (e.g. "e12"), or null. ' +
     'LED pins "anode"/"cathode" if you can tell, else "?"; others "1","2",...',
-  'Answer every crop once, with its id exactly as given: {"items":[{"id":"...","found":true,"conf":0.8,"leads":[{"pin":"1","point":[y,x],"hole":"e12"}]}]}',
+  'Answer every crop once, with its id exactly as given. Short JSON only: {"items":[{"id":"...","found":true,"conf":0.8,"leads":[{"pin":"1","point":[y,x],"hole":"e12"}]}]}',
 ].join('\n');
 
 // The batch answer's schema: plain objects, no anyOf; id is an enum of the

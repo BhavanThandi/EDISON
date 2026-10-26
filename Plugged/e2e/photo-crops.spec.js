@@ -14,7 +14,7 @@
 // The page the builder matches:
 //   - window.PhotoCrops       circuit3d/js/photo-crops.js (API in the header
 //                             of test/photo-crops.test.js), plus the
-//                             browser-only render(source, H, grid, win, rails)
+//                             browser-only render(source, H, grid, win, rails, box)
 //                             → a JPEG data URL of win.width × win.height: the
 //                             inner area warped with matrix(H, win) from the
 //                             downsized ORIGINAL photo and drawn at (padLeft,

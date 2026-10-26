@@ -1025,7 +1025,7 @@ test('route: one [photo-leads] log line per request, with the key and counts, ne
 
 test('.env.example lists PHOTO_HEDGE_MS, PHOTO_LEADS_TIMEOUT_MS and PHOTO_LEADS_CONCURRENCY (#172)', () => {
   const text = fs.readFileSync(path.join(__dirname, '../../.env.example'), 'utf8');
-  for (const name of ['PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY']) assert.match(text, new RegExp(`^${name}=`, 'm'), `.env.example has no ${name}=`);
+  for (const name of ['PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY', 'PHOTO_LEADS_BATCH']) assert.match(text, new RegExp(`^${name}=`, 'm'), `.env.example has no ${name}=`);
 });
 
 // ── 8. Retries and the cap in flight (#172) ─────────────────────────────────

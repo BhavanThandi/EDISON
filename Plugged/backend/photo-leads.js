@@ -6,7 +6,7 @@
 //  { items, provider, model, ms, resent, retries }: one entry per item, in
 //  order, { id, found, leads: [{ pin, pt, role }], conf } or
 //  { id, error: 'AI_TIMEOUT' | 'AI_FAILED' }. It never rejects. `resent`
-//  (items that got a stall resend) and `retries` (calls sent again after a
+//  (batches that got a stall resend) and `retries` (calls sent again after a
 //  failure) are for the route's log only.
 //  opts.onItem(entry) (#173) is called once per item as it settles, in
 //  finish order, with the entry `items` will hold (a saved answer standing
@@ -136,6 +136,7 @@ function toBatchEntries(batch, answer) {
   if (!a || typeof a !== 'object' || !Array.isArray(a.items)) throw failed('the reply is not a batch answer');
   const byId = new Map();
   for (const r of a.items) if (r && typeof r === 'object' && typeof r.id === 'string' && !byId.has(r.id)) byId.set(r.id, r);
+  if (!batch.some(item => byId.has(item.id))) throw failed('no crop answered');   // retried by raceGemini
   return batch.map(item => {
     const r = byId.get(item.id);
     if (!r) return { id: item.id, error: 'AI_FAILED' };

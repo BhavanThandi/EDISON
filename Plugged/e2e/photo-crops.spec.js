@@ -1019,3 +1019,46 @@ test('#177 bug: with the crops still out, an open colour dropdown (W1) and an op
   }
   expect(errors).toEqual([]);
 });
+
+// ── Task A3: the crop carries a magenta outline of its box ─────────────────
+
+test('A3: each crop sent to /api/photo/leads has a thin magenta outline on its item\'s box (all four sides, thin)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openEditor(page);
+  const c = await sampleCentres(page, HOLES);
+  const reading = boxRound(c), ANSWERS = answers(c);
+  await page.route('**/api/photo', route => route.fulfill({ json: { reading, provider: 'gemini', model: 'gemini-robotics-er-2-preview', ms: 8200, key: KEY } }));
+  const leadsSent = [];
+  await page.route('**/api/photo/leads', async route => {
+    const body = route.request().postDataJSON();
+    leadsSent.push(body);
+    await fulfilLines(route, body.items.map(i => ANSWERS[i.id] || { id: i.id, error: 'AI_FAILED' }));
+  });
+  await openSample(page);
+  await expect.poll(() => leadsSent.length).toBeGreaterThan(0);
+
+  const r1 = leadsSent[0].items[0];
+  const box = reading.parts.find(p => p.id === r1.id).box;
+  const w = r1.window;
+  const got = await page.evaluate(async ({ src, box, w }) => {
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('no decode')); i.src = src; });
+    const cv = document.createElement('canvas');
+    cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    const x = cv.getContext('2d');
+    x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, cv.width, cv.height);
+    const mag = (px, py) => { const i = 4 * (py * d.width + px); return d.data[i] > 170 && d.data[i + 1] < 120 && d.data[i + 2] > 170; };
+    const X0 = Math.round(w.padLeft + (box[0] - w.x) * w.scale), X1 = Math.round(w.padLeft + (box[2] - w.x) * w.scale);
+    const Y0 = Math.round(w.padTop + (box[1] - w.y) * w.scale), Y1 = Math.round(w.padTop + (box[3] - w.y) * w.scale);
+    // magenta pixels within 4 px of a horizontal line (x0..x1 at y) or a vertical one
+    const row = (y, xa, xb) => { let n = 0; for (let py = y - 4; py <= y + 4; py++) for (let px = xa; px <= xb; px++) if (mag(px, py)) n++; return n; };
+    const col = (xx, ya, yb) => { let n = 0; for (let px = xx - 4; px <= xx + 4; px++) for (let py = ya; py <= yb; py++) if (mag(px, py)) n++; return n; };
+    let total = 0;
+    for (let py = 0; py < d.height; py++) for (let px = 0; px < d.width; px++) if (mag(px, py)) total++;
+    return { top: row(Y0, X0, X1), bottom: row(Y1, X0, X1), left: col(X0, Y0, Y1), right: col(X1, Y0, Y1),
+      lenX: X1 - X0, lenY: Y1 - Y0, total };
+  }, { src: r1.image, box, w });
+  for (const side of ['top', 'bottom']) expect(got[side], `magenta along the box's ${side} edge (${JSON.stringify(got)})`).toBeGreaterThan(got.lenX * 0.5);
+  for (const side of ['left', 'right']) expect(got[side], `magenta along the box's ${side} edge (${JSON.stringify(got)})`).toBeGreaterThan(got.lenY * 0.5);
+  expect(got.total, 'thin: the outline is not a fill').toBeLessThan(2 * (got.lenX + got.lenY) * 12);
+});

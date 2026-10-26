@@ -369,7 +369,7 @@
       const rails = reading.board && reading.board.rails;
       const sent  = items.map(it => {
         const win = PhotoCrops.window(grid, it.box);
-        return { id: it.id, kind: it.kind, type: it.type, value: it.value, image: PhotoCrops.render(src.pixels, src.H, grid, win, rails), window: win };
+        return { id: it.id, kind: it.kind, type: it.type, value: it.value, image: PhotoCrops.render(src.pixels, src.H, grid, win, rails, it.box), window: win };
       });
       if (my !== job) return;
       await postLines('/api/photo/leads', { key, items: sent }, Capture.leadsTimeoutMs, entry => {

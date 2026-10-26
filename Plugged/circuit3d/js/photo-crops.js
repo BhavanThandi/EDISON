@@ -118,7 +118,9 @@
 
   // The labelled crop as a JPEG data URL. source: the photo's pixels
   // (ImageData-like); H: flattened → those pixels; rails: board.rails.
-  function render(source, H, grid, win, rails) {
+  // box (optional, flattened px): outlined in thin magenta (Set-of-Mark), so
+  // the model knows which part the crop is about.
+  function render(source, H, grid, win, rails, box) {
     const { scale, padLeft: pl, padTop: pt, width: W, height: Ht } = win;
     const iw = W - 2 * pl, ih = Ht - 2 * pt;
     const canvas = document.createElement('canvas');
@@ -148,6 +150,11 @@
       const sign = rails && rails[name];
       if (sign === '+') row('+', grid.holeCentre(`rail:${name}:1`)[1], '#dc2626');
       if (sign === '-') row('−', grid.holeCentre(`rail:${name}:1`)[1], '#2563eb');
+    }
+    if (isBox(box)) {
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(u(box[0]), v(box[1]), (box[2] - box[0]) * scale, (box[3] - box[1]) * scale);
     }
     return canvas.toDataURL('image/jpeg', 0.85);
   }

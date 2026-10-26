@@ -97,4 +97,52 @@ const PHOTO_CROP_SCHEMA = {
   required: ['found', 'type', 'leads', 'conf'],
 };
 
-module.exports = { PHOTO_PROMPT, PHOTO_SCHEMA, PHOTO_CROP_PROMPT, PHOTO_CROP_SCHEMA };
+// The batched crop round (A3): one call holds up to 12 crops, each introduced
+// by its own text part "Crop k: id <id>, <what it shows>, outlined in magenta"
+// (photo-leads.js). Set-of-Mark: the page draws a thin magenta outline of the
+// item's box on its crop, so the model knows which part the crop is about.
+const PHOTO_CROP_PROMPT_BATCH = [
+  'Enlarged crops of top-down breadboard photos, each introduced by a line "Crop k: id <id>, <what it shows>, outlined in magenta" and followed by its image. ' +
+    'In each crop, hole column numbers are written above and below and row letters a-j (rail rows +/-) at the left and right edges, each aligned with its line of holes. ' +
+    'The part (or wire) a crop is about is outlined by a thin magenta box; read only that one, and ignore its neighbours, hands, multimeter probes and tools.',
+  'For each crop, find where each metal lead (or wire tip) of the outlined part disappears into the plastic of the board - not where the part body is. ' +
+    'Leads are often bent and may span any number of columns; parts often lean. For a wire point to each end (null if an end leaves the crop/board). ' +
+    'point is [y, x] normalized to 0-1000 over that crop image alone. hole is the hole you read from the margin labels at that point (e.g. "e12"), or null. ' +
+    'LED pins "anode"/"cathode" if you can tell, else "?"; others "1","2",...',
+  'Answer every crop once, with its id exactly as given: {"items":[{"id":"...","found":true,"conf":0.8,"leads":[{"pin":"1","point":[y,x],"hole":"e12"}]}]}',
+].join('\n');
+
+// The batch answer's schema: plain objects, no anyOf; id is an enum of the
+// batch's ids.
+const PHOTO_CROP_SCHEMA_BATCH = ids => ({
+  type: 'OBJECT',
+  properties: {
+    items: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id:    { type: 'STRING', enum: ids.map(String) },
+          found: { type: 'BOOLEAN' },
+          conf:  { type: 'NUMBER' },
+          leads: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                pin:   { type: 'STRING' },
+                point: { type: 'ARRAY', items: { type: 'NUMBER' }, nullable: true },
+                hole:  { type: 'STRING', nullable: true },
+              },
+              required: ['pin', 'point', 'hole'],
+            },
+          },
+        },
+        required: ['id', 'found', 'conf', 'leads'],
+      },
+    },
+  },
+  required: ['items'],
+});
+
+module.exports = { PHOTO_PROMPT, PHOTO_SCHEMA, PHOTO_CROP_PROMPT, PHOTO_CROP_SCHEMA, PHOTO_CROP_PROMPT_BATCH, PHOTO_CROP_SCHEMA_BATCH, cropShows };

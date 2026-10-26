@@ -476,6 +476,7 @@ photo.js  pick / drop / sample, corner taps → PhotoGrid.homography → PhotoGr
 The crop round: where each leg enters the board, one zoomed, labelled crop per part and wire. The backend has no image packages, so **the page cuts and labels the crops** (`photo-crops.js`) and this route only asks Gemini and does arithmetic.
 - **Owner:** `backend/photo-leads.js` (`readLeads(body, opts)`, `opts.fetch` injectable like `readPhoto`'s), routed by `backend/server.js`. **Called by:** `photo-crops.js`.
   - The page crops only resistors, LEDs and wires: a part of type `other` is never built in Tier 1, so it isn't cropped or sent.
+  - **Batched (A3):** the route sends the crops to Gemini in batches of at most `PHOTO_LEADS_BATCH` (default 12), one `generateContent` per batch, at most 2 batches in flight, each with the same retry/resend rules as a single call (a 429's `retryAfterMs` honoured). The page outlines each item's box in magenta on its crop. The request, the response and the NDJSON lines are unchanged: an item's line goes out when its batch answers, and a batch that fails only fails its own items.
 - **Request:** `{ key, items: [{ id, kind, type, value, image, window }] }`
   - `key`: the `key` `/api/photo` returned.
   - `id`: the Reading's id (`'R1'`, `'W1'`). `kind`: `'part'` or `'wire'`. `type`, `value`: from the Reading (`value` may be 0).

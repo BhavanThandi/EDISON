@@ -324,15 +324,15 @@ const placedWhere = board => board.calls.placePart.map(([type, where]) =>
   [type, Array.isArray(where) ? where.map(h => ({ col: h.col, row: h.row })) : where]);
 
 describe('chat.js applies footprint parts from { hole, direction }', () => {
-  test("place_test_three { hole: 'a10', direction: 'down' } places legs a10 b10 c10 through board.placePart", () => {
+  test("place_test_three { hole: 'j10', direction: 'down' } places legs j10 i10 h10 through board.placePart", () => {
     const board = simBoard();
-    const out = Chat.applyActions([{ tool: 'place_test_three', hole: 'a10', direction: 'down' }], board);
+    const out = Chat.applyActions([{ tool: 'place_test_three', hole: 'j10', direction: 'down' }], board);
     assert.deepEqual(out, { applied: 1, failed: 0 }, `placed, got ${JSON.stringify(out)}, notes ${JSON.stringify(board.notes)}`);
-    assert.deepStrictEqual(placedWhere(board), [['test_three', [{ col: 9, row: 'a' }, { col: 9, row: 'b' }, { col: 9, row: 'c' }]]]);
+    assert.deepStrictEqual(placedWhere(board), [['test_three', [{ col: 9, row: 'j' }, { col: 9, row: 'i' }, { col: 9, row: 'h' }]]]);
     assert.deepStrictEqual(board.notes, []);
   });
 
-  for (const [direction, want] of [['right', ['a10', 'a11', 'a12']], ['left', ['e10', 'e9', 'e8']], ['up', ['j10', 'i10', 'h10']]]) {
+  for (const [direction, want] of [['right', ['j10', 'j11', 'j12']], ['left', ['f10', 'f9', 'f8']], ['up', ['a10', 'b10', 'c10']]]) {
     test(`direction ${direction} maps to its rotation: ${want.join(' ')}`, () => {
       const board = simBoard();
       const hole = want[0];
@@ -352,17 +352,17 @@ describe('chat.js applies footprint parts from { hole, direction }', () => {
     assert.ok(board.notes[0].includes('would run past column 63'), `"${board.notes[0]}"`);
   });
 
-  test('place_test_chip at e20 facing right places 8 legs across the gap, in pin order', () => {
+  test('place_test_chip at f20 facing right places 8 legs across the gap, in pin order', () => {
     const board = simBoard();
-    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'e20', direction: 'right' }], board);
+    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'f20', direction: 'right' }], board);
     assert.deepEqual(out, { applied: 1, failed: 0 }, `placed, got ${JSON.stringify(out)}, notes ${JSON.stringify(board.notes)}`);
     assert.deepStrictEqual(board.calls.placePart[0][1].map(h => h.row + (h.col + 1)),
-      ['e20', 'e21', 'e22', 'e23', 'f23', 'f22', 'f21', 'f20']);
+      ['f20', 'f21', 'f22', 'f23', 'e23', 'e22', 'e21', 'e20']);
   });
 
-  test('place_test_chip at a20 is refused with the straddle message', () => {
+  test('place_test_chip at j20 is refused with the straddle message', () => {
     const board = simBoard();
-    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'a20', direction: 'right' }], board);
+    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'j20', direction: 'right' }], board);
     assert.deepEqual(out, { applied: 0, failed: 1 });
     assert.equal(board.calls.placePart.length, 0);
     assert.ok(board.notes.some(n => n.includes('a chip must sit across the centre gap (rows e and f).')), `a note with the straddle message, got ${JSON.stringify(board.notes)}`);
@@ -370,7 +370,7 @@ describe('chat.js applies footprint parts from { hole, direction }', () => {
 
   test('place_test_chip facing down (90°, not allowed) places nothing, and the note names the direction', () => {
     const board = simBoard();
-    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'e20', direction: 'down' }], board);
+    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'f20', direction: 'down' }], board);
     assert.deepEqual(out, { applied: 0, failed: 1 });
     assert.equal(board.calls.placePart.length, 0);
     assert.equal(board.notes.length, 1, `one note with the refusal, got ${JSON.stringify(board.notes)}`);
@@ -393,13 +393,13 @@ describe('finishAIReply checks footprint parts', () => {
     assert.ok(out.reply.includes('at column 62 would run past column 63'), out.reply);
   });
 
-  test('keeps test_three at e30 facing down next to the one-LED build, holding e30 f30 g30', () => {
-    const ok  = { tool: 'place_test_three', hole: 'e30', direction: 'down' };   // e30 f30 g30
-    const res = { tool: 'place_resistor', holeA: 'g30', holeB: 'g34' };
+  test('keeps test_three at f30 facing down next to the one-LED build, holding f30 e30 d30', () => {
+    const ok  = { tool: 'place_test_three', hole: 'f30', direction: 'down' };   // f30 e30 d30
+    const res = { tool: 'place_resistor', holeA: 'd30', holeB: 'd34' };
     const out = finish([...Recipes.ONE_LED, ok, res]);
     assert.ok(has(out, ok), `kept: ${out.reply}`);
-    assert.ok(!has(out, res), 'a resistor on its g30 leg is dropped');
-    assert.ok(out.reply.includes("g30 already holds TT1's pin out"), out.reply);
+    assert.ok(!has(out, res), 'a resistor on its d30 leg is dropped');
+    assert.ok(out.reply.includes("d30 already holds TT1's pin out"), out.reply);
     assert.ok(!out.reply.includes('TT1 not placed'), out.reply);
   });
 
@@ -420,24 +420,24 @@ describe('finishAIReply checks footprint parts', () => {
     assert.ok(out.reply.includes("b22 already holds TT1's pin out"), out.reply);
   });
 
-  test('test_chip: at e20 kept; at a20 dropped with the straddle message; facing down dropped, naming it', () => {
-    const good = { tool: 'place_test_chip', hole: 'e20', direction: 'right' };
-    const high = { tool: 'place_test_chip', hole: 'a40', direction: 'right' };
-    const down = { tool: 'place_test_chip', hole: 'e50', direction: 'down' };
+  test('test_chip: at f20 kept; at j20 dropped with the straddle message; facing down dropped, naming it', () => {
+    const good = { tool: 'place_test_chip', hole: 'f20', direction: 'right' };
+    const high = { tool: 'place_test_chip', hole: 'j40', direction: 'right' };
+    const down = { tool: 'place_test_chip', hole: 'f50', direction: 'down' };
     const out = finish([DEL, BAT, good, high, down]);
-    assert.ok(has(out, good), `e20 kept: ${out.reply}`);
-    assert.ok(!has(out, high), 'a40 dropped');
+    assert.ok(has(out, good), `f20 kept: ${out.reply}`);
+    assert.ok(!has(out, high), 'j40 dropped');
     assert.ok(!has(out, down), 'facing down dropped');
     assert.ok(out.reply.includes('a chip must sit across the centre gap (rows e and f).'), out.reply);
     assert.match(out.reply, /\bdown\b/);
   });
 
-  test('a chip leg on a taken hole names the holder: f22 holds LED3\'s anode', () => {
-    const led  = { tool: 'place_led', holeA: 'f24', holeB: 'f22' };          // cathode f24, anode f22
-    const chip = { tool: 'place_test_chip', hole: 'e20', direction: 'right' }; // … f23 f22 …
+  test('a chip leg on a taken hole names the holder: e22 holds LED3\'s anode', () => {
+    const led  = { tool: 'place_led', holeA: 'e24', holeB: 'e22' };          // cathode e24, anode e22
+    const chip = { tool: 'place_test_chip', hole: 'f20', direction: 'right' }; // … e23 e22 …
     const out = finish([...Recipes.SERIES_2, led, chip]);
     assert.ok(!has(out, chip), 'the chip is dropped');
-    assert.ok(out.reply.includes("f22 already holds LED3's pin anode"), out.reply);
+    assert.ok(out.reply.includes("e22 already holds LED3's pin anode"), out.reply);
   });
 });
 
@@ -508,11 +508,11 @@ describe('footprint parts in mixed circuits', () => {
     const before = current(board, 'LED1');
     near(before, 14.9, 'LED1 before');
 
-    const out = Chat.applyActions([{ tool: 'place_test_three', hole: 'e30', direction: 'down' }], board);
+    const out = Chat.applyActions([{ tool: 'place_test_three', hole: 'f30', direction: 'down' }], board);
     assert.deepEqual(out, { applied: 1, failed: 0 }, `placed, got ${JSON.stringify(out)}, notes ${JSON.stringify(board.notes)}`);
     const three = board.components().find(c => c.type === 'test_three');
     const map = board.holeMap();
-    for (const h of ['e30', 'f30', 'g30']) {
+    for (const h of ['f30', 'e30', 'd30']) {
       assert.equal(map.get(h) && map.get(h).label, three.label, `${h} holds the test three`);
     }
     near(current(board, 'LED1'), before, 'LED1 after');
@@ -525,8 +525,8 @@ describe('footprint parts in mixed circuits', () => {
     near(l1, 10.63, 'LED1 in series before');
 
     const out = Chat.applyActions([
-      { tool: 'place_test_chip', hole: 'e20', direction: 'right' },
-      wire('tp_20', 'a20', 'red'), wire('j20', 'tn_20', 'black'),
+      { tool: 'place_test_chip', hole: 'f20', direction: 'right' },
+      wire('tp_20', 'j20', 'red'), wire('a20', 'tn_20', 'black'),   // p1 f20 to +, p8 e20 to −
     ], board);
     assert.deepEqual(out, { applied: 3, failed: 0 }, `placed and wired, got ${JSON.stringify(out)}, notes ${JSON.stringify(board.notes)}`);
     const chip = board.components().find(c => c.type === 'test_chip');
@@ -538,15 +538,15 @@ describe('footprint parts in mixed circuits', () => {
 
   test("a chip whose leg lands on an LED's lead is refused, and the rest simulates with the same numbers", () => {
     const board = simBoard();
-    assert.deepEqual(Chat.acceptBuild([...Recipes.SERIES_2, { tool: 'place_led', holeA: 'f24', holeB: 'f22' }], board),
+    assert.deepEqual(Chat.acceptBuild([...Recipes.SERIES_2, { tool: 'place_led', holeA: 'e24', holeB: 'e22' }], board),
       { applied: 10, failed: 0 });
     const l1 = current(board, 'LED1'), l2 = current(board, 'LED2');
 
-    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'e20', direction: 'right' }], board);   // f22 is LED3's anode
+    const out = Chat.applyActions([{ tool: 'place_test_chip', hole: 'f20', direction: 'right' }], board);   // e22 is LED3's anode
     assert.deepEqual(out, { applied: 0, failed: 1 });
     assert.ok(!board.components().some(c => c.type === 'test_chip'), 'no chip on the board');
     assert.equal(board.notes.length, 1, `one note with the refusal, got ${JSON.stringify(board.notes)}`);
-    assert.ok(board.notes[0].includes("f22 already holds LED3's pin anode"), `"${board.notes[0]}"`);
+    assert.ok(board.notes[0].includes("e22 already holds LED3's pin anode"), `"${board.notes[0]}"`);
     near(current(board, 'LED1'), l1, 'LED1');
     near(current(board, 'LED2'), l2, 'LED2');
   });

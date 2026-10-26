@@ -22,6 +22,7 @@
 
 ## Key decisions
 <!-- Decision, alternatives, why. Append as you go so nobody re-argues settled choices. -->
+- **The board mirror is fixed at the source** (Aarmen, 2026-10-25). Edison's breadboard is a mirror image of a real one (STATUS, 2026-10-04 item 3): a DIP's pins can't sit at a photo's printed holes, so the photo samples are stored flipped (`thandi-blinker` rows A↔J; `ensc-lab` looks column-mirrored). A 2026-10-25 review found that on real boards printed the usual way, the TL072 footprint's two placements both wire the pins wrong. The alternatives were to keep flipping photos on import (small, but the built board's hole names stop matching the student's printed board, so "move R1 to a12" points at the wrong row) or to add a mirrored chip footprint (changes the parts contract and the 3D model, and fixes only chips). Decision: Edison's board gets the same handedness as a real breadboard, and the flip workarounds go away. The design, including what happens to saved circuits, is written and approved before any code.
 - **The Edison landing page is v3: all black, the top only, and a HUD stage** (Aarmen, #166/#167/#171/#164/#168; refs in `docs/design/landing-v3/`). It replaces v2 (#162).
   - **What stays from v2:** the top only, i.e. the wordmark, the headline and the Ask box.
   - **What's gone:** the giant EDISON, the sections below the hero, light mode, the toggle and the wipe.

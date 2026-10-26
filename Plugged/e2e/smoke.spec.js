@@ -266,7 +266,9 @@ async function clickHole(page, where) {
 }
 
 // Empty in both builds here (LED1 c6–c8, R1 b2–b6, wires at columns 2, 3, 6, 8).
-const EMPTY = 'e11';
+// Row a is nearest the viewer, so a11 sits below the build on screen, clear of
+// the mistakes panel; e11 is past the build, under it.
+const EMPTY = 'a11';
 
 test('selected while it scorches, or while scorched: once deselected and cleared, LED1 has its own colours and no selection blue', async ({ page }) => {
   const errors = watchErrors(page);

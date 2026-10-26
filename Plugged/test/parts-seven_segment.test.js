@@ -14,8 +14,8 @@
 // - place { kind: 'footprint', straddle: true, rotations [0, 180],
 //   legs [[0,0],[1,0],[2,0],[3,0],[4,0],[4,-1],[3,-1],[2,-1],[1,-1],[0,-1]] }:
 //   pins 1–5 in the anchor's row (f), pins 6–10 in the row above it (e),
-//   columns 4..0. At f30, rotation 0: e d com1 c dp on f30..f34 and
-//   b a com2 f g on e34..e30.
+//   columns 4..0. At e30, rotation 0: e d com1 c dp on e30..e34 and
+//   b a com2 f g on f34..f30.
 // - elements: 8 × D(<segment>, '#com', vf 2.0) with id = the segment name
 //   ('a'…'g', 'dp'), so r.current.b is segment b's mA; SW(com1, '#com',
 //   closed) and SW(com2, '#com', closed).
@@ -41,14 +41,14 @@
 // - examples: at least the known answer, b and c each through 470 Ω from
 //   9 V, commons to ground → expect { <label>: { digit: '1' } }.
 //
-// Layout used below (display at f30 facing right; 470 Ω unless said):
-//   top half (rows a–e):    g e30 · f e31 · com2 e32 · a e33 · b e34
-//   bottom half (rows f–j): e f30 · d f31 · com1 f32 · c f33 · dp f34
+// Layout used below (display at e30 facing right; 470 Ω unless said):
+//   near half (rows a–e):   e e30 · d e31 · com1 e32 · c e33 · dp e34
+//   far half (rows f–j):    g f30 · f f31 · com2 f32 · a f33 · b f34
 //   Each segment has its own resistor to a free column fed from +:
-//     g c30–c35 tp_35→a35   f b31–b36 tp_36→a36   a b33–b37 tp_37→a37
-//     b c34–c39 tp_39→a39   e h30–h35 bp_35→j35   d i31–i36 bp_36→j36
-//     c h33–h37 bp_37→j37   dp i34–i39 bp_39→j39
-//   Commons: a32→tn_32 (com2), j32→bn_32 (com1). Rails: BAT1 on tp_63/tn_63,
+//     e c30–c35 tp_35→a35   d b31–b36 tp_36→a36   c c33–c37 tp_37→a37
+//     dp b34–b39 tp_39→a39   g h30–h35 bp_35→j35   f i31–i36 bp_36→j36
+//     a i33–i37 bp_37→j37   b h34–h39 bp_39→j39
+//   Commons: a32→tn_32 (com1), j32→bn_32 (com2). Rails: BAT1 on tp_63/tn_63,
 //   tp_1→bp_1 and tn_1→bn_1 join the bottom rails.
 //   Each lit segment: (9 − 2) / (470 + ron) ≈ 14.89 mA.
 
@@ -105,19 +105,19 @@ const wire = (from, to, color = 'green') => ({ tool: 'add_wire', from, to, color
 
 // Each segment: its resistor's holes and the wire that feeds the far end.
 const FEED = {
-  g:  { r: ['c30', 'c35'], w: ['tp_35', 'a35'] },
-  f:  { r: ['b31', 'b36'], w: ['tp_36', 'a36'] },
-  a:  { r: ['b33', 'b37'], w: ['tp_37', 'a37'] },
-  b:  { r: ['c34', 'c39'], w: ['tp_39', 'a39'] },
-  e:  { r: ['h30', 'h35'], w: ['bp_35', 'j35'] },
-  d:  { r: ['i31', 'i36'], w: ['bp_36', 'j36'] },
-  c:  { r: ['h33', 'h37'], w: ['bp_37', 'j37'] },
-  dp: { r: ['i34', 'i39'], w: ['bp_39', 'j39'] },
+  g:  { r: ['h30', 'h35'], w: ['bp_35', 'j35'] },
+  f:  { r: ['i31', 'i36'], w: ['bp_36', 'j36'] },
+  a:  { r: ['i33', 'i37'], w: ['bp_37', 'j37'] },
+  b:  { r: ['h34', 'h39'], w: ['bp_39', 'j39'] },
+  e:  { r: ['c30', 'c35'], w: ['tp_35', 'a35'] },
+  d:  { r: ['b31', 'b36'], w: ['tp_36', 'a36'] },
+  c:  { r: ['c33', 'c37'], w: ['tp_37', 'a37'] },
+  dp: { r: ['b34', 'b39'], w: ['tp_39', 'a39'] },
 };
-const COM2 = wire('a32', 'tn_32', 'black');
-const COM1 = wire('j32', 'bn_32', 'black');
+const COM2 = wire('j32', 'bn_32', 'black');
+const COM1 = wire('a32', 'tn_32', 'black');
 
-// The battery, the rail jumpers and the display at f30 facing right.
+// The battery, the rail jumpers and the display at e30 facing right.
 const BASE = [
   { tool: 'delete_all' },
   { tool: 'place_battery' },
@@ -125,7 +125,7 @@ const BASE = [
   wire('BAT1.1', `tn_${N}`, 'black'),
   wire('tp_1', 'bp_1', 'red'),
   wire('tn_1', 'bn_1', 'black'),
-  { tool: 'place_seven_segment', hole: 'f30', direction: 'right' },
+  { tool: 'place_seven_segment', hole: 'e30', direction: 'right' },
 ];
 
 // segs: ['b', 'c'] or { b: 100 } (segment → ohms). commons: which to ground.
@@ -399,12 +399,12 @@ test("no common wired: b and c are fed but have no path to ground, so nothing li
 
 test('wrong polarity: commons on +, b and c through 470 Ω to −, nothing lights (common-cathode diodes are reversed)', () => {
   const actions = BASE.concat([
-    { tool: 'place_resistor', holeA: 'c34', holeB: 'c39' },
-    wire('a39', 'tn_39', 'black'),          // b's resistor to −
-    { tool: 'place_resistor', holeA: 'h33', holeB: 'h37' },
-    wire('j37', 'bn_37', 'black'),          // c's resistor to −
-    wire('tp_32', 'a32', 'red'),            // com2 to +
-    wire('bp_32', 'j32', 'red'),            // com1 to +
+    { tool: 'place_resistor', holeA: 'h34', holeB: 'h39' },
+    wire('j39', 'bn_39', 'black'),          // b's resistor to −
+    { tool: 'place_resistor', holeA: 'c33', holeB: 'c37' },
+    wire('a37', 'tn_37', 'black'),          // c's resistor to −
+    wire('bp_32', 'j32', 'red'),            // com2 to +
+    wire('tp_32', 'a32', 'red'),            // com1 to +
   ]);
   const { r } = solveBuild(actions);
   const { r: pr, m } = display(r);
@@ -442,37 +442,37 @@ test("examples: a known-answer example expects digit '1' and solves to it", () =
 
 // ── Placement ─────────────────────────────────────────────────────────────
 
-test('footprintLegs at f30, rotation 0: e d com1 c dp on f30–f34, b a com2 f g on e34–e30; allowed', () => {
+test('footprintLegs at e30, rotation 0: e d com1 c dp on e30–e34, b a com2 f g on f34–f30; allowed', () => {
   seg();
-  const legs = Parts.footprintLegs('seven_segment', 'f30', 0);
+  const legs = Parts.footprintLegs('seven_segment', 'e30', 0);
   assert.ok(Array.isArray(legs), `legs, got ${JSON.stringify(legs)}`);
-  assert.deepStrictEqual(holeNames(legs), ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30']);
+  assert.deepStrictEqual(holeNames(legs), ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30']);
   assert.deepStrictEqual(legs.map(l => l.pin), PINS);
   assert.deepStrictEqual(place(legs), { ok: true });
 });
 
-test('footprintLegs at e34, rotation 180: pins 1–5 on e34–e30 and 6–10 on f30–f34; allowed', () => {
+test('footprintLegs at f34, rotation 180: pins 1–5 on f34–f30 and 6–10 on e30–e34; allowed', () => {
   seg();
-  const legs = Parts.footprintLegs('seven_segment', 'e34', 180);
-  assert.deepStrictEqual(holeNames(legs), ['e34', 'e33', 'e32', 'e31', 'e30', 'f30', 'f31', 'f32', 'f33', 'f34']);
+  const legs = Parts.footprintLegs('seven_segment', 'f34', 180);
+  assert.deepStrictEqual(holeNames(legs), ['f34', 'f33', 'f32', 'f31', 'f30', 'e30', 'e31', 'e32', 'e33', 'e34']);
   assert.deepStrictEqual(legs.map(l => l.pin), PINS);
   assert.deepStrictEqual(place(legs), { ok: true });
 });
 
 test('rotations 90 and 270 give no legs (a straddling part turns only 0 and 180)', () => {
   seg();
-  assert.equal(Parts.footprintLegs('seven_segment', 'f30', 90), null);
-  assert.equal(Parts.footprintLegs('seven_segment', 'f30', 270), null);
+  assert.equal(Parts.footprintLegs('seven_segment', 'e30', 90), null);
+  assert.equal(Parts.footprintLegs('seven_segment', 'e30', 270), null);
 });
 
 for (const [anchor, rot, why] of [
-  ['b30', 0,   'rows a and b'],
-  ['g30', 0,   'rows f and g'],
-  ['j30', 0,   'rows i and j'],
-  ['e30', 0,   'rows d and e (one row too high)'],
-  ['a30', 0,   'the upper legs run past row a'],
-  ['f34', 180, 'rows f and g, turned'],
-  ['j34', 180, 'the lower legs run past row j'],
+  ['i30', 0,   'rows i and j'],
+  ['d30', 0,   'rows d and e'],
+  ['a30', 0,   'rows a and b'],
+  ['f30', 0,   'rows f and g (one row too far)'],
+  ['j30', 0,   'the far legs run past row j'],
+  ['e34', 180, 'rows e and d, turned'],
+  ['a34', 180, 'the near legs run past row a'],
 ]) {
   test(`anchored at ${anchor}, rotation ${rot} (${why}): refused with the straddle message`, () => {
     seg();
@@ -484,33 +484,33 @@ for (const [anchor, rot, why] of [
   });
 }
 
-test('a leg on a hole that is taken is refused (f32 holds a wire end)', () => {
+test('a leg on a hole that is taken is refused (e32 holds a wire end)', () => {
   seg();
-  const legs = Parts.footprintLegs('seven_segment', 'f30', 0);
-  const r = place(legs, new Map([['f32', { wire: 0 }]]));
+  const legs = Parts.footprintLegs('seven_segment', 'e30', 0);
+  const r = place(legs, new Map([['e32', { wire: 0 }]]));
   assert.equal(r.ok, false);
-  assert.match(r.reason, /^f32 already holds the end of a wire/);
+  assert.match(r.reason, /^e32 already holds the end of a wire/);
 });
 
 test('hole map and round trip: a placed display saves one named holeRef per pin and loads back to the same legs', () => {
   const def = seg();
-  const legs = Parts.footprintLegs('seven_segment', 'f30', 0);
+  const legs = Parts.footprintLegs('seven_segment', 'e30', 0);
   const comp = { type: 'seven_segment', label: def.prefix + '1', values: {}, holeRefs: legs.map(l => ({ col: l.col, row: l.row })), pins: pinsOf(10) };
   const saved = BoardIO.saveHoleRefs(comp);
   assert.deepStrictEqual(saved, legs.map(l => ({ pin: l.pin, col: l.col, row: l.row })));
   const loaded = { type: 'seven_segment', label: comp.label, holeRefs: BoardIO.loadHoleRefs({ type: 'seven_segment', label: comp.label, holeRefs: saved }) };
   assert.deepStrictEqual(Parts.legsOf(loaded).map(l => [l.pin, l.hole]), PINS.map((p, i) => [p, holeNames(legs)[i]]));
   const map = BoardIO.buildHoleMap([comp], []);
-  assert.deepStrictEqual(map.get('f32'), { label: comp.label, pin: 'com1' });
-  assert.deepStrictEqual(map.get('e32'), { label: comp.label, pin: 'com2' });
-  assert.deepStrictEqual(map.get('e33'), { label: comp.label, pin: 'a' });
+  assert.deepStrictEqual(map.get('e32'), { label: comp.label, pin: 'com1' });
+  assert.deepStrictEqual(map.get('f32'), { label: comp.label, pin: 'com2' });
+  assert.deepStrictEqual(map.get('f33'), { label: comp.label, pin: 'a' });
   assert.equal(map.size, 10);
 });
 
-test('the AI places it through chat.js: place_seven_segment at a20 facing right is refused with the straddle message', () => {
+test('the AI places it through chat.js: place_seven_segment at j20 facing right is refused with the straddle message', () => {
   seg();
   const board = simBoard();
-  const out = Chat.applyActions([{ tool: 'place_seven_segment', hole: 'a20', direction: 'right' }], board);
+  const out = Chat.applyActions([{ tool: 'place_seven_segment', hole: 'j20', direction: 'right' }], board);
   assert.equal(board.components().length, 0, 'nothing placed');
   assert.ok(out.failed >= 1, JSON.stringify(out));
   assert.ok(board.notes.some(n => n.includes(STRADDLE)), `a note with the straddle message: ${JSON.stringify(board.notes)}`);
@@ -595,11 +595,11 @@ test("the same digit-7 build, applied and simulated, shows 7", () => {
   assert.match(text(r), /shows 7\b/, text(r));
 });
 
-test('a digit-7 build with neither common wired: the display at f30 "is not connected between power and ground"', () => {
+test('a digit-7 build with neither common wired: the display at e30 "is not connected between power and ground"', () => {
   seg();
   const actions = digitBuild(['a', 'b', 'c'], { commons: [] });
   const got = Server.findCircuitProblems(actions.map(a => ({ ...a })));
-  assert.ok(got.some(p => /at f30 is not connected between power and ground/.test(p)), JSON.stringify(got));
+  assert.ok(got.some(p => /at e30 is not connected between power and ground/.test(p)), JSON.stringify(got));
 });
 
 // ── The browser half ──────────────────────────────────────────────────────

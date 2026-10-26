@@ -47,10 +47,10 @@ test('the rows, their Z positions and the rail polarity (#61: bp is +) are as ex
   assert.deepStrictEqual(G.BODY_ROWS, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']);
   assert.deepStrictEqual(G.RAIL_ROWS, ['tp', 'tn', 'bn', 'bp']);
   assert.deepStrictEqual(G.ROW_Z, {
-    tp: -3.35, tn: -2.95,
-    a: -2.15, b: -1.75, c: -1.35, d: -0.95, e: -0.55,
-    f:  0.55, g:  0.95, h:  1.35, i:  1.75, j:  2.15,
-    bn: 2.95, bp: 3.35,
+    tp: 3.35, tn: 2.95,
+    a: 2.15, b: 1.75, c: 1.35, d: 0.95, e: 0.55,
+    f: -0.55, g: -0.95, h: -1.35, i: -1.75, j: -2.15,
+    bn: -2.95, bp: -3.35,
   });
   assert.deepStrictEqual(G.RAIL_IS_POS, { tp: true, tn: false, bn: false, bp: true });
 });
@@ -63,10 +63,11 @@ test('the bottom rail drawn red is bp and the blue one is bn, in the top\'s orde
   const G = load();
   const red  = side => G.RAIL_ROWS.filter(r => G.RAIL_IS_POS[r]  && Math.sign(G.ROW_Z[r]) === side);
   const blue = side => G.RAIL_ROWS.filter(r => !G.RAIL_IS_POS[r] && Math.sign(G.ROW_Z[r]) === side);
-  assert.deepStrictEqual(red(-1),  ['tp'], 'top red rail');
-  assert.deepStrictEqual(blue(-1), ['tn'], 'top blue rail');
-  assert.deepStrictEqual(red(1),   ['bp'], 'bottom red rail');
-  assert.deepStrictEqual(blue(1),  ['bn'], 'bottom blue rail');
+  // Row a and tp/tn are nearest the viewer (+Z, bottom of the screen).
+  assert.deepStrictEqual(red(1),   ['tp'], 'near (bottom-of-screen) red rail');
+  assert.deepStrictEqual(blue(1),  ['tn'], 'near (bottom-of-screen) blue rail');
+  assert.deepStrictEqual(red(-1),  ['bp'], 'far (top-of-screen) red rail');
+  assert.deepStrictEqual(blue(-1), ['bn'], 'far (top-of-screen) blue rail');
   // Same order on both halves: the red (+) rail is the one nearer the board edge.
   for (const [pos, neg] of [['tp', 'tn'], ['bp', 'bn']]) {
     assert.ok(Math.abs(G.ROW_Z[pos]) > Math.abs(G.ROW_Z[neg]),

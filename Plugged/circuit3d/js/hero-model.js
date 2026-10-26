@@ -321,7 +321,7 @@
           group.add(side);
         }
       }
-      marks.set('rail', { at: new THREE.Vector3(0, 0, G.ROW_Z.tp - 0.24) });   // moved near the circuit once it is placed
+      marks.set('rail', { at: new THREE.Vector3(0, 0, G.ROW_Z.tp + 0.24) });   // moved near the circuit once it is placed
       return group;
     }
 
@@ -892,7 +892,7 @@
           for (const o of framed) fitBox.union(b.setFromObject(o));
           if (!fitBox.isEmpty()) {   // the + rail beside the circuit
             rail.x = (fitBox.min.x + fitBox.max.x) / 2;
-            rail.z = fitBox.min.z + fitBox.max.z < 0 ? G.ROW_Z.tp - 0.24 : G.ROW_Z.bp + 0.24;
+            rail.z = fitBox.min.z + fitBox.max.z > 0 ? G.ROW_Z.tp + 0.24 : G.ROW_Z.bp - 0.24;
           }
           new ResizeObserver(frame).observe(App.renderer.domElement.parentElement);
           App.controls.autoRotate = !reduced;

@@ -87,41 +87,41 @@ const place = (type, legs, holeMap = new Map()) => Parts.checkPlacement(type, le
 
 // ── footprintLegs: test_three (pins in, gnd, out; legs [0,0] [1,0] [2,0]) ──
 
-describe('footprintLegs for test_three at a10', () => {
-  test('rotation 0 (right): a10 a11 a12, pins in, gnd, out', () => {
-    const legs = footprintLegs('test_three', 'a10', 0);
+describe('footprintLegs for test_three at j10', () => {
+  test('rotation 0 (right): j10 j11 j12, pins in, gnd, out', () => {
+    const legs = footprintLegs('test_three', 'j10', 0);
     assert.ok(Array.isArray(legs), `expected a list of legs, got ${JSON.stringify(legs)}`);
     assert.deepStrictEqual(bare(legs), [
-      { pin: 'in', col: 9, row: 'a' }, { pin: 'gnd', col: 10, row: 'a' }, { pin: 'out', col: 11, row: 'a' },
+      { pin: 'in', col: 9, row: 'j' }, { pin: 'gnd', col: 10, row: 'j' }, { pin: 'out', col: 11, row: 'j' },
     ]);
   });
 
-  test('rotation 90 (down, toward row j): a10 b10 c10', () => {
-    const legs = footprintLegs('test_three', 'a10', 90);
-    assert.deepStrictEqual(names(legs), ['a10', 'b10', 'c10']);
+  test('rotation 90 (down the screen, toward row a): j10 i10 h10', () => {
+    const legs = footprintLegs('test_three', 'j10', 90);
+    assert.deepStrictEqual(names(legs), ['j10', 'i10', 'h10']);
     assert.deepStrictEqual(pinsOf(legs), ['in', 'gnd', 'out']);
   });
 
-  test('rotation 180 (left): a10 a9 a8', () => {
-    const legs = footprintLegs('test_three', 'a10', 180);
-    assert.deepStrictEqual(names(legs), ['a10', 'a9', 'a8']);
+  test('rotation 180 (left): j10 j9 j8', () => {
+    const legs = footprintLegs('test_three', 'j10', 180);
+    assert.deepStrictEqual(names(legs), ['j10', 'j9', 'j8']);
     assert.deepStrictEqual(pinsOf(legs), ['in', 'gnd', 'out']);
   });
 
-  test('rotation 270 (up): a10, then two legs above row a, returned anyway and refused by checkPlacement', () => {
-    const legs = footprintLegs('test_three', 'a10', 270);
+  test('rotation 270 (up the screen): j10, then two legs past row j, returned anyway and refused by checkPlacement', () => {
+    const legs = footprintLegs('test_three', 'j10', 270);
     assert.ok(Array.isArray(legs) && legs.length === 3, `3 legs even off the board, got ${JSON.stringify(legs)}`);
-    assert.deepStrictEqual(bare(legs)[0], { pin: 'in', col: 9, row: 'a' });
+    assert.deepStrictEqual(bare(legs)[0], { pin: 'in', col: 9, row: 'j' });
     for (const l of legs.slice(1)) {
       assert.equal(l.col, 9, `leg ${l.pin} stays in column 10: ${JSON.stringify(l)}`);
-      assert.ok(!ROWS.includes(l.row), `leg ${l.pin} is above row a, not in a–j: ${JSON.stringify(l)}`);
+      assert.ok(!ROWS.includes(l.row), `leg ${l.pin} is past row j, not in a–j: ${JSON.stringify(l)}`);
     }
-    assert.equal(place('test_three', legs).ok, false, 'checkPlacement refuses legs above row a');
+    assert.equal(place('test_three', legs).ok, false, 'checkPlacement refuses legs past row j');
   });
 
-  test('rotation 90 at e30 runs down across the gap: e30 f30 g30, and checkPlacement allows it', () => {
-    const legs = footprintLegs('test_three', 'e30', 90);
-    assert.deepStrictEqual(names(legs), ['e30', 'f30', 'g30']);
+  test('rotation 90 at f30 runs down across the gap: f30 e30 d30, and checkPlacement allows it', () => {
+    const legs = footprintLegs('test_three', 'f30', 90);
+    assert.deepStrictEqual(names(legs), ['f30', 'e30', 'd30']);
     assert.deepStrictEqual(place('test_three', legs), { ok: true });
   });
 });
@@ -129,12 +129,12 @@ describe('footprintLegs for test_three at a10', () => {
 // ── checkPlacement with footprint legs ────────────────────────────────────
 
 describe('checkPlacement with footprintLegs', () => {
-  test('test_three at a10 facing right is allowed', () => {
-    assert.deepStrictEqual(place('test_three', footprintLegs('test_three', 'a10', 0)), { ok: true });
+  test('test_three at j10 facing right is allowed', () => {
+    assert.deepStrictEqual(place('test_three', footprintLegs('test_three', 'j10', 0)), { ok: true });
   });
 
   test('at the last column (63) facing right it is refused as running past column 63', () => {
-    const legs = footprintLegs('test_three', 'a63', 0);
+    const legs = footprintLegs('test_three', 'j63', 0);
     assert.deepStrictEqual(legs.map(l => l.col), [62, 63, 64], 'legs run past the edge and are still returned');
     const r = place('test_three', legs);
     assert.equal(r.ok, false);
@@ -142,13 +142,13 @@ describe('checkPlacement with footprintLegs', () => {
   });
 
   test('at column 62 facing right it is refused too, naming column 62', () => {
-    const r = place('test_three', footprintLegs('test_three', 'a62', 0));
+    const r = place('test_three', footprintLegs('test_three', 'j62', 0));
     assert.equal(r.ok, false);
     assert.ok(r.reason.includes('at column 62 would run past column 63'), `"${r.reason}"`);
   });
 
   test('at column 1 facing left it is refused as running past column 1', () => {
-    const legs = footprintLegs('test_three', 'a1', 180);
+    const legs = footprintLegs('test_three', 'j1', 180);
     assert.deepStrictEqual(legs.map(l => l.col), [0, -1, -2]);
     const r = place('test_three', legs);
     assert.equal(r.ok, false);
@@ -156,67 +156,67 @@ describe('checkPlacement with footprintLegs', () => {
   });
 
   test('on a taken hole it is refused, naming the occupant by label and pin', () => {
-    const map = new Map([['a11', { label: 'R1', pin: 'lead2' }]]);
-    const r = place('test_three', footprintLegs('test_three', 'a10', 0), map);
+    const map = new Map([['j11', { label: 'R1', pin: 'lead2' }]]);
+    const r = place('test_three', footprintLegs('test_three', 'j10', 0), map);
     assert.equal(r.ok, false);
-    assert.ok(r.reason.includes("a11 already holds R1's pin lead2"), `"${r.reason}"`);
+    assert.ok(r.reason.includes("j11 already holds R1's pin lead2"), `"${r.reason}"`);
   });
 
   test('a rotation not in place.rotations gives no legs: test_chip allows only 0 and 180', () => {
     for (const rot of [90, 270, 45]) {
-      assert.equal(footprintLegs('test_chip', 'e20', rot), null, `test_chip at rotation ${rot} must give null`);
+      assert.equal(footprintLegs('test_chip', 'f20', rot), null, `test_chip at rotation ${rot} must give null`);
     }
-    assert.equal(footprintLegs('test_three', 'a10', 45), null, 'test_three has no 45° rotation');
+    assert.equal(footprintLegs('test_three', 'j10', 45), null, 'test_three has no 45° rotation');
   });
 });
 
 // ── test_chip: 8-pin DIP across the centre gap ────────────────────────────
 
 describe('test_chip', () => {
-  test('at e20, rotation 0: e20 e21 e22 e23 f23 f22 f21 f20, pins p1..p8, and it is allowed', () => {
-    const legs = footprintLegs('test_chip', 'e20', 0);
-    assert.deepStrictEqual(names(legs), ['e20', 'e21', 'e22', 'e23', 'f23', 'f22', 'f21', 'f20']);
+  test('at f20, rotation 0: f20 f21 f22 f23 e23 e22 e21 e20, pins p1..p8, and it is allowed', () => {
+    const legs = footprintLegs('test_chip', 'f20', 0);
+    assert.deepStrictEqual(names(legs), ['f20', 'f21', 'f22', 'f23', 'e23', 'e22', 'e21', 'e20']);
     assert.deepStrictEqual(pinsOf(legs), ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']);
     assert.deepStrictEqual(place('test_chip', legs), { ok: true });
   });
 
-  test('at f23, rotation 180: the mirror, pin 1 in row f: f23 f22 f21 f20 e20 e21 e22 e23, allowed', () => {
-    const legs = footprintLegs('test_chip', 'f23', 180);
-    assert.deepStrictEqual(names(legs), ['f23', 'f22', 'f21', 'f20', 'e20', 'e21', 'e22', 'e23']);
+  test('at e23, rotation 180: the mirror, pin 1 in row e: e23 e22 e21 e20 f20 f21 f22 f23, allowed', () => {
+    const legs = footprintLegs('test_chip', 'e23', 180);
+    assert.deepStrictEqual(names(legs), ['e23', 'e22', 'e21', 'e20', 'f20', 'f21', 'f22', 'f23']);
     assert.deepStrictEqual(pinsOf(legs), ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']);
     assert.deepStrictEqual(place('test_chip', legs), { ok: true });
   });
 
-  test('anchored at a20 it is refused with the straddle message', () => {
-    const legs = footprintLegs('test_chip', 'a20', 0);
-    assert.deepStrictEqual(names(legs), ['a20', 'a21', 'a22', 'a23', 'b23', 'b22', 'b21', 'b20']);
+  test('anchored at j20 it is refused with the straddle message', () => {
+    const legs = footprintLegs('test_chip', 'j20', 0);
+    assert.deepStrictEqual(names(legs), ['j20', 'j21', 'j22', 'j23', 'i23', 'i22', 'i21', 'i20']);
     const r = place('test_chip', legs);
     assert.equal(r.ok, false);
     assert.ok(r.reason.includes('a chip must sit across the centre gap (rows e and f).'), `"${r.reason}"`);
   });
 
-  test('anchored at f20 facing right (rows f and g) it is refused with the straddle message', () => {
-    const r = place('test_chip', footprintLegs('test_chip', 'f20', 0));
+  test('anchored at e20 facing right (rows e and d) it is refused with the straddle message', () => {
+    const r = place('test_chip', footprintLegs('test_chip', 'e20', 0));
     assert.equal(r.ok, false);
     assert.ok(r.reason.includes('rows e and f'), `"${r.reason}"`);
   });
 
-  test('at e62 it is refused as an 8-pin chip running past column 63', () => {
-    const r = place('test_chip', footprintLegs('test_chip', 'e62', 0));
+  test('at f62 it is refused as an 8-pin chip running past column 63', () => {
+    const r = place('test_chip', footprintLegs('test_chip', 'f62', 0));
     assert.equal(r.ok, false);
     assert.ok(r.reason.includes('8-pin'), `"${r.reason}"`);
     assert.ok(r.reason.includes('at column 62 would run past column 63'), `"${r.reason}"`);
   });
 
   test('rotation 90 is not allowed', () => {
-    assert.equal(footprintLegs('test_chip', 'e20', 90), null);
+    assert.equal(footprintLegs('test_chip', 'f20', 90), null);
   });
 
   // Review fix: a chip with legs past row a or j breaks the straddle rule
   // (decision 4: "any leg outside rows e/f gets the straddle message"), so it
   // gets the straddle message, not the row-edge one.
-  for (const [anchor, rot] of [['j20', 0], ['a20', 180]]) {
-    test(`at ${anchor} rotation ${rot} (legs off the ${anchor[0] === 'j' ? 'bottom' : 'top'} edge) it is refused with the straddle message`, () => {
+  for (const [anchor, rot] of [['a20', 0], ['j20', 180]]) {
+    test(`at ${anchor} rotation ${rot} (legs off the ${anchor[0] === 'a' ? 'bottom' : 'top'} edge) it is refused with the straddle message`, () => {
       const r = place('test_chip', footprintLegs('test_chip', anchor, rot));
       assert.equal(r.ok, false);
       assert.ok(r.reason.includes('a chip must sit across the centre gap (rows e and f).'),
@@ -226,10 +226,10 @@ describe('test_chip', () => {
 });
 
 describe('a footprint part (not a chip) past row a or j', () => {
-  test('test_three at b10 rotation 270 is refused with the row-edge message, "would run past row a"', () => {
-    const r = place('test_three', footprintLegs('test_three', 'b10', 270));
+  test('test_three at i10 rotation 270 is refused with the row-edge message, "would run past row j"', () => {
+    const r = place('test_three', footprintLegs('test_three', 'i10', 270));
     assert.equal(r.ok, false);
-    assert.ok(r.reason.includes('would run past row a'), `expected the row-edge message, got "${r.reason}"`);
+    assert.ok(r.reason.includes('would run past row j'), `expected the row-edge message, got "${r.reason}"`);
   });
 });
 
@@ -240,7 +240,7 @@ describe('a placed footprint record round-trips', () => {
     type, label, values: {}, holeRefs: legs.map(l => ({ col: l.col, row: l.row })), pins: legs.map(() => ({})),
   });
 
-  for (const [type, label, anchor, rot] of [['test_three', 'TT1', 'e30', 90], ['test_chip', 'TC1', 'e20', 0], ['test_chip', 'TC2', 'f45', 180]]) {
+  for (const [type, label, anchor, rot] of [['test_three', 'TT1', 'f30', 90], ['test_chip', 'TC1', 'f20', 0], ['test_chip', 'TC2', 'e45', 180]]) {
     test(`${type} at ${anchor} rotation ${rot}: saveHoleRefs names every pin, and loading gives the same legs`, () => {
       const legs = footprintLegs(type, anchor, rot);
       const comp = record(type, label, legs);

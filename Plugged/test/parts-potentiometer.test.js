@@ -128,10 +128,10 @@ test("pins ['1', 'wiper', '3']; a footprint part, legs [0,0] [1,0] [2,0], rotati
   assert.ok(!place.straddle, 'a pot is not a chip: it does not straddle the gap');
 });
 
-test('footprintLegs: at c2 facing right the pins sit in c2 (1), c3 (wiper), c4 (3)', () => {
+test('footprintLegs: at h2 facing right the pins sit in h2 (1), h3 (wiper), h4 (3)', () => {
   pot();
-  const legs = Parts.footprintLegs('potentiometer', 'c2', 0);
-  assert.deepStrictEqual(legs.map(l => [l.pin, l.row + (l.col + 1)]), [['1', 'c2'], ['wiper', 'c3'], ['3', 'c4']]);
+  const legs = Parts.footprintLegs('potentiometer', 'h2', 0);
+  assert.deepStrictEqual(legs.map(l => [l.pin, l.row + (l.col + 1)]), [['1', 'h2'], ['wiper', 'h3'], ['3', 'h4']]);
   assert.deepStrictEqual(Parts.checkPlacement('potentiometer', legs, new Map(), { cols: N, bodyRows: ROWS }), { ok: true });
 });
 
@@ -409,15 +409,15 @@ test('turning the same dimmer 100 % → 50 % → 20 % on one board: the current 
 
 test('a placed pot saves one named holeRef per pin and loads back to the same legs', () => {
   pot();
-  const legs = Parts.footprintLegs('potentiometer', 'e30', 90);   // down: e30 f30 g30
+  const legs = Parts.footprintLegs('potentiometer', 'f30', 90);   // down the screen: f30 e30 d30
   const comp = { type: 'potentiometer', label: 'RV1', values: { resistance: 1000 }, controls: { position: 30 },
                  holeRefs: legs.map(l => ({ col: l.col, row: l.row })), pins: pinsOf(3) };
   const saved = BoardIO.saveHoleRefs(comp);
-  assert.deepStrictEqual(saved, [{ pin: '1', col: 29, row: 'e' }, { pin: 'wiper', col: 29, row: 'f' }, { pin: '3', col: 29, row: 'g' }]);
+  assert.deepStrictEqual(saved, [{ pin: '1', col: 29, row: 'f' }, { pin: 'wiper', col: 29, row: 'e' }, { pin: '3', col: 29, row: 'd' }]);
   const loaded = { type: 'potentiometer', label: 'RV1', holeRefs: BoardIO.loadHoleRefs({ type: 'potentiometer', label: 'RV1', holeRefs: saved }) };
-  assert.deepStrictEqual(Parts.legsOf(loaded).map(l => [l.pin, l.hole]), [['1', 'e30'], ['wiper', 'f30'], ['3', 'g30']]);
+  assert.deepStrictEqual(Parts.legsOf(loaded).map(l => [l.pin, l.hole]), [['1', 'f30'], ['wiper', 'e30'], ['3', 'd30']]);
   const map = BoardIO.buildHoleMap([comp], []);
-  assert.deepStrictEqual(map.get('f30'), { label: 'RV1', pin: 'wiper' });
+  assert.deepStrictEqual(map.get('e30'), { label: 'RV1', pin: 'wiper' });
 });
 
 // ── The server: tools, selection, circuit problems ────────────────────────

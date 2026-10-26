@@ -92,11 +92,11 @@
   };
 
   // Hole centres for the legs; legs without holes (a preview with no
-  // anchor) are drawn as if at f0, centred on (0, 0, 0).
+  // anchor) are drawn as if at e0, centred on (0, 0, 0).
   function legPoints(ctx, legs) {
     const onBoard = legs.every(l => l && l.col != null && l.row != null);
     if (onBoard) return legs.map(l => ctx.holeWorld(l.col, l.row));
-    const pts = LEGS.map(([dc, dr]) => ctx.holeWorld(dc, dr ? 'e' : 'f'));
+    const pts = LEGS.map(([dc, dr]) => ctx.holeWorld(dc, dr ? 'f' : 'e'));
     const mid = pts.reduce((s, p) => s.add(p), new ctx.THREE.Vector3()).multiplyScalar(1 / pts.length);
     return pts.map(p => p.sub(mid));
   }

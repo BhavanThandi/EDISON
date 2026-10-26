@@ -22,7 +22,7 @@ const assert = require('node:assert');
 const fs     = require('node:fs');
 const path   = require('node:path');
 
-const { nodeOf, score, webRails, loadSet, parseArgs } = require('../scripts/photo-eval.js');
+const { nodeOf, score, webRails, loadSet, parseArgs, setsFor } = require('../scripts/photo-eval.js');
 const { railsOf, holeOf } = require('./fixtures/photo-web-rails.js');
 
 const EVAL = path.join(__dirname, 'fixtures/photo/eval');
@@ -310,6 +310,13 @@ test.each(Object.keys(WEB_PHOTOS))('%s: loadSet(web) puts each spike rail end on
 });
 
 // ── (e) parseArgs ───────────────────────────────────────────────────────
+
+test('parseArgs takes --set online, and --set all runs the eval, web and online sets', () => {
+  assert.strictEqual(parseArgs(['--set', 'online']).set, 'online');
+  assert.deepStrictEqual(setsFor('all'), ['eval', 'web', 'online']);
+  assert.deepStrictEqual(setsFor('online'), ['online']);
+  assert.deepStrictEqual(setsFor('eval'), ['eval']);
+});
 
 test('parseArgs: the eval set once by default; a bad --set or --runs is refused', () => {
   const d = parseArgs([]);

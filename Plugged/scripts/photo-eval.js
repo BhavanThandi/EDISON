@@ -16,7 +16,8 @@
 //    npm run photo-eval -- --shots <dir>         save the tap, confirm and placed screens
 //  Sets: eval (test/fixtures/photo/eval/), web (test/fixtures/photo/web/:
 //  the spike's 6 photos; their rail ends are converted to app rail names,
-//  their corners fitted from the labelled taps), all.
+//  their corners fitted from the labelled taps), online (test/fixtures/photo/online/:
+//  CC-licensed op-amp board photos found online, A5), all (the three).
 //  Without --port it starts `node backend/server.js` on a free port with
 //  this shell's environment (the server reads its own key file as usual).
 //
@@ -222,11 +223,14 @@ function score(truth, got) {
 
 // ── CLI ────────────────────────────────────────────────────
 
+// The sets a --set value runs: all is eval, web and online.
+const setsFor = set => (set === 'all' ? ['eval', 'web', 'online'] : [set]);
+
 function parseArgs(argv) {
   const out = { set: 'eval', runs: 1, only: null, out: null, port: null, shots: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = argv[i + 1];
-    if (a === '--set') { out.set = v; i++; if (!['eval', 'web', 'all'].includes(v)) throw new Error('--set is eval, web or all'); }
+    if (a === '--set') { out.set = v; i++; if (!['eval', 'web', 'online', 'all'].includes(v)) throw new Error('--set is eval, web, online or all'); }
     else if (a === '--runs') { out.runs = Number(v); i++; if (!Number.isInteger(out.runs) || out.runs < 1) throw new Error('--runs needs a whole number of at least 1'); }
     else if (a === '--only') { out.only = String(v || '').split(',').filter(Boolean); i++; if (!out.only.length) throw new Error('--only needs ids'); }
     else if (a === '--out') { out.out = v; i++; if (!v) throw new Error('--out needs a file'); }
@@ -419,7 +423,7 @@ async function main() {
   }
   if (process.platform === 'darwin') { try { os.setPriority(15); } catch { /* normal priority */ } }
 
-  let photos = (args.set === 'all' ? ['eval', 'web'] : [args.set]).flatMap(loadSet);
+  let photos = setsFor(args.set).flatMap(loadSet);
   if (args.only) photos = photos.filter(p => args.only.some(o => p.id === o || p.id.startsWith(o)));
   if (!photos.length) { console.error('photo-eval: no photo matches --only'); process.exit(2); }
   if (args.shots) fs.mkdirSync(args.shots, { recursive: true });
@@ -471,6 +475,6 @@ async function main() {
   }
 }
 
-module.exports = { nodeOf, shared, pair, score, row, table, totals, webRails, webHole, webCorners, loadSet, parseArgs };
+module.exports = { nodeOf, shared, pair, score, row, table, totals, webRails, webHole, webCorners, loadSet, parseArgs, setsFor };
 
 if (require.main === module) main();

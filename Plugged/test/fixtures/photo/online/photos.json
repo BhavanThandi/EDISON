@@ -1,0 +1,160 @@
+{
+  "fl01_ne5532": {
+    "file": "fl01_ne5532.jpg",
+    "cols": 63,
+    "width": 2048,
+    "height": 1365,
+    "taps": {
+      "a1": [
+        1881.5,
+        555.1
+      ],
+      "a63": [
+        112.6,
+        556.9
+      ],
+      "j63": [
+        107.3,
+        870.3
+      ],
+      "j1": [
+        1888.0,
+        867.3
+      ]
+    },
+    "source": "https://www.flickr.com/photos/28622838@N00/6875590428",
+    "license": "CC BY 2.0 (Kyle McDonald)"
+  },
+  "fl02_lm358_top": {
+    "file": "fl02_lm358_top.jpg",
+    "cols": 30,
+    "width": 1536,
+    "height": 2048,
+    "taps": {
+      "a1": [
+        912.4,
+        1866.2
+      ],
+      "a30": [
+        903.2,
+        944.1
+      ],
+      "j30": [
+        598.0,
+        942.1
+      ],
+      "j1": [
+        486.4,
+        1837.1
+      ]
+    },
+    "source": "https://www.flickr.com/photos/51753258@N00/3381415529",
+    "license": "CC BY 2.0 (Sho Hashimoto)"
+  },
+  "fl03_lm358_oblique": {
+    "file": "fl03_lm358_oblique.jpg",
+    "cols": 30,
+    "width": 2048,
+    "height": 1536,
+    "taps": {
+      "a1": [
+        1802.2,
+        944.6
+      ],
+      "a30": [
+        800.8,
+        689.7
+      ],
+      "j30": [
+        602.1,
+        974.8
+      ],
+      "j1": [
+        1703.4,
+        1397.8
+      ]
+    },
+    "source": "https://www.flickr.com/photos/51753258@N00/3381415737",
+    "license": "CC BY 2.0 (Sho Hashimoto)"
+  },
+  "fl06_ne555_neg": {
+    "file": "fl06_ne555_neg.jpg",
+    "cols": 30,
+    "width": 2048,
+    "height": 1451,
+    "taps": {
+      "a1": [
+        1573.4,
+        559.4
+      ],
+      "a30": [
+        381.3,
+        572.6
+      ],
+      "j30": [
+        370.4,
+        1021.0
+      ],
+      "j1": [
+        1587.7,
+        1021.0
+      ]
+    },
+    "source": "https://www.flickr.com/photos/45581782@N00/5933950051",
+    "license": "CC BY 2.0 (Paul Downey)"
+  },
+  "wm03_oscillator": {
+    "file": "wm03_oscillator.jpg",
+    "cols": 63,
+    "width": 1530,
+    "height": 2048,
+    "taps": {
+      "a1": [
+        836.1,
+        1838.6
+      ],
+      "a63": [
+        863.0,
+        467.0
+      ],
+      "j63": [
+        633.8,
+        467.0
+      ],
+      "j1": [
+        578.5,
+        1831.5
+      ]
+    },
+    "source": "https://commons.wikimedia.org/wiki/File:Final_product_Oscillator.JPG",
+    "license": "CC BY-SA 3.0 (Mcyr1793)",
+    "exif_orientation": 6,
+    "note": "Stored sideways (raw 2592x1936, EXIF orientation 6). width/height and taps are in the upright frame the browser shows (it applies EXIF on decode; the page taps in naturalWidth/naturalHeight)."
+  },
+  "wm04_50hz_osc": {
+    "file": "wm04_50hz_osc.jpg",
+    "cols": 63,
+    "width": 1536,
+    "height": 2048,
+    "taps": {
+      "a1": [
+        555.0,
+        385.0
+      ],
+      "a63": [
+        606.5,
+        1934.0
+      ],
+      "j63": [
+        870.7,
+        1901.0
+      ],
+      "j1": [
+        828.0,
+        389.0
+      ]
+    },
+    "source": "https://commons.wikimedia.org/wiki/File:50_Hz_Oscillator.jpg",
+    "license": "CC BY-SA 3.0 (Odoulorenzo)"
+  }
+}

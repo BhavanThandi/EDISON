@@ -166,7 +166,7 @@ test('7-segment: each recipe/example is exactly the ORIGINAL through T_A: every 
     const wires = e => e.wires.map(pair).sort();
     if (JSON.stringify(wires(ex)) !== JSON.stringify(wires(want))) bad.push(`"${ex.name}" wires:\n  got  ${wires(ex).join(' | ')}\n  want ${wires(want).join(' | ')}`);
     // by hand, for the digit-7 recipe: the bridges and the mapped feeds
-    for (const w of ['tp_1 ~ bp_1', 'tn_1 ~ bn_1', 'BAT1.0 ~ tp_63', 'BAT1.1 ~ tn_63']) {
+    for (const w of ['bp_1 ~ tp_1', 'bn_1 ~ tn_1', 'BAT1.0 ~ tp_63', 'BAT1.1 ~ tn_63']) {
       if (!wires(ex).includes(w)) bad.push(`"${ex.name}" lacks the wire ${w}`);
     }
   }

@@ -71,9 +71,13 @@ const NEGATE_Z = new Set([
   'Plugged/edison/figures/divider.sparky', 'Plugged/edison/figures/ohm.sparky',
   'Plugged/edison/figures/inverting.sparky', 'Plugged/edison/figures/non-inverting.sparky',
 ]);
+// Ruling 29: of the docs boards only these two off-board parts change side
+// (z -> -z); every other docs/boards position stays (photo11's FG1 is already
+// on the right side).
+const DOCS_NEGATE = { 'docs/boards/photo11-ensc-lab-bench.sparky': ['PS1'], 'docs/boards/photoexample-op-amp-blinker.sparky': ['BAT1'] };
 const offboard = c => !Array.isArray(c.holeRefs);
 const negZ = z => (z === 0 ? 0 : -z);
-const negateOffboard = recs => ({ ...recs, components: recs.components.map(c => (offboard(c) && c.position ? { ...c, position: { ...c.position, z: negZ(c.position.z) } } : c)) });
+const negateOffboard = (recs, only) => ({ ...recs, components: recs.components.map(c => (offboard(c) && c.position && (!only || only.includes(c.label)) ? { ...c, position: { ...c.position, z: negZ(c.position.z) } } : c)) });
 
 function toExample(data) {
   // older files leave a part's label off; the page names it by placement order
@@ -347,7 +351,7 @@ function wantedSide(rows) {
 test('every off-board source sits beside the rails it is wired to (z > 0 beside a / tp / tn, z < 0 beside j / bp / bn; a part at z 0 is on neither side)', () => {
   const off = [];
   let checked = 0;
-  for (const [rel] of FILES.filter(f => !f[0].startsWith('docs/'))) {
+  for (const [rel] of FILES) {
     const d = load(rel);
     d.components.forEach((c, i) => {
       if (!offboard(c) || !c.position) return;
@@ -396,7 +400,7 @@ test('chip content is the column reflection of the original (photo11: the ensc-l
   const off = [];
   for (const [rel, fx] of FILES.filter(f => f[2])) {
     const mapped = rel.endsWith('photo11-ensc-lab-bench.sparky') ? columnMapRecords(original(fx)) : reflectedRecords(original(fx));
-    const want = NEGATE_Z.has(rel) ? negateOffboard(mapped) : mapped, now = load(rel);
+    const want = NEGATE_Z.has(rel) ? negateOffboard(mapped) : DOCS_NEGATE[rel] ? negateOffboard(mapped, DOCS_NEGATE[rel]) : mapped, now = load(rel);
     if (now.components.length !== want.components.length || now.wires.length !== want.wires.length) { off.push(`${rel}: record counts`); continue; }
     now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), want.components[i])) off.push(`${rel} component ${i} (${c.label}): ${JSON.stringify(c.holeRefs)} ${JSON.stringify(c.position)} want ${JSON.stringify(want.components[i].holeRefs)} ${JSON.stringify(want.components[i].position)}`); });
     now.wires.forEach((w, i) => { if (!sameRefs(withoutV(w), want.wires[i])) off.push(`${rel} wire ${i}`); });

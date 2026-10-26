@@ -244,7 +244,8 @@ test('the current step is pinned at the top of the paper with its Give me, Hint 
   await bar.locator('.lab-now-give').click();
   await expect(bar.locator('.lab-now-step'), 'step 1 confirmed: the bar moves on').toHaveText('Step 2 of 6');
   await expect(bar.locator('.lab-now-last')).toContainText('Give me, step 1');
-  await expect(bar.locator('.lab-now-last')).toContainText('The +12 V rail to pin 8 (V+), hole a33');
+  await expect(bar.locator('.lab-now-last')).toContainText('The + rail beside row a (tp) to pin 8 (V+), hole a33');
+  await expect(bar.locator('.lab-now-last')).toContainText('The − rail beside row j (bn) to pin 4 (V−), hole j30');
   await expect(bar.locator('.lab-now-hint'), 'the new step\'s hint starts folded').toBeHidden();
   expect(errors).toEqual([]);
 });

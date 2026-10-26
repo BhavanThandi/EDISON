@@ -33,7 +33,8 @@ const PhotoGrid = require('../circuit3d/js/photo-grid.js');
 
 const ROOT     = path.join(__dirname, '..');
 const FIXTURES = path.join(ROOT, 'test/fixtures/photo');
-const SCORED   = ['resistor', 'led', 'capacitor', 'potentiometer', 'diode', 'ic'];
+const SCORED   = ['resistor', 'led'];   // the headline: parts, legs, wires, ends, invented, other, polarity, rails
+const EXTRA    = ['capacitor', 'potentiometer', 'diode', 'ic'];   // reported in their own fields (A2), never in the headline
 const CONFIRM_TIMEOUT_MS = 180000;   // page: 60 s box round, plus slack
 const PLACED_TIMEOUT_MS  = 70000;    // after the confirm screen: the page's 45 s crop round, plus slack
 const MIN_GAP_MS = 11000;            // the server allows 6 photos a minute per IP
@@ -157,28 +158,42 @@ function score(truth, got) {
     const pi = p.roles.indexOf('anode');
     if (pi >= 0 && p.nodes[pi] === t.nodes[ti]) polRight++;
   }
-  // Capacitors, pots and chips: right when every known truth leg's node is covered. A chip's
-  // orientation is right when the truth names pin 1 and the reading's pin 1 is on that node. A
-  // chip the truth flags (a part the app can't build, e.g. a SOIC adapter or an NE555) is right
-  // when the reading does not build it as a TL072.
+  // The other types, in their own fields so the headline stays comparable with older runs. A
+  // part is right when every known truth leg's node is covered. A truth part with no known leg
+  // is "unlocated": counted, never right or wrong. A chip's orientation is right when the truth
+  // names pin 1 and the paired reading's pin 1 is on that node. A chip the truth flags (one the
+  // app can't build, e.g. a SOIC adapter or an NE555) is right when ITS paired reading part, if
+  // any, is not a TL072-family build.
+  const xTruth = truth.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
+    type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
+  const xRead  = got.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
+    type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.role) }));
+  const located = xTruth.filter(t => t.flagged || t.nodes.some(Boolean));
+  const xPairs  = pair(located, xRead).pairs;
+  const mate = t => { const c = xPairs.find(x => located[x.i] === t); return c && xRead[c.j]; };
   const typeScore = type => {
     let right = 0, total = 0;
-    for (const [i, t] of tParts.entries()) {
-      if (t.type !== type) continue;
+    for (const t of located) {
+      if (t.type !== type || t.flagged) continue;
       total++;
-      if (t.flagged) { if (!pParts.some(p => p.type === 'ic' && /^TL072$/i.test(String(p.value || '').trim()))) right++; continue; }
-      const c = parts.pairs.find(x => x.i === i);
-      if (c && shared(t.nodes, pParts[c.j].nodes) === t.nodes.filter(Boolean).length) right++;
+      const p = mate(t);
+      if (p && shared(t.nodes, p.nodes) === t.nodes.filter(Boolean).length) right++;
     }
     return { right, total };
   };
+  const flagged = { right: 0, total: 0 };
+  for (const t of located) {
+    if (!t.flagged) continue;
+    flagged.total++;
+    const p = mate(t);
+    if (!p || !/^TL0[78]\d/i.test(String(p.value || '').trim())) flagged.right++;
+  }
   let pin1Right = 0, pin1Known = 0;
-  for (const c of parts.pairs) {
-    const t = tParts[c.i], p = pParts[c.j];
+  for (const t of located) {
     const ti = t.roles.indexOf('1');
     if (t.type !== 'ic' || t.flagged || ti < 0 || !t.nodes[ti]) continue;
     pin1Known++;
-    const pi = p.roles.indexOf('1');
+    const p = mate(t), pi = p ? p.roles.indexOf('1') : -1;
     if (pi >= 0 && p.nodes[pi] === t.nodes[ti]) pin1Right++;
   }
   let railRight = 0, railKnown = 0;
@@ -198,6 +213,9 @@ function score(truth, got) {
     chipPin1: { right: pin1Right, known: pin1Known },
     caps:     typeScore('capacitor'),
     pots:     typeScore('potentiometer'),
+    diodes:   typeScore('diode'),
+    flagged,
+    unlocated: xTruth.length - located.length,
     other:    got.parts.filter(p => !SCORED.includes(p.type)).length,
   };
 }
@@ -352,11 +370,12 @@ function row(r) {
           s ? String(s.parts.invented + s.wires.invented) : '-',
           s ? frac(s.chips.right, s.chips.total) : '-', s ? frac(s.chipPin1.right, s.chipPin1.known) : '-',
           s ? frac(s.caps.right, s.caps.total) : '-', s ? frac(s.pots.right, s.pots.total) : '-',
+          s ? frac(s.diodes.right, s.diodes.total) : '-', s ? frac(s.flagged.right, s.flagged.total) : '-', s ? String(s.unlocated) : '-',
           String(us.calls), String(us.http429), String(us.tokensIn), String(us.tokensOut), r.outcome === 'ok' ? '' : r.outcome];
 }
 
 function table(rows) {
-  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'chips', 'chip pin-1', 'caps', 'pots', 'calls', '429', 'tok in', 'tok out', 'failure'];
+  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'chips', 'chip pin-1', 'caps', 'pots', 'diodes', 'flagged', 'unlocated', 'calls', '429', 'tok in', 'tok out', 'failure'];
   const all = [head, ...rows];
   const w = head.map((_, i) => Math.max(...all.map(r => String(r[i]).length)));
   return all.map(r => r.map((c, i) => String(c).padEnd(w[i])).join('  ').trimEnd()).join('\n');
@@ -385,6 +404,8 @@ function totals(results) {
     polarity: { right: sum('polarity', 'right'), known: sum('polarity', 'known') }, rails: { right: sum('rails', 'right'), known: sum('rails', 'known') },
     chips: { right: sum('chips', 'right'), total: sum('chips', 'total') }, chipPin1: { right: sum('chipPin1', 'right'), known: sum('chipPin1', 'known') },
     caps: { right: sum('caps', 'right'), total: sum('caps', 'total') }, pots: { right: sum('pots', 'right'), total: sum('pots', 'total') },
+    diodes: { right: sum('diodes', 'right'), total: sum('diodes', 'total') }, flagged: { right: sum('flagged', 'right'), total: sum('flagged', 'total') },
+    unlocated: ok.reduce((n, r) => n + r.score.unlocated, 0),
   };
 }
 
@@ -442,7 +463,7 @@ async function main() {
     `confirm screen median ${t.medianS}s, max ${t.maxS}s · legs placed median ${t.placedMedianS}s, max ${t.placedMaxS}s · ` +
     `parts ${t.parts.found}/${t.parts.truth} · legs ${t.legs.right}/${t.legs.total} · wires ${t.wires.found}/${t.wires.truth} · ` +
     `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known} · ` +
-    `chips ${t.chips.right}/${t.chips.total} · chip pin-1 ${t.chipPin1.right}/${t.chipPin1.known} · caps ${t.caps.right}/${t.caps.total} · pots ${t.pots.right}/${t.pots.total} · ` +
+    `chips ${t.chips.right}/${t.chips.total} · chip pin-1 ${t.chipPin1.right}/${t.chipPin1.known} · caps ${t.caps.right}/${t.caps.total} · pots ${t.pots.right}/${t.pots.total} · diodes ${t.diodes.right}/${t.diodes.total} · flagged ${t.flagged.right}/${t.flagged.total} · unlocated ${t.unlocated} · ` +
     `${t.calls} Gemini calls, ${t.http429} 429s, ${t.tokensIn} tokens in, ${t.tokensOut} out · est. $${t.costUsd.toFixed(4)}`);
   if (args.out) {
     fs.writeFileSync(args.out, JSON.stringify({ at: new Date().toISOString(), args, totals: t, results }, null, 1));

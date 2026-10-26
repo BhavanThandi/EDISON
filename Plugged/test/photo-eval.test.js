@@ -32,8 +32,7 @@ const EVAL_PHOTOS = json(EVAL, 'photos.json'), EVAL_TRUTH = json(EVAL, 'truth.js
 const WEB_PHOTOS  = json(WEB, 'photos.json'),  WEB_TRUTH  = json(WEB, 'truth.json');
 
 const STRIPS = ['aOuter', 'aInner', 'jInner', 'jOuter'];
-const SCORED = ['resistor', 'led', 'capacitor', 'potentiometer', 'diode', 'ic'];   // what photo-eval scores (A2)
-const TWO_LEG = ['resistor', 'led'];
+const SCORED = ['resistor', 'led'];   // the headline: resistor + LED only, so before/after numbers compare (P2)
 
 const EVAL_SET = loadSet('eval');
 const WEB_SET  = loadSet('web');
@@ -121,7 +120,7 @@ test.each(Object.keys(EVAL_TRUTH))('%s: truth: a sign per rail strip, 2 leads pe
 
   const problems = [];
   for (const p of t.parts) {
-    if (TWO_LEG.includes(p.type) && (p.leads || []).length !== 2) problems.push(`${p.id}: ${(p.leads || []).length} leads`);
+    if (SCORED.includes(p.type) && (p.leads || []).length !== 2) problems.push(`${p.id}: ${(p.leads || []).length} leads`);
     (p.leads || []).forEach((l, k) => {
       const why = holeProblem(l, cols);
       if (why) problems.push(`${p.id}.leads[${k}] ${JSON.stringify(l.hole)}: ${why}`);

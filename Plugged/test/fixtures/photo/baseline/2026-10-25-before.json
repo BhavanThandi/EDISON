@@ -1,0 +1,682 @@
+{
+ "at": "2026-10-26T03:35:07.175Z",
+ "args": {
+  "set": "all",
+  "runs": 1,
+  "only": [
+   "e01",
+   "p3"
+  ],
+  "out": "/private/tmp/claude-501/-Users-aarmensidhu-Desktop/601dad48-52ad-405a-af0a-c3628a0770db/scratchpad/edison/before/before.json",
+  "port": 5001,
+  "shots": "/private/tmp/claude-501/-Users-aarmensidhu-Desktop/601dad48-52ad-405a-af0a-c3628a0770db/scratchpad/edison/before/shots"
+ },
+ "totals": {
+  "photos": 2,
+  "failures": 0,
+  "placedTimeouts": 0,
+  "medianS": 14.8,
+  "maxS": 18.8,
+  "placedMedianS": 31.2,
+  "placedMaxS": 59.1,
+  "parts": {
+   "found": 9,
+   "truth": 13
+  },
+  "legs": {
+   "right": 16,
+   "total": 26
+  },
+  "wires": {
+   "found": 15,
+   "truth": 18
+  },
+  "ends": {
+   "right": 28,
+   "total": 34
+  },
+  "invented": 5,
+  "polarity": {
+   "right": 0,
+   "known": 0
+  },
+  "rails": {
+   "right": 4,
+   "known": 6
+  }
+ },
+ "results": [
+  {
+   "set": "eval",
+   "id": "e01_preamp",
+   "run": 1,
+   "log": [],
+   "ms": 14776,
+   "placedMs": 31220,
+   "outcome": "ok",
+   "net": {
+    "/api/photo": {
+     "start": 1792985614308,
+     "status": 200,
+     "s": 14.519,
+     "provider": "gemini",
+     "model": "gemini-robotics-er-2-preview"
+    },
+    "/api/photo/leads": {
+     "start": 1792985629048,
+     "status": 200,
+     "s": 16.226,
+     "provider": "gemini",
+     "model": "gemini-robotics-er-2-preview",
+     "items": {
+      "n": 17,
+      "timeout": 0,
+      "failed": 9
+     }
+    }
+   },
+   "errors": [],
+   "got": {
+    "rails": {
+     "aOuter": "+",
+     "aInner": "-",
+     "jInner": "-",
+     "jOuter": "+"
+    },
+    "parts": [
+     {
+      "id": "R1",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "j56",
+        "role": "unknown"
+       },
+       {
+        "hole": "j61",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R2",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "h56",
+        "role": "unknown"
+       },
+       {
+        "hole": "h60",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R3",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "g48",
+        "role": "unknown"
+       },
+       {
+        "hole": "g54",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R4",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "off",
+        "role": "unknown"
+       },
+       {
+        "hole": "off",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R5",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "a47",
+        "role": "unknown"
+       },
+       {
+        "hole": "a51",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R6",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "a37",
+        "role": "unknown"
+       },
+       {
+        "hole": "a42",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R7",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "off",
+        "role": "unknown"
+       },
+       {
+        "hole": "e37",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R8",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "b25",
+        "role": "unknown"
+       },
+       {
+        "hole": "b30",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R9",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "b56",
+        "role": "unknown"
+       },
+       {
+        "hole": "b61",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "X1",
+      "type": "other",
+      "value": 0,
+      "color": "",
+      "leads": [
+       {
+        "hole": "e56",
+        "role": "unknown"
+       },
+       {
+        "hole": "e61",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "X2",
+      "type": "other",
+      "value": 0,
+      "color": "",
+      "leads": [
+       {
+        "hole": "off",
+        "role": "unknown"
+       },
+       {
+        "hole": "i45",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "X3",
+      "type": "other",
+      "value": 0,
+      "color": "",
+      "leads": [
+       {
+        "hole": "off",
+        "role": "unknown"
+       },
+       {
+        "hole": "f44",
+        "role": "unknown"
+       }
+      ]
+     }
+    ],
+    "wires": [
+     {
+      "id": "W1",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:jOuter:6"
+       }
+      ]
+     },
+     {
+      "id": "W2",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:jInner:11"
+       }
+      ]
+     },
+     {
+      "id": "W3",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:jInner:23"
+       }
+      ]
+     },
+     {
+      "id": "W4",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:jInner:27"
+       }
+      ]
+     },
+     {
+      "id": "W5",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:jInner:34"
+       }
+      ]
+     },
+     {
+      "id": "W6",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:jInner:58"
+       }
+      ]
+     },
+     {
+      "id": "W7",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "rail:aOuter:3"
+       }
+      ]
+     },
+     {
+      "id": "W8",
+      "color": "",
+      "ends": [
+       {
+        "hole": "a57"
+       },
+       {
+        "hole": "a60"
+       }
+      ]
+     }
+    ]
+   },
+   "score": {
+    "parts": {
+     "truth": 11,
+     "found": 8,
+     "invented": 1
+    },
+    "legs": {
+     "right": 15,
+     "total": 22
+    },
+    "wires": {
+     "truth": 8,
+     "found": 8,
+     "invented": 0
+    },
+    "ends": {
+     "right": 16,
+     "total": 16
+    },
+    "polarity": {
+     "right": 0,
+     "known": 0
+    },
+    "rails": {
+     "right": 2,
+     "known": 4
+    },
+    "other": 3
+   }
+  },
+  {
+   "set": "web",
+   "id": "p3_bjornr",
+   "run": 1,
+   "log": [],
+   "ms": 18809,
+   "placedMs": 59054,
+   "outcome": "ok",
+   "net": {
+    "/api/photo": {
+     "start": 1792985648124,
+     "status": 200,
+     "s": 18.617,
+     "provider": "gemini",
+     "model": "gemini-robotics-er-2-preview"
+    },
+    "/api/photo/leads": {
+     "start": 1792985666916,
+     "status": 200,
+     "s": 40.011,
+     "provider": "gemini",
+     "model": "gemini-robotics-er-2-preview",
+     "items": {
+      "n": 12,
+      "timeout": 4,
+      "failed": 4
+     }
+    }
+   },
+   "errors": [],
+   "got": {
+    "rails": {
+     "aOuter": "?",
+     "aInner": "?",
+     "jInner": "+",
+     "jOuter": "-"
+    },
+    "parts": [
+     {
+      "id": "X1",
+      "type": "other",
+      "value": 0,
+      "color": "",
+      "leads": [
+       {
+        "hole": "e7",
+        "role": "unknown"
+       },
+       {
+        "hole": "e11",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "X2",
+      "type": "other",
+      "value": 0,
+      "color": "",
+      "leads": [
+       {
+        "hole": "b8",
+        "role": "unknown"
+       },
+       {
+        "hole": "off",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "X3",
+      "type": "other",
+      "value": 0,
+      "color": "",
+      "leads": [
+       {
+        "hole": "g12",
+        "role": "unknown"
+       },
+       {
+        "hole": "off",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R1",
+      "type": "resistor",
+      "value": 10000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "off",
+        "role": "unknown"
+       },
+       {
+        "hole": "off",
+        "role": "unknown"
+       }
+      ]
+     },
+     {
+      "id": "R2",
+      "type": "resistor",
+      "value": 1000,
+      "color": "",
+      "leads": [
+       {
+        "hole": "i9",
+        "role": "unknown"
+       },
+       {
+        "hole": "off",
+        "role": "unknown"
+       }
+      ]
+     }
+    ],
+    "wires": [
+     {
+      "id": "W1",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "off"
+       }
+      ]
+     },
+     {
+      "id": "W2",
+      "color": "",
+      "ends": [
+       {
+        "hole": "rail:jInner:7"
+       },
+       {
+        "hole": "j8"
+       }
+      ]
+     },
+     {
+      "id": "W3",
+      "color": "",
+      "ends": [
+       {
+        "hole": "rail:jInner:12"
+       },
+       {
+        "hole": "off"
+       }
+      ]
+     },
+     {
+      "id": "W4",
+      "color": "",
+      "ends": [
+       {
+        "hole": "off"
+       },
+       {
+        "hole": "h10"
+       }
+      ]
+     },
+     {
+      "id": "W5",
+      "color": "",
+      "ends": [
+       {
+        "hole": "f7"
+       },
+       {
+        "hole": "e7"
+       }
+      ]
+     },
+     {
+      "id": "W6",
+      "color": "",
+      "ends": [
+       {
+        "hole": "f12"
+       },
+       {
+        "hole": "off"
+       }
+      ]
+     },
+     {
+      "id": "W7",
+      "color": "",
+      "ends": [
+       {
+        "hole": "f13"
+       },
+       {
+        "hole": "e13"
+       }
+      ]
+     },
+     {
+      "id": "W8",
+      "color": "",
+      "ends": [
+       {
+        "hole": "d7"
+       },
+       {
+        "hole": "d9"
+       }
+      ]
+     },
+     {
+      "id": "W9",
+      "color": "",
+      "ends": [
+       {
+        "hole": "d11"
+       },
+       {
+        "hole": "d12"
+       }
+      ]
+     },
+     {
+      "id": "W10",
+      "color": "",
+      "ends": [
+       {
+        "hole": "rail:aInner:9"
+       },
+       {
+        "hole": "rail:aInner:13"
+       }
+      ]
+     }
+    ]
+   },
+   "score": {
+    "parts": {
+     "truth": 2,
+     "found": 1,
+     "invented": 1
+    },
+    "legs": {
+     "right": 1,
+     "total": 4
+    },
+    "wires": {
+     "truth": 10,
+     "found": 7,
+     "invented": 3
+    },
+    "ends": {
+     "right": 12,
+     "total": 18
+    },
+    "polarity": {
+     "right": 0,
+     "known": 0
+    },
+    "rails": {
+     "right": 2,
+     "known": 2
+    },
+    "other": 3
+   }
+  }
+ ]
+}

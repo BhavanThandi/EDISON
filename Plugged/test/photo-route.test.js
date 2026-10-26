@@ -775,3 +775,42 @@ test('validateReading coerces fields it can repair and drops what it can\'t, wit
   assert.ok(notes.some(n => n.includes('R9')), `no note says why R9 was dropped: ${JSON.stringify(notes)}`);
   assert.ok(notes.some(n => n.includes('W9')), `no note says why W9 was dropped: ${JSON.stringify(notes)}`);
 });
+
+
+// ── Fix round 2 (review, Ruling P6) ─────────────────────────────────────────
+
+test('A4: /api/photo forwards body.window: a survey point comes back as the mapped flattened pixel', async () => {
+  const restore = withAiKeys();
+  try {
+    const win = { x: 100, y: 50, scale: 2, padLeft: 40, padTop: 30, width: 2000, height: 1000 };
+    // flattened (300, 250) → image (40 + 200 * 2, 30 + 200 * 2) = (440, 430) → [y, x] on 0-1000: [430, 220]
+    const answer = { rails: { aOuter: '+', aInner: '-', jInner: '+', jOuter: '-' }, items: [
+      { type: 'resistor', value: '470', conf: 0.8, box_2d: [400, 200, 500, 300], leads: [{ pin: '1', point: [430, 220] }, { pin: '2', point: [430, 300] }] }] };
+    const text = JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(answer) }] }, finishReason: 'STOP' }] });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, text: async () => text, json: async () => JSON.parse(text) })));
+    const res = await postPhoto({ image: photo(2048, 'w').dataUrl, grid: GRID, window: win });
+    assert.equal(res.status, 200, `status ${res.status}: ${res.raw.slice(0, 200)}`);
+    const pt = res.body.reading.parts[0].leads[0].pt;
+    assert.ok(Math.abs(pt[0] - 300) < 1 && Math.abs(pt[1] - 250) < 1, `lead 1 should be about [300, 250], got ${JSON.stringify(pt)}`);
+    const pt2 = res.body.reading.parts[0].leads[1].pt;   // x: 300/1000*2000 = 600 → (600-40)/2+100 = 380
+    assert.ok(Math.abs(pt2[0] - 380) < 1 && Math.abs(pt2[1] - 250) < 1, `lead 2 should be about [380, 250], got ${JSON.stringify(pt2)}`);
+  } finally {
+    restore();
+  }
+});
+
+test('A4: PHOTO_THINKING=medium shows in the [photo] line as thinking=medium (inferred field name)', async () => {
+  const restore = withAiKeys();
+  process.env.PHOTO_THINKING = 'medium';
+  try {
+    stubAi((service, n) => ({ status: 200, body: GEMINI_READS }));
+    logs.length = 0;
+    const res = await postPhoto({ image: photo(2048, 'th').dataUrl, grid: GRID });
+    assert.equal(res.status, 200, `status ${res.status}: ${res.raw.slice(0, 200)}`);
+    const line = logs.find(l => l.startsWith('[photo]')) || '(no [photo] line)';
+    assert.match(line, /\bthinking=medium\b/, line);
+  } finally {
+    delete process.env.PHOTO_THINKING;
+    restore();
+  }
+});

@@ -212,3 +212,97 @@ test('the merge keeps crop answers with more than 2 pins', () => {
   assert.deepStrictEqual(p.leads.map(l => l.hole), ['?', '?', '?']);
   assert.ok(!p.unsure.includes('leads'), 'leads leaves unsure');
 });
+
+// ── Fix round 2 (review, Ruling P6) ─────────────────────────────────────────
+
+test('a resistor or LED with 1 or 3 survey points keeps its 2 placeholders and the crop answer still lands', async () => {
+  const pts = n => Array.from({ length: n }, (_, i) => ({ pin: String(i + 1), point: [100 + 30 * i, 100 + 40 * i] }));
+  const box = [450, 200, 550, 300];   // wide: placeholders are the left/right midpoints at y = 500
+  const placeholders = [[200 / 1000 * GRID.width, 500 / 1000 * GRID.height], [300 / 1000 * GRID.width, 500 / 1000 * GRID.height]];
+  const rows = [['resistor', 1], ['resistor', 3], ['led', 1], ['led', 3], ['capacitor', 3], ['diode', 1], ['button', 3], ['ic', 3], ['potentiometer', 2]];
+  for (const [type, n] of rows) {
+    const { out } = await readSurvey([{ type, value: null, conf: 0.8, box_2d: box, leads: pts(n), ...(type === 'ic' ? { pins: 8, notch: 'left', label: null } : {}) }]);
+    const part = out.reading.parts[0];
+    assert.equal(part.leads.length, 2, `${type} with ${n} points keeps 2 placeholders`);
+    part.leads.forEach((l, i) => close(l.pt, placeholders[i], `${type}/${n} placeholder ${i + 1}`));
+    assert.ok(part.unsure.includes('leads'), `${type}/${n}: leads stays unsure`);
+    // the crop round's 2-leg answer still lands on it
+    const merged = PhotoCrops.merge(out.reading, [{ id: part.id, found: true, conf: 0.9, leads: [{ pin: '1', pt: [11, 22], role: 'none' }, { pin: '2', pt: [33, 44], role: 'none' }] }]);
+    assert.deepStrictEqual(merged.parts[0].leads.map(l => l.pt), [[11, 22], [33, 44]], `${type}/${n}: the crop answer lands`);
+    assert.ok(!merged.parts[0].unsure.includes('leads'));
+  }
+  // The counts that do match are used; other takes any count; a pot takes 3.
+  const ok = await readSurvey([
+    { type: 'potentiometer', value: null, conf: 0.8, box_2d: box, leads: pts(3) },
+    { type: 'gizmo', value: null, conf: 0.8, box_2d: box, leads: pts(3) },
+  ]);
+  assert.deepStrictEqual(ok.out.reading.parts.map(p => p.leads.length), [3, 3]);
+});
+
+test('survey points map back through a real window', async () => {
+  const win = { x: 0, y: 0, scale: 0.9778, padLeft: 27, padTop: 27, width: 2048, height: 748 };
+  const grid = PhotoGrid.homography({ a1: [90, 190], a63: [1950, 190], j63: [1950, 520], j1: [90, 520] }, 63);
+  const a14 = grid.holeCentre('a14'), j40 = grid.holeCentre('j40');
+  // forward: the render's mapping, then 0-1000 over the whole margined image: [y, x]
+  const fwd = ([fx, fy]) => [(win.padTop + (fy - win.y) * win.scale) / win.height * 1000, (win.padLeft + (fx - win.x) * win.scale) / win.width * 1000];
+  const [ya, xa] = fwd(a14), [yj, xj] = fwd(j40);
+  const fake = fakeGemini(survey([{ type: 'resistor', value: 470, conf: 0.9, box_2d: [Math.min(ya, yj), Math.min(xa, xj), Math.max(ya, yj), Math.max(xa, xj)],
+    leads: [{ pin: '1', point: [ya, xa] }, { pin: '2', point: [yj, xj] }] }]));
+  const out = await Reader.readPhoto({ image: IMG, grid: GRID, window: win }, { providers: ['gemini'], fetch: fake.fetch, fixturesDir: emptyDir });
+  const r = out.reading.parts[0];
+  close(r.leads[0].pt, a14, 'lead 1 is a14\'s centre');
+  close(r.leads[1].pt, j40, 'lead 2 is j40\'s centre');
+  close(r.box, [Math.min(a14[0], j40[0]), Math.min(a14[1], j40[1]), Math.max(a14[0], j40[0]), Math.max(a14[1], j40[1])], 'the box maps back too');
+});
+
+test('a numeric pin from the model is kept as a string (Gemini and DeepSeek)', async () => {
+  const answer = survey([{ type: 'ic', value: null, conf: 0.9, box_2d: [300, 400, 420, 500], pins: 8, notch: 'left', label: 'TL072CP',
+    leads: [{ pin: 1, point: [410, 405] }, { pin: 4, point: [410, 495] }] }]);
+  const g = await Reader.readPhoto({ image: IMG, grid: GRID }, { providers: ['gemini'], fetch: fakeGemini(answer).fetch, fixturesDir: emptyDir });
+  assert.deepStrictEqual(g.reading.parts[0].leads.map(l => l.pin), ['1', '4'], 'gemini');
+  process.env.DEEPSEEK_API_KEY = 'test-deepseek-key-a4';
+  const fetch = async () => {
+    const body = { choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(answer) }, finish_reason: 'stop' }] };
+    return { ok: true, status: 200, statusText: '', headers: new Headers({ 'content-type': 'application/json' }), text: async () => JSON.stringify(body), json: async () => body };
+  };
+  const d = await Reader.readPhoto({ image: IMG, grid: GRID }, { providers: ['deepseek'], fetch, fixturesDir: emptyDir });
+  assert.deepStrictEqual(d.reading.parts[0].leads.map(l => l.pin), ['1', '4'], 'deepseek');
+  delete process.env.DEEPSEEK_API_KEY;
+});
+
+test('an unknown PHOTO_THINKING value sends nothing, and warns', async () => {
+  process.env.PHOTO_THINKING = 'ultra';
+  const { fake } = await readSurvey([]);
+  for (const c of fake.calls) assert.ok(!JSON.stringify(c.body).includes('thinking'), 'no thinking field for an unknown level');
+  // (no earlier warn pattern in the repo: asserts a console.warn that names PHOTO_THINKING)
+  assert.ok(console.warn.mock.calls.some(a => /PHOTO_THINKING/.test(a.map(String).join(' '))), 'a warning names PHOTO_THINKING');
+});
+
+test('the fallback model never gets a thinking level', async () => {
+  process.env.PHOTO_THINKING = 'medium';
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'], now: 0 });
+  vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+    const c = new AbortController();
+    setTimeout(() => c.abort(new DOMException('timeout', 'TimeoutError')), ms);
+    return c.signal;
+  });
+  const calls = [];
+  const fetch = (url, opts = {}) => {
+    const body = JSON.parse(opts.body), er = String(url).includes('robotics');
+    calls.push({ er, body });
+    const res = er ? { ok: false, status: 503, statusText: '', headers: new Headers(), text: async () => '{"error":{"code":503}}', json: async () => ({}) }
+      : (() => { const b = { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(survey([])) }] }, finishReason: 'STOP' }] };
+          return { ok: true, status: 200, statusText: '', headers: new Headers(), text: async () => JSON.stringify(b), json: async () => b }; })();
+    return Promise.resolve(res);
+  };
+  const p = Reader.readPhoto({ image: IMG, grid: GRID }, { fetch, fixturesDir: emptyDir });
+  let done = false, out;
+  p.then(v => { done = true; out = v; }, () => { done = true; });
+  for (let t = 0; t < 60 && !done; t++) { await vi.advanceTimersByTimeAsync(1000); for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); }
+  assert.ok(done && out, 'the fallback answered');
+  const er = calls.filter(c => c.er), fb = calls.filter(c => !c.er);
+  assert.ok(er.length && fb.length, `both models were asked (${er.length}, ${fb.length})`);
+  for (const c of er) assert.equal(c.body.generationConfig.thinkingConfig.thinkingLevel, 'medium', 'Robotics-ER gets the level');
+  for (const c of fb) assert.ok(!JSON.stringify(c.body).includes('thinking'), 'the fallback model gets no thinking level');
+  vi.useRealTimers();
+});

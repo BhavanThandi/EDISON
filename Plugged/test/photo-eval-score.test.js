@@ -198,3 +198,18 @@ test('scoring the 2026-10-25 baseline readings reproduces its numbers', () => {
     { parts: t.parts, legs: t.legs, wires: t.wires, ends: t.ends, invented: t.invented, rails: t.rails },
     { parts: { found: 9, truth: 13 }, legs: { right: 16, total: 26 }, wires: { found: 15, truth: 18 }, ends: { right: 28, total: 34 }, invented: 5, rails: { right: 4, known: 6 } });
 });
+
+
+// ── Fix round 2 (review): the reading's chip lead names its pin in `pin`, role stays 'unknown' ──
+test('chip pin 1 is credited from the lead\'s pin label', () => {
+  const rd = DIP.map((h, i) => ({ hole: h, role: 'unknown', pin: String(i + 1) }));
+  const s = score(circuit([chipTruth()]), board([{ id: 'U1', type: 'ic', value: 'TL072', leads: rd }]));
+  assert.deepStrictEqual(s.chipPin1, { right: 1, known: 1 });
+  const flipped = DIP.slice().reverse().map((h, i) => ({ hole: h, role: 'unknown', pin: String(i + 1) }));
+  assert.deepStrictEqual(score(circuit([chipTruth()]), board([{ id: 'U1', type: 'ic', value: 'TL072', leads: flipped }])).chipPin1, { right: 0, known: 1 });
+});
+
+test('the eval keeps each lead\'s pin when it reads the snapped Reading off the page (source pin: page.evaluate is not unit-callable)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'photo-eval.js'), 'utf8');
+  assert.match(src, /hole: hole\(l\)[^}]*\bpin: l\.pin/, 'the leads mapping in the page.evaluate carries pin: l.pin');
+});

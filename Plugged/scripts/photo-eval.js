@@ -140,7 +140,7 @@ function score(truth, got) {
   const tParts = truth.parts.filter(p => SCORED.includes(p.type))
     .map(p => ({ type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
   const pParts = got.parts.filter(p => SCORED.includes(p.type))
-    .map(p => ({ type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.role) }));
+    .map(p => ({ type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => (l.role && l.role !== 'unknown' ? l.role : l.pin)) }));
   const tWires = truth.wires.map(w => ({ type: 'wire', nodes: w.ends.map(e => nodeOf(e.hole)) }));
   const pWires = got.wires.map(w => ({ type: 'wire', nodes: w.ends.map(e => nodeOf(e.hole)) }));
 
@@ -167,7 +167,7 @@ function score(truth, got) {
   const xTruth = truth.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
     type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
   const xRead  = got.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
-    type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.role) }));
+    type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => (l.role && l.role !== 'unknown' ? l.role : l.pin)) }));
   const located = xTruth.filter(t => t.flagged || t.nodes.some(Boolean));
   const xPairs  = pair(located, xRead).pairs;
   const mate = t => { const c = xPairs.find(x => located[x.i] === t); return c && xRead[c.j]; };
@@ -332,7 +332,7 @@ async function runPhoto(browser, base, photo, shots, tag) {
       const hole = e => (e.hole === '?' || e.hole === 'gap' || !e.hole) && Array.isArray(e.pt) ? g.snap(e.pt).hole : e.hole;
       return {
         rails: R.board && R.board.rails,
-        parts: R.parts.map(p => ({ id: p.id, type: p.type, value: p.value, color: p.color, leads: p.leads.map(l => ({ hole: hole(l), role: l.role })) })),
+        parts: R.parts.map(p => ({ id: p.id, type: p.type, value: p.value, color: p.color, leads: p.leads.map(l => ({ hole: hole(l), role: l.role, pin: l.pin })) })),
         wires: R.wires.map(w => ({ id: w.id, color: w.color, ends: w.ends.map(e => ({ hole: hole(e) })) })),
       };
     });

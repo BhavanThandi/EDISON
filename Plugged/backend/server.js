@@ -20,7 +20,7 @@ const fs   = require('fs');
 const path = require('path');
 const { Readable, pipeline } = require('stream');
 const { makeAsk, isFixRequest } = require('./ai-providers');
-const { readPhoto, isSafeId, usageOf } = require('./photo-reader');
+const { readPhoto, isSafeId, usageOf, thinkingLevel } = require('./photo-reader');
 const { readLeads } = require('./photo-leads');
 const Voice = require('./voice');
 // The board's size: the same file the 3D editor builds the board from.
@@ -1800,7 +1800,7 @@ function logPhoto({ sample, out, error, started, bytes, retries, usage }) {
   console.log(`[photo] sample=${id} provider=${out ? out.provider : '-'} model=${out ? out.model : '-'} ` +
     `${((Date.now() - started) / 1000).toFixed(1)}s parts=${r ? r.parts.length : 0} wires=${r ? r.wires.length : 0} ` +
     `fallback=${out && out.fallback ? 'yes' : 'no'} retries=${(out ? out.retries : retries) || 0} ` +
-    `calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} ` +
+    `calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} thinking=${thinkingLevel()} ` +
     `${Math.round(bytes / 1024)}KB${error ? ` error=${error}` : ''}`);
 }
 
@@ -1855,7 +1855,7 @@ function logLeads({ key, count, out, error, started, bytes }) {
   const n  = code => (out ? out.items.filter(x => x.error === code).length : 0);
   console.log(`[photo-leads] key=${id} items=${count} ok=${out ? out.items.filter(x => !x.error).length : 0} ` +
     `timeout=${n('AI_TIMEOUT')} failed=${n('AI_FAILED')} resent=${out ? out.resent || 0 : 0} retries=${out ? out.retries || 0 : 0} ` +
-    `provider=${out ? out.provider : '-'} calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} ` +
+    `provider=${out ? out.provider : '-'} calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} thinking=${thinkingLevel()} ` +
     `${((Date.now() - started) / 1000).toFixed(1)}s ${(bytes / 1048576).toFixed(1)}MB${error ? ` error=${error}` : ''}`);
 }
 

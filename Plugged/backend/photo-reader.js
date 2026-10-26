@@ -159,9 +159,12 @@ function boxesToReading(answer, grid, win) {
     const y0 = round1(Math.min(fy(b[0]), fy(b[2]))),  y1 = round1(Math.max(fy(b[0]), fy(b[2])));
     const mx = round1((x0 + x1) / 2), my = round1((y0 + y1) / 2);
     const ends = x1 - x0 >= y1 - y0 ? [[x0, my], [x1, my]] : [[mx, y0], [mx, y1]];
-    const said_leads = list(it.leads).map(obj).filter(l => Array.isArray(l.point) && l.point.length === 2 && l.point.every(Number.isFinite));
-    const spots = said_leads.slice(0, MAX_LEADS).map(l => ({ pin: str(l.pin), pt: [round1(fx(l.point[1])), round1(fy(l.point[0]))] }));
     const type = str(it.type).trim().toLowerCase();
+    const said_leads = list(it.leads).map(obj).filter(l => Array.isArray(l.point) && l.point.length === 2 && l.point.every(Number.isFinite));
+    const all   = said_leads.slice(0, MAX_LEADS).map(l => ({ pin: l.pin === undefined || l.pin === null ? '' : String(l.pin), pt: [round1(fx(l.point[1])), round1(fy(l.point[0]))] }));
+    // Points count only at the type's expected number; else the box-end placeholders stay (and the crop round fills them).
+    const want  = type === 'wire' ? 2 : LEAD_COUNT[type];
+    const spots = all.length && (want === undefined || all.length === want) ? all : [];
     const said  = typeof it.value === 'number' ? String(it.value) : str(it.value).trim();
     const guess = /^null$/i.test(said) ? '' : said;
 
@@ -410,9 +413,20 @@ function withFallback(er, startFallback, signal) {
 
 // PHOTO_THINKING = default | minimal | low | medium | high. default (or unset)
 // sends nothing: the model's own level. Else generationConfig.thinkingConfig.thinkingLevel.
+const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
+let warnedThinking = '';
+function thinkingLevel() {
+  const raw = String(process.env.PHOTO_THINKING || '').trim().toLowerCase();
+  if (THINKING_LEVELS.includes(raw)) return raw;
+  if (raw && raw !== 'default' && warnedThinking !== raw) {
+    warnedThinking = raw;
+    console.warn(`photo: PHOTO_THINKING=${raw} is not default|minimal|low|medium|high; sending no thinking level`);
+  }
+  return 'default';
+}
 function thinkingConfig() {
-  const v = String(process.env.PHOTO_THINKING || '').trim().toLowerCase();
-  return ['minimal', 'low', 'medium', 'high'].includes(v) ? { thinkingConfig: { thinkingLevel: v } } : {};
+  const v = thinkingLevel();
+  return v === 'default' ? {} : { thinkingConfig: { thinkingLevel: v } };
 }
 
 const geminiProvider = {
@@ -427,7 +441,9 @@ const geminiProvider = {
     };
     const once = m => async signal => {
       const who  = `gemini ${m}`;
-      const data = await postJSON(ctx, signal, who, `${GEMINI_BASE}${m}:generateContent`, { 'x-goog-api-key': apiKey }, body);
+      // The thinking level is for the photo model only, never the fallback.
+      const sent = m === model ? body : { ...body, generationConfig: { ...body.generationConfig, thinkingConfig: undefined } };
+      const data = await postJSON(ctx, signal, who, `${GEMINI_BASE}${m}:generateContent`, { 'x-goog-api-key': apiKey }, sent);
       return { reading: boxesToReading(parseLooseJSON(geminiText(data, who)), input.grid, input.window), model: m };
     };
     // No per-call cap: Gemini gets the whole deadline (#172).
@@ -475,6 +491,7 @@ const RAIL_SIGNS  = ['+', '-', '?'];
 const PART_TYPES  = ['resistor', 'led', 'capacitor', 'ic', 'button', 'diode', 'potentiometer', 'other'];
 const ID_PREFIX   = { resistor: 'R', led: 'LED', capacitor: 'C', ic: 'U', button: 'SW', diode: 'D', potentiometer: 'RV', other: 'X' };
 const MAX_LEADS   = 16;
+const LEAD_COUNT  = { resistor: 2, led: 2, capacitor: 2, diode: 2, button: 2, potentiometer: 3, ic: 2 };   // other: any
 const NOTCHES     = ['left', 'right', 'unsure'];
 const LEAD_ROLES  = ['anode', 'cathode', 'none', 'unknown'];
 const POWER_KINDS = ['battery_9v', 'bench_supply', 'unknown'];
@@ -622,6 +639,6 @@ async function readPhoto(input, opts = {}) {
 module.exports = {
   readPhoto, validateReading, parseLooseJSON, PROVIDERS, isSafeId,
   // Shared with photo-leads.js (#159, #172).
-  GEMINI_BASE, thinkingConfig, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
+  GEMINI_BASE, thinkingConfig, thinkingLevel, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
   loadFixture, failed, num, obj, list,
 };

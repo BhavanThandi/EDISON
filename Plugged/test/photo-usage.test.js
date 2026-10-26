@@ -169,11 +169,15 @@ test('the leads route\'s done line carries usage', async () => {
     { id: 'W1', kind: 'wire', type: 'wire', value: 0, image: crop('W1|'), window: { ...WIN } },
   ];
   const usageOf = { [items[0].image.split(',')[1]]: U1, [items[1].image.split(',')[1]]: U2 };
-  const leads = { found: true, type: '...', leads: [['1', [500, 250]], ['2', [500, 750]]], conf: 0.8 };
+  // PHOTO_LEADS_BATCH=1: one call per item, so the two calls' usage still adds up (Task A3 batches 12 by default).
+  process.env.PHOTO_LEADS_BATCH = '1';
+  const idOf = { [items[0].image.split(',')[1]]: 'R1', [items[1].image.split(',')[1]]: 'W1' };
+  const leads = id => ({ items: [{ id, found: true, conf: 0.8, leads: [{ pin: '1', point: [500, 250], hole: 'a1' }, { pin: '2', point: [500, 750], hole: 'a2' }] }] });
   vi.stubGlobal('fetch', async (url, opts = {}) => {
     const body = JSON.parse(opts.body);
     const part = body.contents.flatMap(m => m.parts).find(p => p.inline_data || p.inlineData);
-    return says(leads, usageOf[(part.inline_data || part.inlineData).data]);
+    const data = (part.inline_data || part.inlineData).data;
+    return says(leads(idOf[data]), usageOf[data]);
   });
   const text = JSON.stringify({ key: 'no-saved-leads', items });
   const raw = await new Promise((resolve, reject) => {
@@ -187,6 +191,7 @@ test('the leads route\'s done line carries usage', async () => {
     setTimeout(() => { req.destroy(); reject(new Error('no answer from /api/photo/leads after 5 s')); }, 5000);
     req.end(text);
   });
+  delete process.env.PHOTO_LEADS_BATCH;
   const lines = raw.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
   const done = lines.find(l => l.done === true);
   assert.ok(done, `no { done: true } line: ${raw.slice(0, 300)}`);

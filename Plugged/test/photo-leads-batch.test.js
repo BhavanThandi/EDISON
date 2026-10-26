@@ -232,7 +232,7 @@ test('the batch prompt names every crop and its outline', async () => {
   assert.equal(gc.responseMimeType, 'application/json');
   const schema = JSON.stringify(gc.responseSchema);
   assert.ok(!schema.includes('anyOf'), 'the batch schema is plain objects, no anyOf');
-  for (const it of items) assert.ok(schema.includes(`"${it.id}"`), `the schema\'s id enum holds ${it.id}: ${schema.slice(0, 300)}`);
+  for (const it of items) assert.ok(schema.includes(`"${it.id}"`), `the schema's id enum holds ${it.id}: ${schema.slice(0, 300)}`);
 });
 
 test('usage counts one call per batch', async () => {
@@ -242,4 +242,23 @@ test('usage counts one call per batch', async () => {
   assert.equal(out.usage.promptTokens, 2000, JSON.stringify(out.usage));
   assert.equal(out.usage.outputTokens, 200);
   assert.equal(out.usage.thoughtTokens, 100);
+});
+
+test('PHOTO_LEADS_CONCURRENCY caps batch calls in flight', async () => {
+  for (const [cap, want] of [[undefined, 2], ['1', 1], ['3', 3]]) {
+    if (cap === undefined) delete process.env.PHOTO_LEADS_CONCURRENCY;
+    else process.env.PHOTO_LEADS_CONCURRENCY = cap;
+    process.env.PHOTO_LEADS_BATCH = '5';   // 30 items -> 6 batches
+    const waiting = [];
+    const fake = fakeGemini(c => new Promise(r => waiting.push(() => r(batchAnswer(c.ids)))));
+    const s = start({ key: 'no-saved-leads', items: many(30) }, fake);
+    await advance(100);
+    assert.equal(fake.calls.length, want, `cap ${cap || 'default'}: ${fake.calls.length} batch calls out at the start, expected ${want}`);
+    while (!s.done) { while (waiting.length) waiting.shift()(); await advance(100); }
+    const out = await finish(s);
+    assert.equal(fake.maxInFlight, want, `cap ${cap || 'default'}: most in flight at once: ${fake.maxInFlight}`);
+    assert.equal(fake.calls.length, 6, 'every batch is sent once');
+    assert.ok(out.items.every(e => e.found === true));
+    vi.useRealTimers();
+  }
 });

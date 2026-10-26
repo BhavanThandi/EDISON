@@ -19,7 +19,8 @@
 //  that fails at once is retried 1–2 s later (a 429's retryAfterMs
 //  honoured); one with no answer after PHOTO_HEDGE_MS (default 12 s) gets
 //  one identical call alongside; at most 3 calls a batch; a 400/401/403 is
-//  never retried. At most 2 batches' first calls and retries are in flight;
+//  never retried. At most PHOTO_LEADS_CONCURRENCY (default 2) batch
+//  calls (first calls and retries) are in flight;
 //  the rest wait their turn, in item order. A stall resend is exempt. An
 //  item's line streams when its batch answers; ids outside the batch are
 //  ignored and a skipped id is that item unanswered. At
@@ -53,7 +54,11 @@ const CROP_MAX_CALLS = 3;
 
 // Read per request, so a test (or a restart-free tweak) can change them.
 const cutoffMs    = () => (Number(process.env.PHOTO_LEADS_TIMEOUT_MS) > 0 ? Number(process.env.PHOTO_LEADS_TIMEOUT_MS) : 40000);
-const BATCHES_IN_FLIGHT = 2;
+// PHOTO_LEADS_CONCURRENCY: most batch calls (first calls and retries) in flight, default 2.
+const concurrency = () => {
+  const n = Math.floor(Number(process.env.PHOTO_LEADS_CONCURRENCY));
+  return n >= 1 ? n : 2;
+};
 const batchSize   = () => {
   const n = Math.floor(Number(process.env.PHOTO_LEADS_BATCH));
   return n >= 1 ? n : 12;
@@ -156,7 +161,7 @@ function batchBody(batch) {
 }
 
 // Every item live, in batches of batchSize() items, one call each, at most
-// BATCHES_IN_FLIGHT first calls and retries at once. settle(entry) takes
+// concurrency() first calls and retries at once. settle(entry) takes
 // each item's live entry as its batch settles (so lines stream per batch)
 // and returns the one to keep. signal (optional) ends the round as the
 // cutoff does, at once. Resolves { entries, resent, retries, ok, usage },
@@ -172,7 +177,7 @@ async function askGemini(items, model, fetch, settle, signal) {
   }
   const tally = newTally();
   const who = `gemini ${model}`, url = `${GEMINI_BASE}${model}:generateContent`;
-  const slot = limiter(BATCHES_IN_FLIGHT), hedgeMs = photoHedgeMs(), deadlineAt = Date.now() + cutoffMs();
+  const slot = limiter(concurrency()), hedgeMs = photoHedgeMs(), deadlineAt = Date.now() + cutoffMs();
   const size = batchSize(), batches = [];
   for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size));
   const runs = batches.map(batch => {

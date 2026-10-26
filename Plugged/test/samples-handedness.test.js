@@ -90,6 +90,17 @@ function reflectedRecords(data, cut) {
   };
 }
 
+// Ruling 23: photo11 is "rebuilt 1:1 with the photo", so it takes the ensc-lab
+// sample's map: every body-hole and rail-hole column c -> 64 - c (0-based col
+// -> 62 - col), rows and rail names kept, pin ends untouched; hole order is kept.
+function columnMapRecords(data) {
+  const m = r => (r ? { ...r, col: 62 - r.col } : r);
+  return {
+    components: data.components.map(c => (Array.isArray(c.holeRefs) ? { ...c, holeRefs: c.holeRefs.map(m) } : { ...c })),
+    wires: data.wires.map(w => ({ ...w, ...(w.startHole ? { startHole: m(w.startHole) } : {}), ...(w.endHole ? { endHole: m(w.endHole) } : {}) })),
+  };
+}
+
 const withoutV = r => { const { v, ...rest } = r; return rest; };   // eslint-disable-line no-unused-vars
 
 // ── The page's own apply path, in Node (as test/sample-boards.test.js) ──
@@ -272,10 +283,10 @@ test('chip-less content keeps its holes', () => {
 });
 
 // ── 5. Rule 2: chip content is the column reflection of the original ──
-test('chip content is the column reflection of the original', () => {
+test('chip content is the column reflection of the original (photo11: the ensc-lab column map c -> 64 - c)', () => {
   const off = [];
   for (const [rel, fx] of FILES.filter(f => f[2])) {
-    const want = reflectedRecords(original(fx)), now = load(rel);
+    const want = rel.endsWith('photo11-ensc-lab-bench.sparky') ? columnMapRecords(original(fx)) : reflectedRecords(original(fx)), now = load(rel);
     if (now.components.length !== want.components.length || now.wires.length !== want.wires.length) { off.push(`${rel}: record counts`); continue; }
     now.components.forEach((c, i) => { if (!sameRefs(withoutV(c), want.components[i])) off.push(`${rel} component ${i} (${c.label}): ${JSON.stringify(c.holeRefs)} want ${JSON.stringify(want.components[i].holeRefs)}`); });
     now.wires.forEach((w, i) => { if (!sameRefs(withoutV(w), want.wires[i])) off.push(`${rel} wire ${i}`); });

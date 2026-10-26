@@ -39,8 +39,8 @@
 //   220 lab"), board }. Its board is his saved build (Board.toActions, holes
 //   +1, the no-op PS1.com → PS1.com wire and the set_control mode: series
 //   step dropped), a TL072 comparator:
-//     PS1 ±12 V series: + → tp_1, COM → tn_1, COM2 → tn_2, − → bn_1;
-//         tn_3 → bp_3 puts the bottom + rail (bp) on ground
+//     PS1 ±12 V series: + → tp_63, COM → tn_63, COM2 → tn_62, − → bn_63;
+//         tn_61 → bp_61 puts the bottom + rail (bp) on ground
 //     U1 TL072 at f7 facing left (the photo's printed holes: columns 64 − c): OUT1 f7, IN1− f6, IN1+ f5, V− f4,
 //         IN2+ e4, IN2− e5, OUT2 e6, V+ e7; d7 → tp_6 (V+ +12 V),
 //         j4 → bn_4 (V− −12 V)
@@ -49,7 +49,7 @@
 //     the divider node: cols 30 (a–e) → c30–d24 → 24 → e24–f23 → 23 (f–j),
 //         31 (f–j) → i31–h23 → 23; g23 → h6 takes it to IN1−
 //     R3 470 Ω g5–g9, FG1.out → f9: the generator into IN1+
-//     FG1 5 V, 1 Hz sine, offset 0; COM → tn_38
+//     FG1 5 V, 1 Hz sine, offset 0; COM → tn_26
 //   A wire end on PS1 or FG1 may be written by pin name or index (PS1.pos or
 //   PS1.0): the tests compare names.
 
@@ -413,7 +413,7 @@ function solveLab(actions) {
 }
 
 // Hand calculation. PS1 in series puts tp at +12 V and bn at −12 V against
-// COM (tn), and tn_3 → bp_3 puts bp on ground too. R1 (10 kΩ) from +12 V and
+// COM (tn), and tn_61 → bp_61 puts bp on ground too. R1 (10 kΩ) from +12 V and
 // R2 (470 Ω) to ground in series; IN1− draws nothing (JFET inputs), so
 //   I(R1) = I(R2) = 12 / 10 470 = 1.1461 mA
 //   IN1−  = 12 · 470 / 10 470   = 0.5387 V

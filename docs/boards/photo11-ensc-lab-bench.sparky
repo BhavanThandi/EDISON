@@ -11,12 +11,12 @@
    "holeRefs": [
     {
      "pin": "lead1",
-     "col": 59,
+     "col": 34,
      "row": "d"
     },
     {
      "pin": "lead2",
-     "col": 54,
+     "col": 29,
      "row": "d"
     }
    ],
@@ -54,12 +54,12 @@
    "holeRefs": [
     {
      "pin": "lead1",
-     "col": 59,
+     "col": 34,
      "row": "h"
     },
     {
      "pin": "lead2",
-     "col": 55,
+     "col": 30,
      "row": "h"
     }
    ],
@@ -76,42 +76,42 @@
    "holeRefs": [
     {
      "pin": "out1",
-     "col": 31,
+     "col": 6,
      "row": "f"
     },
     {
      "pin": "in1n",
-     "col": 30,
+     "col": 5,
      "row": "f"
     },
     {
      "pin": "in1p",
-     "col": 29,
+     "col": 4,
      "row": "f"
     },
     {
      "pin": "vneg",
-     "col": 28,
+     "col": 3,
      "row": "f"
     },
     {
      "pin": "in2p",
-     "col": 28,
+     "col": 3,
      "row": "e"
     },
     {
      "pin": "in2n",
-     "col": 29,
+     "col": 4,
      "row": "e"
     },
     {
      "pin": "out2",
-     "col": 30,
+     "col": 5,
      "row": "e"
     },
     {
      "pin": "vpos",
-     "col": 31,
+     "col": 6,
      "row": "e"
     }
    ],
@@ -130,12 +130,12 @@
    "holeRefs": [
     {
      "pin": "lead1",
-     "col": 33,
+     "col": 8,
      "row": "g"
     },
     {
      "pin": "lead2",
-     "col": 29,
+     "col": 4,
      "row": "g"
     }
    ],
@@ -165,11 +165,11 @@
   {
    "id": "W5",
    "startHole": {
-    "col": 54,
+    "col": 29,
     "row": "c"
    },
    "endHole": {
-    "col": 48,
+    "col": 23,
     "row": "d"
    },
    "startCompIdx": -1,
@@ -183,7 +183,7 @@
    "id": "W12",
    "startHole": null,
    "endHole": {
-    "col": 0,
+    "col": 62,
     "row": "tp"
    },
    "startCompIdx": 1,
@@ -211,7 +211,7 @@
    "id": "W14",
    "startHole": null,
    "endHole": {
-    "col": 0,
+    "col": 62,
     "row": "tn"
    },
    "startCompIdx": 1,
@@ -226,7 +226,7 @@
    "id": "W17",
    "startHole": null,
    "endHole": {
-    "col": 1,
+    "col": 61,
     "row": "tn"
    },
    "startCompIdx": 1,
@@ -241,7 +241,7 @@
    "id": "W19",
    "startHole": null,
    "endHole": {
-    "col": 0,
+    "col": 62,
     "row": "bn"
    },
    "startCompIdx": 1,
@@ -255,11 +255,11 @@
   {
    "id": "W20",
    "startHole": {
-    "col": 2,
+    "col": 60,
     "row": "tn"
    },
    "endHole": {
-    "col": 2,
+    "col": 60,
     "row": "bp"
    },
    "startCompIdx": -1,
@@ -272,11 +272,11 @@
   {
    "id": "W21",
    "startHole": {
-    "col": 48,
+    "col": 23,
     "row": "e"
    },
    "endHole": {
-    "col": 47,
+    "col": 22,
     "row": "f"
    },
    "startCompIdx": -1,
@@ -289,11 +289,11 @@
   {
    "id": "W22",
    "startHole": {
-    "col": 55,
+    "col": 30,
     "row": "i"
    },
    "endHole": {
-    "col": 47,
+    "col": 22,
     "row": "h"
    },
    "startCompIdx": -1,
@@ -306,11 +306,11 @@
   {
    "id": "W23",
    "startHole": {
-    "col": 31,
+    "col": 6,
     "row": "d"
    },
    "endHole": {
-    "col": 30,
+    "col": 5,
     "row": "tp"
    },
    "startCompIdx": -1,
@@ -324,7 +324,7 @@
    "id": "W24",
    "startHole": null,
    "endHole": {
-    "col": 37,
+    "col": 25,
     "row": "tn"
    },
    "startCompIdx": 5,
@@ -339,7 +339,7 @@
    "id": "W25",
    "startHole": null,
    "endHole": {
-    "col": 33,
+    "col": 8,
     "row": "f"
    },
    "startCompIdx": 5,
@@ -353,11 +353,11 @@
   {
    "id": "W26",
    "startHole": {
-    "col": 59,
+    "col": 34,
     "row": "tp"
    },
    "endHole": {
-    "col": 59,
+    "col": 34,
     "row": "a"
    },
    "startCompIdx": -1,
@@ -370,11 +370,11 @@
   {
    "id": "W27",
    "startHole": {
-    "col": 59,
+    "col": 34,
     "row": "bp"
    },
    "endHole": {
-    "col": 59,
+    "col": 34,
     "row": "j"
    },
    "startCompIdx": -1,
@@ -387,11 +387,11 @@
   {
    "id": "W29",
    "startHole": {
-    "col": 28,
+    "col": 3,
     "row": "j"
    },
    "endHole": {
-    "col": 28,
+    "col": 3,
     "row": "bn"
    },
    "startCompIdx": -1,
@@ -404,11 +404,11 @@
   {
    "id": "W30",
    "startHole": {
-    "col": 47,
+    "col": 22,
     "row": "g"
    },
    "endHole": {
-    "col": 30,
+    "col": 5,
     "row": "h"
    },
    "startCompIdx": -1,

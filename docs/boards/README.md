@@ -6,10 +6,10 @@ Boards for the hard-coded photo samples (`Plugged/circuit3d/samples/samples.js`,
 
 This is Aarmen's own rebuild of his ENSC 220 bench, 1:1 with the photo. The yellow wires on the real board are drawn green. It was saved from his browser at 07:28 on 2026-10-04: 6 parts and 16 wires.
 
-- **U1:** a TL072 at f32. Pin 8 goes to +12 V (d32 → tp_31) and pin 4 to −12 V (j29 → bn_29).
-- **PS1:** series ±12 V. **FG1:** a 5 V peak sine at 1 Hz, through R3 (470 Ω, g34–g30) into pin 3.
-- **Pin 2:** held at about 0.54 V by R1 (10 kΩ, d60–d55) and R2 (470 Ω, h60–h56), a divider off +12 V.
-- **Pin 1 (the output, f32):** nothing on it but the scope probe (i32).
+- **U1:** a TL072 at f7, facing left. Pin 8 goes to +12 V (d7 → tp_6) and pin 4 to −12 V (j4 → bn_4).
+- **PS1:** series ±12 V. **FG1:** a 5 V peak sine at 1 Hz, through R3 (470 Ω, g9–g5) into pin 3.
+- **Pin 2:** held at about 0.54 V by R1 (10 kΩ, d35–d30) and R2 (470 Ω, h35–h31), a divider off +12 V.
+- **Pin 1 (the output, f7):** nothing on it but the scope probe (i7).
 
 As built, it is a comparator. The output is a ±10.5 V square wave, high whenever the sine is above 0.54 V. Check it against the board in #16's comment before hard-coding.
 
@@ -37,8 +37,8 @@ This is the "solved solution" sketch: an op-amp relaxation oscillator that blink
 ```js
 board: [
   { tool: 'place_battery' },
-  { tool: 'place_tl072', hole: 'f23', direction: 'right' },
-  { tool: 'place_potentiometer', hole: 'f28', direction: 'right', resistance: 10000 },
+  { tool: 'place_tl072', hole: 'f23', direction: 'left' },
+  { tool: 'place_potentiometer', hole: 'f28', direction: 'left', resistance: 10000 },
   { tool: 'place_capacitor', holeA: 'g22', holeB: 'g24', capacitance: '100µF' },   // holeA the + lead; the stripe (−) on g24
   { tool: 'place_resistor', holeA: 'i26', holeB: 'i22', resistance: 1000 },
   { tool: 'place_resistor', holeA: 'e17', holeB: 'f17', resistance: 10000 },

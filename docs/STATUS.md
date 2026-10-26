@@ -4,6 +4,12 @@
 
 *Last updated: 2026-10-25, Mac session.*
 
+## 2026-10-26: mirror fix shipped
+- Row a and tp / tn are now nearest the viewer; footprint rows run toward a; camera FOV is 48. Details: "Key decisions" in `docs/ARCHITECTURE.md` and "Board handedness" in `docs/API-CONTRACT.md`.
+- **AI bank after the flip:** 38/48 runs pass, median 22.4 s (was 24/48). The variant that mapped recipes through the row flip scored 37/48 and broke the tp/tn/bn conventions.
+- **A future session must know:** user saves migrate on open (v1 records go through `T_A`, then are `v: 2`); content files are `v: 2`; AI recipes and guides keep the tp/tn/bn conventions through a per-recipe column reflection (do not map them through `T_A`).
+- **Next:** the photo fix Part B (see `docs/TODO.md`).
+
 ## 2026-10-25: photo baseline and the mirror decision (read this first)
 No app code changed in this session. Aarmen's full working notes are outside the repo, in `~/Desktop/rework-me/projects/edison.md` and `edison-photo-fix-design.md` (a draft design for the photo fix, not yet approved).
 - **New pitch (Aarmen):** Edison is an AI agent that builds working circuits, plus a vision pipeline that rebuilds a real board from a photo. No "tutor" framing.
@@ -43,7 +49,7 @@ Overnight, all shipped to `dev`:
 **For Aarmen to decide in the morning:**
 1. Look at `1-side-by-side.jpg` (does the app board match Thandi's photo?), then `/promote`.
 2. **Ask Thandi to check 4 hidden ends** on the real board: j32, j22, i26, g36 (`thandi-board-decode.md`). Also, R3 is 5.6 kΩ (green-blue-red), not 10 kΩ.
-3. **The app mirrors real breadboards:** a DIP's pins can't sit at a photo's printed holes, so Thandi's board is stored with its rows flipped (A↔J). The 3D view looks like IMG_2013, which is why that's the sample photo.
+3. ~~**The app mirrors real breadboards**~~ **Resolved by the mirror fix (2026-10-26, below):** the board now has a real breadboard's handedness, and the photo samples sit in their printed holes.
 4. **Polish:** after the fix, U1's callout says "clipped… fine for a comparator; in an amplifier lower the gain". Accurate, but off-message for a blinker.
 5. **The server checker's false alarm on `ensc-lab`:** R3 "not between power and ground" (a comparator input resistor).
 6. **Small things:** a stale comment in `test/tl072.test.js` section 4 (the 5.4 s freeze was at the lower threshold); `fingerprint()` hashes any picked file (cap it at, say, 50 MB).
@@ -147,6 +153,8 @@ These fail under full-suite load and pass alone, so rerun them alone before call
 - `button.spec.js:43`
 - `capacitor.spec.js:265`
 - `multimeter.spec.js:103`
+- `render-on-demand.spec.js:57`
+- `unknown-parts.spec.js:110`
 - `thevenin.spec.js:225`
 - `voltage-colouring.spec.js:130`
 - `edison-landing.spec.js:705`

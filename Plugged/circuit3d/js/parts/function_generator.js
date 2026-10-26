@@ -30,7 +30,7 @@
 
   // The case: W × H × D on FOOT-high rubber feet, its front panel's face at
   // z = PANEL. The case sits behind the group's origin so the jacks' tips
-  // come out near the top rails' rows: a wire from a jack to tp or tn runs
+  // come out beside the rails next to row a: a wire from a jack to tp or tn runs
   // in front of the panel until it is past the case (app wires are arcs).
   const W = 2.7, H = 1.35, D = 1.65, FOOT = 0.06;
   const FRONT = 0.05, PANEL = FRONT + 0.01;

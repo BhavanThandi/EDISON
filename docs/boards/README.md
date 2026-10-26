@@ -6,10 +6,10 @@ Boards for the hard-coded photo samples (`Plugged/circuit3d/samples/samples.js`,
 
 This is Aarmen's own rebuild of his ENSC 220 bench, 1:1 with the photo. The yellow wires on the real board are drawn green. It was saved from his browser at 07:28 on 2026-10-04: 6 parts and 16 wires.
 
-- **U1:** a TL072 at f7, facing left. Pin 8 goes to +12 V (d7 → tp_6) and pin 4 to −12 V (j4 → bn_4).
-- **PS1:** series ±12 V. **FG1:** a 5 V peak sine at 1 Hz, through R3 (470 Ω, g9–g5) into pin 3.
-- **Pin 2:** held at about 0.54 V by R1 (10 kΩ, d35–d30) and R2 (470 Ω, h35–h31), a divider off +12 V.
-- **Pin 1 (the output, f7):** nothing on it but the scope probe (i7).
+- **U1:** a TL072 at f6, facing left. Pin 8 goes to +12 V (d6 → tp_5) and pin 4 to −12 V (j3 → bn_3).
+- **PS1:** series ±12 V. **FG1:** a 5 V peak sine at 1 Hz, through R3 (470 Ω, g8–g4) into pin 3.
+- **Pin 2:** held at about 0.54 V by R1 (10 kΩ, d34–d29) and R2 (470 Ω, h34–h30), a divider off +12 V.
+- **Pin 1 (the output, f6):** nothing on it but the scope probe (i6).
 
 As built, it is a comparator. The output is a ±10.5 V square wave, high whenever the sine is above 0.54 V. Check it against the board in #16's comment before hard-coding.
 

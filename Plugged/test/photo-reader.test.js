@@ -333,13 +333,13 @@ test('each part\'s 2 leads and each wire\'s 2 ends start at the ends of the box\
   assert.ok(w.unsure.includes('leads'), `the wire's ends are placeholders too: ${JSON.stringify(w.unsure)}`);
 });
 
-test('item types: resistor and led keep theirs, wire is a wire, every other component is a part of type other', async () => {
-  const others = ['capacitor', 'ic', 'button', 'diode', 'transistor', 'potentiometer', 'other'];
+test('item types: resistor, led and the survey types (capacitor, ic, button, diode, potentiometer) keep theirs, wire is a wire, an unknown type is a part of type other', async () => {
+  const kept = ['capacitor', 'ic', 'button', 'diode', 'potentiometer'], others = ['transistor', 'other'];
   const box = i => [100 + i * 50, 100, 130 + i * 50, 200];
-  const items = ['resistor', 'led', 'wire', ...others].map((type, i) => ({ type, value: null, conf: 0.7, box_2d: box(i) }));
+  const items = ['resistor', 'led', 'wire', ...kept, ...others].map((type, i) => ({ type, value: null, conf: 0.7, box_2d: box(i) }));
   const fake = fakeFetch({ gemini: () => geminiSays({ rails: RAILS, items }) });
   const { reading } = await read(['gemini'], fake);
-  assert.deepStrictEqual(reading.parts.map(p => p.type), ['resistor', 'led', ...others.map(() => 'other')]);
+  assert.deepStrictEqual(reading.parts.map(p => p.type), ['resistor', 'led', ...kept, ...others.map(() => 'other')]);
   assert.equal(reading.wires.length, 1);
 });
 

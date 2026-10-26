@@ -296,7 +296,7 @@ const imageSize = (page, src) => page.evaluate(src => new Promise((resolve, reje
 //            flattened pixel are the same point by the contract's window mapping
 //   shifted  the same, with the flattened point half a pitch (15 px) to the
 //            right: what a crop drawn half a pitch off would score
-const cropCheck = (page, crop, flat, win) => page.evaluate(async ({ crop, flat, win }) => {
+const cropCheck = (page, crop, flat, win, fwin) => page.evaluate(async ({ crop, flat, win, fwin }) => {
   const load = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('no decode')); im.src = src; });
   const pixels = im => {
     const c = document.createElement('canvas');
@@ -307,6 +307,8 @@ const cropCheck = (page, crop, flat, win) => page.evaluate(async ({ crop, flat, 
   };
   const C = pixels(await load(crop)), F = pixels(await load(flat));
   const px = (img, x, y) => { const i = 4 * (y * img.width + x); return [img.data[i], img.data[i + 1], img.data[i + 2]]; };
+  // A4: the box round's image is the margin-labelled render; fwin maps flattened px to it.
+  const flatAt = (fx, fy) => px(F, Math.round(fwin.padLeft + (fx - fwin.x) * fwin.scale), Math.round(fwin.padTop + (fy - fwin.y) * fwin.scale));
   const ink = p => Math.min(...p) < 175;
   const count = (x0, y0, x1, y1) => {
     let n = 0;
@@ -321,13 +323,13 @@ const cropCheck = (page, crop, flat, win) => page.evaluate(async ({ crop, flat, 
   for (let fy = Math.ceil(win.y) + 2; fy < win.y + (H - 2 * pt) / s - 2; fy += 2) {
     for (let fx = Math.ceil(win.x) + 2; fx < win.x + (W - 2 * pl) / s - 2; fx += 2) {
       const at = px(C, Math.round(pl + (fx - win.x) * s), Math.round(pt + (fy - win.y) * s));
-      same += diff(at, px(F, fx, fy));
-      shifted += diff(at, px(F, fx + 15, fy));
+      same += diff(at, flatAt(fx, fy));
+      shifted += diff(at, flatAt(fx + 15, fy));
       n++;
     }
   }
   return { margins, corner: px(C, 3, 3), same: same / n, shifted: shifted / n, n };
-}, { crop, flat, win });
+}, { crop, flat, win, fwin });
 
 // ── The crop round ─────────────────────────────────────────────────────────
 
@@ -379,7 +381,8 @@ test('a box-round Reading → one /api/photo/leads request with a labelled JPEG 
   // R1's crop: labels in all four margins, white where there are none, and
   // its photo area is the flattened image's, point for point, by the window.
   const r1 = body.items[0];
-  const check = await cropCheck(page, r1.image, photoBody.image, r1.window);
+  expect(photoBody.window, '/api/photo carries the window of its margin-labelled image').toBeTruthy();
+  const check = await cropCheck(page, r1.image, photoBody.image, r1.window, photoBody.window);
   for (const side of ['top', 'bottom', 'left', 'right']) {
     expect(check.margins[side], `R1's crop has labels in its ${side} margin (${JSON.stringify(check.margins)})`).toBeGreaterThan(20);
   }

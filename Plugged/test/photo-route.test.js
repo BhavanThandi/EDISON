@@ -744,7 +744,7 @@ test('validateReading coerces fields it can repair and drops what it can\'t, wit
   const raw = clone(MOCK_READING);
   raw.board.rails.jOuter = 'plus';                         // not '+', '-' or '?'
   const r1 = raw.parts[0];
-  r1.type = 'capacitor';                                   // not resistor | led | other
+  r1.type = 'capacitor';                                   // a kept type since A4 (Reading v1.1)
   delete r1.value;
   delete r1.bands;
   delete r1.unsure;
@@ -760,7 +760,7 @@ test('validateReading coerces fields it can repair and drops what it can\'t, wit
   assert.equal(reading.board.rails.aOuter, '+', 'a valid rail sign is kept');
   assert.deepStrictEqual(reading.parts.map(p => p.id), ['R1', 'LED1'], 'R9 has no leads and is dropped');
   const r = reading.parts[0];
-  assert.equal(r.type, 'other');
+  assert.equal(r.type, 'capacitor', 'a survey type is kept, not coerced to other (A4)');
   assert.equal(r.value, 0);
   assert.deepStrictEqual(r.bands, []);
   assert.deepStrictEqual(r.unsure, []);

@@ -126,6 +126,23 @@ async function tapCorners(page) {
   }
 }
 
+// A4: /api/photo's image is the whole board rendered with the column-number /
+// row-letter margin (at most 2048 px wide); body.window = { x, y, scale, padLeft,
+// padTop, width, height } maps flattened px to it: the image is window.width x
+// window.height, and its board area (without the margins) is the grid's size
+// at window.scale.
+function expectMarginImage(body, size, what = 'the image') {
+  const w = body.window;
+  expect(w, `${what}: the body carries the render's window`).toBeTruthy();
+  for (const f of ['x', 'y', 'scale', 'padLeft', 'padTop', 'width', 'height']) expect(Number.isFinite(w[f]), `${what}: window.${f}`).toBe(true);
+  expect(size, `${what}: the image is window.width x window.height`).toEqual({ width: w.width, height: w.height });
+  expect(size.width, `${what}: at most 2,048 px wide`).toBeLessThanOrEqual(2048);
+  expect(w.padLeft, `${what}: a left margin`).toBeGreaterThan(0);
+  expect(w.padTop, `${what}: a top margin`).toBeGreaterThan(0);
+  expect(Math.abs((w.width - 2 * w.padLeft) - body.grid.width * w.scale), `${what}: the board area is the grid at window.scale`).toBeLessThan(3);
+  expect(Math.abs((w.height - 2 * w.padTop) - body.grid.height * w.scale), `${what}: the board area is the grid at window.scale`).toBeLessThan(3);
+}
+
 // Width and height of an image data URL, decoded by the browser.
 const imageSize = (page, src) => page.evaluate(src => new Promise((resolve, reject) => {
   const img = new Image();
@@ -243,12 +260,12 @@ test('Choose photo → tap a1, a63, j63, j1 → the grid appears; Redo; Looks ri
   expect(sent.image.startsWith('data:image/jpeg;base64,'), 'image is a JPEG data URL').toBe(true);
   const size = await imageSize(page, sent.image);
   expect(size.width, 'at most 2,048 px wide').toBeLessThanOrEqual(2048);
-  expect(size, 'the flattened image is the grid\'s size').toEqual({ width, height });
+  expectMarginImage(sent, size);
 
   // …and it is the photo flattened through the grid (PhotoGrid.warp with grid.H).
   // Compared over the two body-hole blocks only (a–e and f–j, column 1 to N):
   // the label bands, end letters and centre-channel numbers may be drawn on it.
-  const meanDiff = await page.evaluate(async ({ sentImage, photo, H, g }) => {
+  const meanDiff = await page.evaluate(async ({ sentImage, photo, H, g, win }) => {
     const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
     const pixels = img => {
       const c = document.createElement('canvas');
@@ -259,21 +276,23 @@ test('Choose photo → tap a1, a63, j63, j1 → the grid appears; Redo; Looks ri
     };
     const got = pixels(await load(sentImage));
     const src = pixels(await load('data:image/jpeg;base64,' + photo));
-    const want = window.PhotoGrid.warp(src, H, { width: got.width, height: got.height, data: new Uint8ClampedArray(got.data.length) });
+    // A4: the image is the margin-labelled render; win maps flattened px to it.
+    const want = window.PhotoGrid.warp(src, window.PhotoCrops.matrix(H, { ...win, x: win.x - win.padLeft / win.scale, y: win.y - win.padTop / win.scale }), { width: got.width, height: got.height, data: new Uint8ClampedArray(got.data.length) });
+    const at = (x, y) => 4 * (Math.round(win.padTop + (y - win.y) * win.scale) * got.width + Math.round(win.padLeft + (x - win.x) * win.scale));
     const xs = [g.x0, g.x0 + g.pitch * (g.cols - 1)];
     const blocks = [[g.y0, g.y0 + 4 * g.pitch], [g.y0 + 7 * g.pitch, g.y0 + 11 * g.pitch]];
     let d = 0, n = 0;
     for (const [ya, yb] of blocks) {
       for (let y = ya; y <= yb; y++) {
         for (let x = xs[0]; x <= xs[1]; x++) {
-          const i = 4 * (y * got.width + x);
+          const i = at(x, y);
           for (let k = 0; k < 3; k++) d += Math.abs(got.data[i + k] - want.data[i + k]);
           n += 3;
         }
       }
     }
     return d / n;
-  }, { sentImage: sent.image, photo: PHOTO_B64, H: grid.H, g: grid });
+  }, { sentImage: sent.image, photo: PHOTO_B64, H: grid.H, g: grid, win: sent.window });
   expect(meanDiff, 'the sent image matches PhotoGrid.warp(photo, grid.H) up to JPEG noise (about 1.4)').toBeLessThan(4);
 
   expect(errors).toEqual([]);
@@ -310,8 +329,7 @@ test('with demo-board the one sample offered, Use sample photo → straight to i
   expect(body.sample).toBe('demo-board');
   expect(body.grid.cols).toBe(sample.cols);
   expect(body.image.startsWith('data:image/jpeg;base64,')).toBe(true);
-  expect(await imageSize(page, body.image)).toEqual({ width: body.grid.width, height: body.grid.height });
-  expect(body.grid.width).toBeLessThanOrEqual(2048);
+  expectMarginImage(body, await imageSize(page, body.image));
   expect(errors).toEqual([]);
 });
 
@@ -378,7 +396,7 @@ test('with 2 samples offered, Use sample photo opens a picker with a tile per of
   expect(body.sample, `${id}: the request names the chosen sample`).toBe(id);
   expect(body.grid.cols, `${id}: its own board size`).toBe(samples[id].cols);
   expect(body.image.startsWith('data:image/jpeg;base64,')).toBe(true);
-  expect(await imageSize(page, body.image), `${id}: the flattened image is the grid's size`).toEqual({ width: body.grid.width, height: body.grid.height });
+  expectMarginImage(body, await imageSize(page, body.image), id);
   await expect(page.locator('#photo-confirm'), `${id}: its credit shows on the confirm screen`).toContainText(samples[id].credit, { useInnerText: true });
   for (const other of ids) {
     if (samples[other].credit === samples[id].credit) continue;

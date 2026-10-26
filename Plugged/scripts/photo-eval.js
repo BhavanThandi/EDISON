@@ -33,7 +33,7 @@ const PhotoGrid = require('../circuit3d/js/photo-grid.js');
 
 const ROOT     = path.join(__dirname, '..');
 const FIXTURES = path.join(ROOT, 'test/fixtures/photo');
-const SCORED   = ['resistor', 'led'];
+const SCORED   = ['resistor', 'led', 'capacitor', 'potentiometer', 'diode', 'ic'];
 const CONFIRM_TIMEOUT_MS = 180000;   // page: 60 s box round, plus slack
 const PLACED_TIMEOUT_MS  = 70000;    // after the confirm screen: the page's 45 s crop round, plus slack
 const MIN_GAP_MS = 11000;            // the server allows 6 photos a minute per IP
@@ -137,9 +137,9 @@ function pair(truth, pred) {
 // truth (truth.json entry) + got (the page's snapped Reading) → the scores.
 function score(truth, got) {
   const tParts = truth.parts.filter(p => SCORED.includes(p.type))
-    .map(p => ({ type: p.type, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.pin) }));
+    .map(p => ({ type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
   const pParts = got.parts.filter(p => SCORED.includes(p.type))
-    .map(p => ({ type: p.type, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.role) }));
+    .map(p => ({ type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.role) }));
   const tWires = truth.wires.map(w => ({ type: 'wire', nodes: w.ends.map(e => nodeOf(e.hole)) }));
   const pWires = got.wires.map(w => ({ type: 'wire', nodes: w.ends.map(e => nodeOf(e.hole)) }));
 
@@ -157,6 +157,30 @@ function score(truth, got) {
     const pi = p.roles.indexOf('anode');
     if (pi >= 0 && p.nodes[pi] === t.nodes[ti]) polRight++;
   }
+  // Capacitors, pots and chips: right when every known truth leg's node is covered. A chip's
+  // orientation is right when the truth names pin 1 and the reading's pin 1 is on that node. A
+  // chip the truth flags (a part the app can't build, e.g. a SOIC adapter or an NE555) is right
+  // when the reading does not build it as a TL072.
+  const typeScore = type => {
+    let right = 0, total = 0;
+    for (const [i, t] of tParts.entries()) {
+      if (t.type !== type) continue;
+      total++;
+      if (t.flagged) { if (!pParts.some(p => p.type === 'ic' && /^TL072$/i.test(String(p.value || '').trim()))) right++; continue; }
+      const c = parts.pairs.find(x => x.i === i);
+      if (c && shared(t.nodes, pParts[c.j].nodes) === t.nodes.filter(Boolean).length) right++;
+    }
+    return { right, total };
+  };
+  let pin1Right = 0, pin1Known = 0;
+  for (const c of parts.pairs) {
+    const t = tParts[c.i], p = pParts[c.j];
+    const ti = t.roles.indexOf('1');
+    if (t.type !== 'ic' || t.flagged || ti < 0 || !t.nodes[ti]) continue;
+    pin1Known++;
+    const pi = p.roles.indexOf('1');
+    if (pi >= 0 && p.nodes[pi] === t.nodes[ti]) pin1Right++;
+  }
   let railRight = 0, railKnown = 0;
   for (const [k, v] of Object.entries(truth.rails || {})) {
     if (v !== '+' && v !== '-') continue;
@@ -170,6 +194,10 @@ function score(truth, got) {
     ends:     { right: right(tWires, pWires, wires.pairs), total: known(tWires) },
     polarity: { right: polRight, known: polKnown },
     rails:    { right: railRight, known: railKnown },
+    chips:    typeScore('ic'),
+    chipPin1: { right: pin1Right, known: pin1Known },
+    caps:     typeScore('capacitor'),
+    pots:     typeScore('potentiometer'),
     other:    got.parts.filter(p => !SCORED.includes(p.type)).length,
   };
 }
@@ -322,11 +350,13 @@ function row(r) {
           s ? frac(s.parts.found, s.parts.truth) : '-', s ? frac(s.legs.right, s.legs.total) : '-',
           s ? frac(s.wires.found, s.wires.truth) : '-', s ? frac(s.ends.right, s.ends.total) : '-',
           s ? String(s.parts.invented + s.wires.invented) : '-',
+          s ? frac(s.chips.right, s.chips.total) : '-', s ? frac(s.chipPin1.right, s.chipPin1.known) : '-',
+          s ? frac(s.caps.right, s.caps.total) : '-', s ? frac(s.pots.right, s.pots.total) : '-',
           String(us.calls), String(us.http429), String(us.tokensIn), String(us.tokensOut), r.outcome === 'ok' ? '' : r.outcome];
 }
 
 function table(rows) {
-  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'calls', '429', 'tok in', 'tok out', 'failure'];
+  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'chips', 'chip pin-1', 'caps', 'pots', 'calls', '429', 'tok in', 'tok out', 'failure'];
   const all = [head, ...rows];
   const w = head.map((_, i) => Math.max(...all.map(r => String(r[i]).length)));
   return all.map(r => r.map((c, i) => String(c).padEnd(w[i])).join('  ').trimEnd()).join('\n');
@@ -353,6 +383,8 @@ function totals(results) {
     wires: { found: sum('wires', 'found'), truth: sum('wires', 'truth') }, ends: { right: sum('ends', 'right'), total: sum('ends', 'total') },
     invented: ok.reduce((n, r) => n + r.score.parts.invented + r.score.wires.invented, 0),
     polarity: { right: sum('polarity', 'right'), known: sum('polarity', 'known') }, rails: { right: sum('rails', 'right'), known: sum('rails', 'known') },
+    chips: { right: sum('chips', 'right'), total: sum('chips', 'total') }, chipPin1: { right: sum('chipPin1', 'right'), known: sum('chipPin1', 'known') },
+    caps: { right: sum('caps', 'right'), total: sum('caps', 'total') }, pots: { right: sum('pots', 'right'), total: sum('pots', 'total') },
   };
 }
 
@@ -410,6 +442,7 @@ async function main() {
     `confirm screen median ${t.medianS}s, max ${t.maxS}s · legs placed median ${t.placedMedianS}s, max ${t.placedMaxS}s · ` +
     `parts ${t.parts.found}/${t.parts.truth} · legs ${t.legs.right}/${t.legs.total} · wires ${t.wires.found}/${t.wires.truth} · ` +
     `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known} · ` +
+    `chips ${t.chips.right}/${t.chips.total} · chip pin-1 ${t.chipPin1.right}/${t.chipPin1.known} · caps ${t.caps.right}/${t.caps.total} · pots ${t.pots.right}/${t.pots.total} · ` +
     `${t.calls} Gemini calls, ${t.http429} 429s, ${t.tokensIn} tokens in, ${t.tokensOut} out · est. $${t.costUsd.toFixed(4)}`);
   if (args.out) {
     fs.writeFileSync(args.out, JSON.stringify({ at: new Date().toISOString(), args, totals: t, results }, null, 1));

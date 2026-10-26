@@ -27,7 +27,7 @@
 //
 // The board: Lab 2's starter (?lab=lab2) with the student's finish from
 // test/fixtures/lab2-finish.js added through App.placePart and App.finishWire
-// (as e2e/lab-sheet.spec.js), then U1's V− jumper (bn_33 → j33) deleted with
+// (as e2e/lab-sheet.spec.js), then U1's V− jumper (bn_30 → j30) deleted with
 // App.deleteWire. Run: a time run (FG1), U1 has no supply.
 const { test, expect } = require('@playwright/test');
 const { lab2FinishAll } = require('../test/fixtures/lab2-finish.js');

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "ENSC 220 Lab 2: Op-amps and the sine source",
   "thumbnail": "",
   "components": [
@@ -11,49 +11,50 @@
       "holeRefs": [
         {
           "pin": "out1",
-          "col": 29,
+          "col": 32,
           "row": "f"
         },
         {
           "pin": "in1n",
-          "col": 30,
+          "col": 31,
           "row": "f"
         },
         {
           "pin": "in1p",
-          "col": 31,
+          "col": 30,
           "row": "f"
         },
         {
           "pin": "vneg",
-          "col": 32,
+          "col": 29,
           "row": "f"
         },
         {
           "pin": "in2p",
-          "col": 32,
+          "col": 29,
           "row": "e"
         },
         {
           "pin": "in2n",
-          "col": 31,
-          "row": "e"
-        },
-        {
-          "pin": "out2",
           "col": 30,
           "row": "e"
         },
         {
+          "pin": "out2",
+          "col": 31,
+          "row": "e"
+        },
+        {
           "pin": "vpos",
-          "col": 29,
+          "col": 32,
           "row": "e"
         }
       ],
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     },
     {
       "type": "bench_supply",
@@ -72,7 +73,8 @@
       },
       "controls": {
         "mode": "series"
-      }
+      },
+      "v": 2
     },
     {
       "type": "function_generator",
@@ -87,7 +89,8 @@
       "position": {
         "x": 15.8,
         "z": 0.45
-      }
+      },
+      "v": 2
     }
   ],
   "wires": []

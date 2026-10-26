@@ -23,15 +23,19 @@
 // - While simulating, #sim-results has a line saying "shows 1" (headline or
 //   line).
 //
-// Layout (display at f30 facing right: e d com1 c dp on f30–f34, b a com2 f g
-// on e34–e30), 470 Ω each: b c34–c39 fed tp_39→a39; c h33–h37 fed
-// bp_37→j37; a b33–b37 fed tp_37→a37; commons a32→tn_32 and j32→bn_32;
+// Layout (display at f39 facing left: e d com1 c dp on f39–f35, b a com2 f g
+// on e35–e39), 470 Ω each: b c35–c30 fed tp_30→a30; c h36–h32 fed
+// bp_32→j32; a b36–b32 fed tp_32→a32; commons a37→tn_37 and j37→bn_37;
 // BAT1 on tp_63/tn_63; tp_1→bp_1 and tn_1→bn_1 join the bottom rails.
+// The board is flipped (row a nearest the viewer, a chip's pins run
+// counter-clockwise), and this is the COLUMN REFLECTION of the old layout
+// (display at f30 facing right; columns c → 69 − c about its span 30..39,
+// Ruling 21), so the + → tp, COM → tn, − → bn conventions are unchanged.
 const { test, expect } = require('@playwright/test');
 
 const STRADDLE = 'a chip must sit across the centre gap (rows e and f).';
 const SEGMENTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
-const LEGS_F30 = ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30'];
+const LEGS_F39 = ['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39'];
 
 function watchErrors(page) {
   const errors = [];
@@ -144,7 +148,7 @@ const onlyLit = lit => Object.fromEntries(SEGMENTS.map(s => [s, lit.includes(s)]
 
 // ── By hand: pick, hover (refused, then allowed), place, wire the 1, Run ──
 
-test('by hand: pick it in the sidebar, the ghost refuses b30 with the straddle message and fits f30, a click places it; wired as the known answer, Run shows 1 with b and c lit', async ({ page }) => {
+test('by hand: pick it in the sidebar, the ghost refuses b39 (facing left) with the straddle message and fits f39, a click places it; wired as the known answer, Run shows 1 with b and c lit', async ({ page }) => {
   test.setTimeout(90_000);
   const errors = watchErrors(page);
   await openEditor(page);
@@ -152,43 +156,45 @@ test('by hand: pick it in the sidebar, the ghost refuses b30 with the straddle m
   const item = page.locator('#sidebar .comp-item[data-type="seven_segment"]');
   await expect(item, 'the 7-segment display has a sidebar item').toHaveCount(1);
   await item.click();
+  await page.keyboard.press('r');   // facing left: pins 1–5 run left along the anchor's row
+  await expect(page.locator('#hint-text')).toContainText('180');
 
   // Off the gap: 10 red leg spheres and the straddle message as the hint.
-  await hover(page, 'b30');
+  await hover(page, 'b39');
   const bad = await hoverLegs(page);
-  const B30 = ['b30', 'b31', 'b32', 'b33', 'b34', 'a34', 'a33', 'a32', 'a31', 'a30'];
-  expect(bad.length, `one sphere per leg at b30: ${JSON.stringify(bad)}`).toBe(10);
-  expect(covered(bad, await holesXZ(page, B30))).toEqual(B30);
+  const B39 = ['b39', 'b38', 'b37', 'b36', 'b35', 'a35', 'a36', 'a37', 'a38', 'a39'];
+  expect(bad.length, `one sphere per leg at b39: ${JSON.stringify(bad)}`).toBe(10);
+  expect(covered(bad, await holesXZ(page, B39))).toEqual(B39);
   expect(bad.every(s => s.red), 'refused, so red').toBe(true);
   await expect(page.locator('#hint-text')).toContainText(STRADDLE);
 
-  // Across the gap: 10 green spheres on f30–f34 / e34–e30, the ghost shows.
-  await hover(page, 'f30');
+  // Across the gap: 10 green spheres on f39–f35 / e35–e39, the ghost shows.
+  await hover(page, 'f39');
   const ok = await hoverLegs(page);
-  expect(ok.length, `one sphere per leg at f30: ${JSON.stringify(ok)}`).toBe(10);
-  expect(covered(ok, await holesXZ(page, LEGS_F30))).toEqual(LEGS_F30);
+  expect(ok.length, `one sphere per leg at f39: ${JSON.stringify(ok)}`).toBe(10);
+  expect(covered(ok, await holesXZ(page, LEGS_F39))).toEqual(LEGS_F39);
   expect(ok.some(s => s.red), 'allowed, so not red').toBe(false);
   await expect(page.locator('#hint-text')).not.toContainText(STRADDLE);
   expect(await sceneHas(page, 'seg-a'), "the ghost (the part's own model) shows while hovering").toBe(true);
   expect(await page.evaluate(() => App.state.components.length), 'nothing placed yet').toBe(0);
 
-  const at = await screenPoint(page, 'f30');
+  const at = await screenPoint(page, 'f39');
   await page.mouse.click(at.x, at.y);
   const placed = await page.evaluate(() => App.state.components.map(c => ({ type: c.type, legs: Parts.legsOf(c).map(l => l.pin + '@' + l.hole) })));
   expect(placed).toHaveLength(1);
   expect(placed[0].type).toBe('seven_segment');
-  expect(placed[0].legs).toEqual(['e', 'd', 'com1', 'c', 'dp', 'b', 'a', 'com2', 'f', 'g'].map((p, i) => `${p}@${LEGS_F30[i]}`));
+  expect(placed[0].legs).toEqual(['e', 'd', 'com1', 'c', 'dp', 'b', 'a', 'com2', 'f', 'g'].map((p, i) => `${p}@${LEGS_F39[i]}`));
   await page.keyboard.press('Escape');
 
   // The known answer: b and c each through 470 Ω from 9 V, commons to ground.
   await page.evaluate(() => {
     const hole = s => { const { col, row } = App.parseHole(s); return App.state.breadboard.getHole(col, row); };
     App.placePart('battery', App.batterySpot());
-    App.placePart('resistor', [hole('c34'), hole('c39')], { resistance: 470 });
-    App.placePart('resistor', [hole('h33'), hole('h37')], { resistance: 470 });
+    App.placePart('resistor', [hole('c35'), hole('c30')], { resistance: 470 });
+    App.placePart('resistor', [hole('h36'), hole('h32')], { resistance: 470 });
   });
   for (const [a, b] of [['BAT1.0', 'tp_63'], ['BAT1.1', 'tn_63'], ['tp_1', 'bp_1'], ['tn_1', 'bn_1'],
-                        ['tp_39', 'a39'], ['bp_37', 'j37'], ['a32', 'tn_32'], ['j32', 'bn_32']]) {
+                        ['tp_30', 'a30'], ['bp_32', 'j32'], ['a37', 'tn_37'], ['j37', 'bn_37']]) {
     await wire(page, a, b);
   }
   expect(await page.evaluate(() => App.state.wires.length)).toBe(8);
@@ -216,15 +222,15 @@ const SEVEN_BUILD = {
     wireA('BAT1.1', 'tn_63', 'black'),
     wireA('tp_1', 'bp_1', 'red'),
     wireA('tn_1', 'bn_1', 'black'),
-    { tool: 'place_seven_segment', hole: 'f30', direction: 'right' },
-    { tool: 'place_resistor', holeA: 'b33', holeB: 'b37' },   // a
-    wireA('tp_37', 'a37', 'red'),
-    { tool: 'place_resistor', holeA: 'c34', holeB: 'c39' },   // b
-    wireA('tp_39', 'a39', 'red'),
-    { tool: 'place_resistor', holeA: 'h33', holeB: 'h37' },   // c
-    wireA('bp_37', 'j37', 'red'),
-    wireA('a32', 'tn_32', 'black'),                           // com2
-    wireA('j32', 'bn_32', 'black'),                           // com1
+    { tool: 'place_seven_segment', hole: 'f39', direction: 'left' },
+    { tool: 'place_resistor', holeA: 'b36', holeB: 'b32' },   // a
+    wireA('tp_32', 'a32', 'red'),
+    { tool: 'place_resistor', holeA: 'c35', holeB: 'c30' },   // b
+    wireA('tp_30', 'a30', 'red'),
+    { tool: 'place_resistor', holeA: 'h36', holeB: 'h32' },   // c
+    wireA('bp_32', 'j32', 'red'),
+    wireA('a37', 'tn_37', 'black'),                           // com2
+    wireA('j37', 'bn_37', 'black'),                           // com1
   ],
 };
 
@@ -242,7 +248,7 @@ test('a stubbed AI reply to "Show the number 7 on a seven-segment display" appli
     const c = App.state.components.find(p => p.type === 'seven_segment');
     return c && Parts.legsOf(c).map(l => l.hole);
   });
-  expect(legs).toEqual(LEGS_F30);
+  expect(legs).toEqual(LEGS_F39);
 
   await page.locator('#sim-run-btn').click();
   await expect(page.locator('#sim-results')).toBeVisible();

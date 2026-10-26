@@ -132,7 +132,7 @@
       { n: '6.2', q: 'Use KCL at column 14: does the current into the node equal the current out?' },
     ] },
     lab2: { id: 'lab2', code: 'LAB-02', title: 'Op-amps and the sine source', week: 'Week 4', starter: 'labs/lab2.sparky', steps: [
-      { n: 1, text: 'Wire the ±12 V supply to pins 8 and 4.', hint: 'U1 starts seated across the centre gap, pin 1 at f30 and pin 8 at e30. Pin 8 is V+ and goes to the supply\'s +. Pin 4 (f33) is V− and goes to its −. The supply\'s COM is ground.',
+      { n: 1, text: 'Wire the ±12 V supply to pins 8 and 4.', hint: 'U1 starts seated across the centre gap, pin 1 at f33 and pin 8 at e33. Pin 8 is V+ and goes to the supply\'s +. Pin 4 (f30) is V− and goes to its −. The supply\'s COM is ground.',
         check: { kind: 'supply', label: 'U1', pins: { vpos: 12, vneg: -12 }, tol: 0.05 },
         give: { wires: [
           ['PS1.0', 'tp_63', 'PS1 + (+12 V) to the top + rail'],
@@ -145,17 +145,17 @@
       { n: 2, text: 'Connect the generator through Rin (10 kΩ) to pin 2.', hint: 'Rin is 10 kΩ, from the generator\'s OUT to pin 2 (the − input). Wire pin 3 (the + input) and the generator\'s COM to ground.',
         check: { kind: 'part', label: 'R1' },
         give: {
-          parts: [{ type: 'resistor', label: 'R1', holes: ['i{in1n+4}', 'i{in1n}'], values: { resistance: 10000 }, says: 'R1 (Rin, 10 kΩ) from i{in1n+4} to i{in1n}, pin 2\'s column' }],
+          parts: [{ type: 'resistor', label: 'R1', holes: ['i{in1n-4}', 'i{in1n}'], values: { resistance: 10000 }, says: 'R1 (Rin, 10 kΩ) from i{in1n-4} to i{in1n}, pin 2\'s column' }],
           wires: [
             ['j{in1p}', 'bp_{in1p}', 'Pin 3 (+ input) to ground, j{in1p} to the bottom + rail'],
-            ['FG1.0', 'g{in1n+4}', 'FG1 OUT to R1\'s far end, hole g{in1n+4}'],
+            ['FG1.0', 'g{in1n-4}', 'FG1 OUT to R1\'s far end, hole g{in1n-4}'],
             ['FG1.1', 'tn_62', 'FG1 COM to ground, the top − rail'],
           ] } },
       { n: 3, text: 'Add Rf (100 kΩ) from pin 1 to pin 2.', hint: 'Rf is 100 kΩ, from the output (pin 1) back to the − input (pin 2). The gain is −Rf / Rin.',
         check: { kind: 'part', label: 'R2' },
         give: {
-          parts: [{ type: 'resistor', label: 'R2', holes: ['j{out1}', 'j{out1+4}'], values: { resistance: 100000 }, says: 'R2 (Rf, 100 kΩ) from j{out1}, pin 1\'s column, to j{out1+4}' }],
-          wires: [['h{out1+4}', 'h{in1n}', 'A jumper from R2\'s far end (h{out1+4}) back to pin 2 (h{in1n})']] } },
+          parts: [{ type: 'resistor', label: 'R2', holes: ['j{out1}', 'j{out1-4}'], values: { resistance: 100000 }, says: 'R2 (Rf, 100 kΩ) from j{out1}, pin 1\'s column, to j{out1-4}' }],
+          wires: [['h{out1-4}', 'h{in1n}', 'A jumper from R2\'s far end (h{out1-4}) back to pin 2 (h{in1n})']] } },
       { n: 4, text: 'Put the multimeter on the output: red probe to pin 1, black probe to ground.', hint: 'Place the multimeter in V mode. Wire its red probe to a free hole in pin 1\'s column (g to i) and its black probe to the top − rail, which is ground.',
         check: { kind: 'probes', label: 'MM1', red: { label: 'U1', pin: 'out1' }, black: { label: 'PS1', pin: 'com' } },
         give: {
@@ -181,7 +181,7 @@
     seat: { f: ['out1', 'in1n', 'in1p', 'vneg'], e: ['vpos'] },
     due: 'Oct 9',
     objective: 'Build an inverting amplifier with a gain of −10 on the ±12 V supply, drive it with a 0.5 V sine from the function generator, and read its output on the scope and the multimeter.',
-    reading: 'Read first: textbook §1.4, the inverting op-amp. The TL072 (U1) starts seated across the centre gap at f30; you wire the rest.',
+    reading: 'Read first: textbook §1.4, the inverting op-amp. The TL072 (U1) starts seated across the centre gap at f33; you wire the rest.',
     readingHref: '../edison/textbook.html#p4',
     equipment: [
       { label: 'U1',  text: 'TL072 dual op-amp, across the centre gap' },
@@ -364,8 +364,8 @@
   }
 
   // A step's "Give me" with its holes filled in from the chip's own: holes
-  // is U1's pins by name ({ out1: 'f30', in1n: 'f31', … }); "{in1n+4}" is
-  // that pin's column plus 4. seat (the sheet's) names the row each pin must
+  // is U1's pins by name ({ out1: 'f33', in1n: 'f32', … }); "{in1n-4}" is
+  // that pin's column minus 4. seat (the sheet's) names the row each pin must
   // be in. → { parts[{ type, label, holes, values, says }], wires[{ from,
   // to, says }], run, says } or null: nothing to give, a pin the chip
   // doesn't have, the chip seated otherwise (turned round, say), or a hole

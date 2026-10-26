@@ -1,6 +1,7 @@
 // Issue #61: the bottom rails were drawn backwards. The red stripe sat on
 // bn (GND), so hovering it read "Row BN" while the AI prompt calls bp the +
-// rail. Now the red stripe on each half is its + rail: tp on top, bp below.
+// rail. Now the red stripe on each half is its + rail: bp on the far (top of
+// the screen) half, tp on the near half (the board is flipped, row a nearest).
 // Finds each drawn 3D rail stripe (a thin red or blue box in the breadboard
 // group), moves the real mouse onto it in wire mode and reads the hole label.
 // Guest only; /api/ask is stubbed and never called.
@@ -46,15 +47,17 @@ async function hoverLabel(page, colour, half) {
   return label.textContent();
 }
 
-test('hovering the bottom red stripe reads "Row BP", like the top red one reads "Row TP"', async ({ page }) => {
+test('hovering the far (top-of-screen) red stripe reads "Row BP", like the near (bottom-of-screen) red one reads "Row TP"', async ({ page }) => {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
   await openEditor(page);
   await page.evaluate(() => App.setMode('wire'));
 
-  expect(await hoverLabel(page, 'red',  'top')).toMatch(/Row TP\b/);
-  expect(await hoverLabel(page, 'blue', 'top')).toMatch(/Row TN\b/);
-  expect(await hoverLabel(page, 'red',  'bottom')).toMatch(/Row BP\b/);
-  expect(await hoverLabel(page, 'blue', 'bottom')).toMatch(/Row BN\b/);
+  // The board is flipped (row a and tp/tn nearest the viewer): the far,
+  // top-of-screen half is bp/bn, the near, bottom-of-screen half tp/tn.
+  expect(await hoverLabel(page, 'red',  'top')).toMatch(/Row BP\b/);
+  expect(await hoverLabel(page, 'blue', 'top')).toMatch(/Row BN\b/);
+  expect(await hoverLabel(page, 'red',  'bottom')).toMatch(/Row TP\b/);
+  expect(await hoverLabel(page, 'blue', 'bottom')).toMatch(/Row TN\b/);
   expect(errors).toEqual([]);
 });

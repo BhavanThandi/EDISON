@@ -131,10 +131,10 @@ test('Lab 2 (case 11) end to end with Give me: it opens on step 1; steps 1–4 (
     await step(n).locator('.lab-step-give').click();
     await expect(tag(n), `Give me on step ${n} confirms it, no Run`).toHaveText(/passed/i);
   }
-  await expect(step(2).locator('.lab-step-given'), 'Give me says where R1 went').toContainText('R1 (Rin, 10 kΩ) from i35 to i31');
+  await expect(step(2).locator('.lab-step-given'), 'Give me says where R1 went').toContainText('R1 (Rin, 10 kΩ) from i28 to i32');
   expect(await page.evaluate(() => App.simRunning), 'nothing has run yet').toBeFalsy();
 
-  await expect(step(4).locator('.lab-step-given'), 'Give me says where the meter\'s probes went').toContainText('MM1 red probe to pin 1\'s column (g30)');
+  await expect(step(4).locator('.lab-step-given'), 'Give me says where the meter\'s probes went').toContainText('MM1 red probe to pin 1\'s column (g33)');
   await step(5).locator('.lab-step-give').click();
   await expect(tag(5), 'the run confirms the peak').toHaveText(/passed/i, { timeout: 90_000 });
   const meter = page.locator('.lab-paper-data tr').nth(4).locator('.lab-paper-sim');
@@ -239,7 +239,7 @@ test('the current step is pinned at the top of the paper with its Give me, Hint 
   await bar.locator('.lab-now-give').click();
   await expect(bar.locator('.lab-now-step'), 'step 1 confirmed: the bar moves on').toHaveText('Step 2 of 6');
   await expect(bar.locator('.lab-now-last')).toContainText('Give me, step 1');
-  await expect(bar.locator('.lab-now-last')).toContainText('The +12 V rail to pin 8 (V+), hole a30');
+  await expect(bar.locator('.lab-now-last')).toContainText('The +12 V rail to pin 8 (V+), hole a33');
   await expect(bar.locator('.lab-now-hint'), 'the new step\'s hint starts folded').toBeHidden();
   expect(errors).toEqual([]);
 });

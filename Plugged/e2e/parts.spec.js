@@ -123,10 +123,12 @@ for (const type of TYPES) {
     expect(def, `window.Parts.get('${type}') in the editor`).toBeTruthy();
 
     await page.locator(`#sidebar .comp-item[data-type="${type}"]`).click();
-    // A chip that straddles the gap (#43) only fits with its anchor in row f.
+    // A chip that straddles the gap (#43) only fits with its anchor in row e at the
+    // default rotation (right): the board is flipped, row a nearest the viewer, and
+    // a chip's pins run counter-clockwise, so pins 1..N go along row e, then back along f.
     const at = def.kind === 'offboard'
       ? await screenPoint(page, await page.evaluate(() => App.batterySpot()))
-      : await screenPoint(page, def.straddle ? 'f30' : 'c30');
+      : await screenPoint(page, def.straddle ? 'e30' : 'c30');
     await page.mouse.move(at.x - 3, at.y);
     await page.mouse.move(at.x, at.y);
 

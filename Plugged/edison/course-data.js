@@ -97,11 +97,11 @@
     lab: 'lab2',
     total: 82,
     cells: [
-      { hole: 'e30', count: 23, note: 'V+ (pin 8) not wired' },
-      { hole: 'f33', count: 17, note: 'V− (pin 4) not wired' },
-      { hole: 'g32', count: 14, note: 'Rin on pin 3 instead of pin 2' },
-      { hole: 'e31', count: 9,  note: 'Rf taken from pin 7 instead of pin 1' },
-      { hole: 'j27', count: 6,  note: 'Generator lead one column off' },
+      { hole: 'e33', count: 23, note: 'V+ (pin 8) not wired' },
+      { hole: 'f30', count: 17, note: 'V− (pin 4) not wired' },
+      { hole: 'g31', count: 14, note: 'Rin on pin 3 instead of pin 2' },
+      { hole: 'e32', count: 9,  note: 'Rf taken from pin 7 instead of pin 1' },
+      { hole: 'j36', count: 6,  note: 'Generator lead one column off' },
     ],
   };
 

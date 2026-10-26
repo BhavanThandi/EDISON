@@ -39,7 +39,7 @@
 //
 // The circuit: Lab 2's starter (circuit3d/labs/lab2.sparky: U1, PS1, FG1,
 // unwired) with the student's finish from test/fixtures/lab2-finish.js, but
-// without the V− jumper bn_33 → j33. V+ is wired and V− isn't, so the TL072's
+// without the V− jumper bn_30 → j30. V+ is wired and V− isn't, so the TL072's
 // own warning says it has no supply; PS1 reads series ±12 V at 0.0 mA and FG1
 // a 0.50 Vp sine at 1.0 Hz (the mockup's three callouts; Lab 2 is case 11). Loaded the way the
 // editor rebuilds a saved file (load(), copied from test/textbook-figures.test.js)
@@ -60,7 +60,7 @@ const FILE   = path.join(ROOT, 'edison', 'result-callouts.js');
 const LAB2   = path.join(ROOT, 'circuit3d', 'labs', 'lab2.sparky');
 const LEVELS = ['ok', 'warn', 'fault'];
 const RANK   = { fault: 0, warn: 1, ok: 2 };
-const V_NEG  = ['bn_33', 'j33'];   // U1's V− jumper in lab2-finish.js (V− is f33)
+const V_NEG  = ['bn_30', 'j30'];   // U1's V− jumper in lab2-finish.js (V− is f30)
 
 // Loaded per test, so a module that can't load in Node fails each test by name.
 function RC() {

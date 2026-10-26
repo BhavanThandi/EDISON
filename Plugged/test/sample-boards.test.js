@@ -41,14 +41,14 @@
 //   step dropped), a TL072 comparator:
 //     PS1 ±12 V series: + → tp_1, COM → tn_1, COM2 → tn_2, − → bn_1;
 //         tn_3 → bp_3 puts the bottom + rail (bp) on ground
-//     U1 TL072 at f57 facing right: OUT1 f57, IN1− f58, IN1+ f59, V− f60,
-//         IN2+ e60, IN2− e59, OUT2 e58, V+ e57; d57 → tp_58 (V+ +12 V),
-//         j60 → bn_60 (V− −12 V)
-//     R1 10 kΩ d29–d34, tp_29 → a29 (+12 V)
-//     R2 470 Ω h29–h33, bp_29 → j29 (ground)
-//     the divider node: cols 34 (a–e) → c34–d40 → 40 → e40–f41 → 41 (f–j),
-//         33 (f–j) → i33–h41 → 41; g41 → h58 takes it to IN1−
-//     R3 470 Ω g55–g59, FG1.out → f55: the generator into IN1+
+//     U1 TL072 at f7 facing left (the photo's printed holes: columns 64 − c): OUT1 f7, IN1− f6, IN1+ f5, V− f4,
+//         IN2+ e4, IN2− e5, OUT2 e6, V+ e7; d7 → tp_6 (V+ +12 V),
+//         j4 → bn_4 (V− −12 V)
+//     R1 10 kΩ d30–d35, tp_35 → a35 (+12 V)
+//     R2 470 Ω h31–h35, bp_35 → j35 (ground)
+//     the divider node: cols 30 (a–e) → c30–d24 → 24 → e24–f23 → 23 (f–j),
+//         31 (f–j) → i31–h23 → 23; g23 → h6 takes it to IN1−
+//     R3 470 Ω g5–g9, FG1.out → f9: the generator into IN1+
 //     FG1 5 V, 1 Hz sine, offset 0; COM → tn_38
 //   A wire end on PS1 or FG1 may be written by pin name or index (PS1.pos or
 //   PS1.0): the tests compare names.
@@ -373,20 +373,20 @@ function endName(board, end) {
   return `${m[1]}.${/^\d+$/.test(m[2]) ? pins[Number(m[2])] : m[2]}`;
 }
 
-const LAB_WIRES = [['PS1.pos', 'tp_1'], ['PS1.com', 'tn_1'], ['PS1.com2', 'tn_2'], ['PS1.neg', 'bn_1'], ['tn_3', 'bp_3'],
-                   ['d57', 'tp_58'], ['j60', 'bn_60'],                               // U1's V+ and V−
-                   ['tp_29', 'a29'], ['bp_29', 'j29'],                               // the divider's ends
-                   ['c34', 'd40'], ['e40', 'f41'], ['i33', 'h41'], ['g41', 'h58'],   // its node to IN1−
-                   ['FG1.com', 'tn_38'], ['FG1.out', 'f55']];                       // the generator, into R3
+const LAB_WIRES = [['PS1.pos', 'tp_63'], ['PS1.com', 'tn_63'], ['PS1.com2', 'tn_62'], ['PS1.neg', 'bn_63'], ['tn_61', 'bp_61'],
+                   ['d7', 'tp_6'], ['j4', 'bn_4'],                               // U1's V+ and V−
+                   ['tp_35', 'a35'], ['bp_35', 'j35'],                               // the divider's ends
+                   ['c30', 'd24'], ['e24', 'f23'], ['i31', 'h23'], ['g23', 'h6'],   // its node to IN1−
+                   ['FG1.com', 'tn_26'], ['FG1.out', 'f9']];                       // the generator, into R3
 
-test('ensc-lab is exactly U1 (a TL072 at f57, facing right), PS1 at 12 V, FG1 (a 5 V, 1 Hz sine, offset 0) and R1 10 kΩ, R2 470 Ω, R3 470 Ω at their holes, plus its 15 wires', () => {
+test('ensc-lab is exactly U1 (a TL072 at f7, facing left), PS1 at 12 V, FG1 (a 5 V, 1 Hz sine, offset 0) and R1 10 kΩ, R2 470 Ω, R3 470 Ω at their holes, plus its 15 wires', () => {
   const board = built(LAB);
   const values = Object.fromEntries(board.parts.map(p => [p.label, p.values || {}]));
   // U1 in pin order (OUT1 IN1− IN1+ V− IN2+ IN2− OUT2 V+); a resistor's holes sorted.
   const got  = board.parts.map(p => [p.label, p.type, p.type === 'tl072' ? p.holes : sorted(p.holes || [])]);
-  const want = [['U1', 'tl072', ['f57', 'f58', 'f59', 'f60', 'e60', 'e59', 'e58', 'e57']],
+  const want = [['U1', 'tl072', ['f7', 'f6', 'f5', 'f4', 'e4', 'e5', 'e6', 'e7']],
                 ['PS1', 'bench_supply', []], ['FG1', 'function_generator', []],
-                ['R1', 'resistor', ['d29', 'd34']], ['R2', 'resistor', ['h29', 'h33']], ['R3', 'resistor', ['g55', 'g59']]];
+                ['R1', 'resistor', ['d30', 'd35']], ['R2', 'resistor', ['h31', 'h35']], ['R3', 'resistor', ['g5', 'g9']]];
   const byLabel = list => list.slice().sort((x, y) => x[0].localeCompare(y[0]));
   assert.deepStrictEqual(byLabel(got), byLabel(want), 'the parts, by label: [label, type, holes]');
 
@@ -437,7 +437,7 @@ test('ensc-lab: R1 carries 12 V / 10.47 kΩ ≈ 1.146 mA, the divider puts IN1�
 // OUT1 sits at a clip, HEADROOM (1.5 V, parts/tl072.js) inside its rails:
 //   IN1+ below 0.5387 V → V− + 1.5 = −10.5 V
 //   IN1+ above 0.5387 V → V+ − 1.5 = +10.5 V
-// OUT1 drives nothing (column 57 f–j holds only pin 1), so no drop across
+// OUT1 drives nothing (column 7 f–j holds only pin 1), so no drop across
 // its 50 Ω. 0.5 V and 0.6 V bracket the reference, so the threshold is the
 // divider's, not ground's.
 const HEADROOM = Parts.get('tl072').elements()[0].headroom;

@@ -11,19 +11,20 @@
    "holeRefs": [
     {
      "pin": "lead1",
-     "col": 28,
+     "col": 59,
      "row": "d"
     },
     {
      "pin": "lead2",
-     "col": 33,
+     "col": 54,
      "row": "d"
     }
    ],
    "position": {
     "x": 0,
     "z": 0
-   }
+   },
+   "v": 2
   },
   {
    "type": "bench_supply",
@@ -41,7 +42,8 @@
    },
    "controls": {
     "mode": "series"
-   }
+   },
+   "v": 2
   },
   {
    "type": "resistor",
@@ -52,19 +54,20 @@
    "holeRefs": [
     {
      "pin": "lead1",
-     "col": 28,
+     "col": 59,
      "row": "h"
     },
     {
      "pin": "lead2",
-     "col": 32,
+     "col": 55,
      "row": "h"
     }
    ],
    "position": {
     "x": 0,
     "z": 0
-   }
+   },
+   "v": 2
   },
   {
    "type": "tl072",
@@ -73,49 +76,50 @@
    "holeRefs": [
     {
      "pin": "out1",
-     "col": 56,
+     "col": 31,
      "row": "f"
     },
     {
      "pin": "in1n",
-     "col": 57,
+     "col": 30,
      "row": "f"
     },
     {
      "pin": "in1p",
-     "col": 58,
+     "col": 29,
      "row": "f"
     },
     {
      "pin": "vneg",
-     "col": 59,
+     "col": 28,
      "row": "f"
     },
     {
      "pin": "in2p",
-     "col": 59,
+     "col": 28,
      "row": "e"
     },
     {
      "pin": "in2n",
-     "col": 58,
+     "col": 29,
      "row": "e"
     },
     {
      "pin": "out2",
-     "col": 57,
+     "col": 30,
      "row": "e"
     },
     {
      "pin": "vpos",
-     "col": 56,
+     "col": 31,
      "row": "e"
     }
    ],
    "position": {
     "x": 0,
     "z": 0
-   }
+   },
+   "v": 2
   },
   {
    "type": "resistor",
@@ -126,19 +130,20 @@
    "holeRefs": [
     {
      "pin": "lead1",
-     "col": 54,
+     "col": 33,
      "row": "g"
     },
     {
      "pin": "lead2",
-     "col": 58,
+     "col": 29,
      "row": "g"
     }
    ],
    "position": {
     "x": 0,
     "z": 0
-   }
+   },
+   "v": 2
   },
   {
    "type": "function_generator",
@@ -152,25 +157,27 @@
    "position": {
     "x": 1.09,
     "z": -6.45
-   }
+   },
+   "v": 2
   }
  ],
  "wires": [
   {
    "id": "W5",
    "startHole": {
-    "col": 33,
+    "col": 54,
     "row": "c"
    },
    "endHole": {
-    "col": 39,
+    "col": 48,
     "row": "d"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 16777215
+   "color": 16777215,
+   "v": 2
   },
   {
    "id": "W12",
@@ -184,7 +191,8 @@
    "endCompIdx": -1,
    "endPinIdx": -1,
    "startPin": "pos",
-   "color": 15680580
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W13",
@@ -196,7 +204,8 @@
    "endPinIdx": 1,
    "startPin": "com",
    "endPin": "com",
-   "color": 0
+   "color": 0,
+   "v": 2
   },
   {
    "id": "W14",
@@ -210,7 +219,8 @@
    "endCompIdx": -1,
    "endPinIdx": -1,
    "startPin": "com",
-   "color": 0
+   "color": 0,
+   "v": 2
   },
   {
    "id": "W17",
@@ -224,7 +234,8 @@
    "endCompIdx": -1,
    "endPinIdx": -1,
    "startPin": "com2",
-   "color": 16777215
+   "color": 16777215,
+   "v": 2
   },
   {
    "id": "W19",
@@ -238,7 +249,8 @@
    "endCompIdx": -1,
    "endPinIdx": -1,
    "startPin": "neg",
-   "color": 2450411
+   "color": 2450411,
+   "v": 2
   },
   {
    "id": "W20",
@@ -254,55 +266,59 @@
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 0
+   "color": 0,
+   "v": 2
   },
   {
    "id": "W21",
    "startHole": {
-    "col": 39,
+    "col": 48,
     "row": "e"
    },
    "endHole": {
-    "col": 40,
+    "col": 47,
     "row": "f"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 0
+   "color": 0,
+   "v": 2
   },
   {
    "id": "W22",
    "startHole": {
-    "col": 32,
+    "col": 55,
     "row": "i"
    },
    "endHole": {
-    "col": 40,
+    "col": 47,
     "row": "h"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 0
+   "color": 0,
+   "v": 2
   },
   {
    "id": "W23",
    "startHole": {
-    "col": 56,
+    "col": 31,
     "row": "d"
    },
    "endHole": {
-    "col": 57,
+    "col": 30,
     "row": "tp"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 15680580
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W24",
@@ -316,13 +332,14 @@
    "endCompIdx": -1,
    "endPinIdx": -1,
    "startPin": "com",
-   "color": 0
+   "color": 0,
+   "v": 2
   },
   {
    "id": "W25",
    "startHole": null,
    "endHole": {
-    "col": 54,
+    "col": 33,
     "row": "f"
    },
    "startCompIdx": 5,
@@ -330,72 +347,77 @@
    "endCompIdx": -1,
    "endPinIdx": -1,
    "startPin": "out",
-   "color": 15680580
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W26",
    "startHole": {
-    "col": 28,
+    "col": 59,
     "row": "tp"
    },
    "endHole": {
-    "col": 28,
+    "col": 59,
     "row": "a"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 2278750
+   "color": 2278750,
+   "v": 2
   },
   {
    "id": "W27",
    "startHole": {
-    "col": 28,
+    "col": 59,
     "row": "bp"
    },
    "endHole": {
-    "col": 28,
+    "col": 59,
     "row": "j"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 2278750
+   "color": 2278750,
+   "v": 2
   },
   {
    "id": "W29",
    "startHole": {
-    "col": 59,
+    "col": 28,
     "row": "j"
    },
    "endHole": {
-    "col": 59,
+    "col": 28,
     "row": "bn"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 2278750
+   "color": 2278750,
+   "v": 2
   },
   {
    "id": "W30",
    "startHole": {
-    "col": 40,
+    "col": 47,
     "row": "g"
    },
    "endHole": {
-    "col": 57,
+    "col": 30,
     "row": "h"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 2278750
+   "color": 2278750,
+   "v": 2
   }
  ],
- "version": 1
+ "version": 2
 }

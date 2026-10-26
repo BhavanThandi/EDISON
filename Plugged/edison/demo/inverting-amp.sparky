@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "Inverting amplifier, gain −10",
   "thumbnail": "",
   "components": [
@@ -11,49 +11,50 @@
       "holeRefs": [
         {
           "pin": "out1",
-          "col": 29,
+          "col": 34,
           "row": "f"
         },
         {
           "pin": "in1n",
-          "col": 30,
+          "col": 33,
           "row": "f"
         },
         {
           "pin": "in1p",
-          "col": 31,
+          "col": 32,
           "row": "f"
         },
         {
           "pin": "vneg",
-          "col": 32,
+          "col": 31,
           "row": "f"
         },
         {
           "pin": "in2p",
-          "col": 32,
-          "row": "e"
-        },
-        {
-          "pin": "in2n",
           "col": 31,
           "row": "e"
         },
         {
+          "pin": "in2n",
+          "col": 32,
+          "row": "e"
+        },
+        {
           "pin": "out2",
-          "col": 30,
+          "col": 33,
           "row": "e"
         },
         {
           "pin": "vpos",
-          "col": 29,
+          "col": 34,
           "row": "e"
         }
       ],
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     },
     {
       "type": "bench_supply",
@@ -72,7 +73,8 @@
       },
       "controls": {
         "mode": "series"
-      }
+      },
+      "v": 2
     },
     {
       "type": "bench_supply",
@@ -91,7 +93,8 @@
       },
       "controls": {
         "mode": "series"
-      }
+      },
+      "v": 2
     },
     {
       "type": "resistor",
@@ -103,19 +106,20 @@
       "holeRefs": [
         {
           "pin": "lead1",
-          "col": 34,
+          "col": 29,
           "row": "i"
         },
         {
           "pin": "lead2",
-          "col": 30,
+          "col": 33,
           "row": "i"
         }
       ],
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     },
     {
       "type": "resistor",
@@ -127,19 +131,20 @@
       "holeRefs": [
         {
           "pin": "lead1",
-          "col": 29,
+          "col": 34,
           "row": "j"
         },
         {
           "pin": "lead2",
-          "col": 33,
+          "col": 30,
           "row": "j"
         }
       ],
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     }
   ],
   "wires": [
@@ -155,7 +160,8 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "pos",
-      "color": 15680580
+      "color": 15680580,
+      "v": 2
     },
     {
       "id": "W2",
@@ -169,7 +175,8 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "com",
-      "color": 0
+      "color": 0,
+      "v": 2
     },
     {
       "id": "W3",
@@ -183,7 +190,8 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "neg",
-      "color": 2450411
+      "color": 2450411,
+      "v": 2
     },
     {
       "id": "W4",
@@ -199,61 +207,65 @@
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 0
+      "color": 0,
+      "v": 2
     },
     {
       "id": "W5",
       "startHole": {
-        "col": 29,
+        "col": 34,
         "row": "tp"
       },
       "endHole": {
-        "col": 29,
+        "col": 34,
         "row": "a"
       },
       "startCompIdx": -1,
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 15680580
+      "color": 15680580,
+      "v": 2
     },
     {
       "id": "W6",
       "startHole": {
-        "col": 32,
+        "col": 31,
         "row": "bn"
       },
       "endHole": {
-        "col": 32,
+        "col": 31,
         "row": "j"
       },
       "startCompIdx": -1,
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 3900150
+      "color": 3900150,
+      "v": 2
     },
     {
       "id": "W7",
       "startHole": {
-        "col": 31,
+        "col": 32,
         "row": "j"
       },
       "endHole": {
-        "col": 31,
+        "col": 32,
         "row": "bp"
       },
       "startCompIdx": -1,
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 0
+      "color": 0,
+      "v": 2
     },
     {
       "id": "W8",
       "startHole": null,
       "endHole": {
-        "col": 34,
+        "col": 29,
         "row": "g"
       },
       "startCompIdx": 2,
@@ -261,7 +273,8 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "pos",
-      "color": 15680580
+      "color": 15680580,
+      "v": 2
     },
     {
       "id": "W9",
@@ -275,23 +288,25 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "com",
-      "color": 0
+      "color": 0,
+      "v": 2
     },
     {
       "id": "W10",
       "startHole": {
-        "col": 33,
+        "col": 30,
         "row": "h"
       },
       "endHole": {
-        "col": 30,
+        "col": 33,
         "row": "h"
       },
       "startCompIdx": -1,
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 16498468
+      "color": 16498468,
+      "v": 2
     }
   ]
 }

@@ -171,15 +171,17 @@ test('test_three: hover shows 3 leg spheres, R cycles rotations, a click places 
   await clickHole(page, 'a10');
   expect(await lastLegs(page)).toEqual({ type: 'test_three', legs: bare(right) });
 
-  // R: rotation 90 (down). At a40: a40 b40 c40.
+  // R: rotation 90 (down the screen). The board is flipped (row a nearest the
+  // viewer), so down runs toward row a: at j40 it is j40 i40 h40 (the picture
+  // of the old a40 b40 c40, rows a<->j, b<->i, c<->h).
   await page.keyboard.press('r');
   await expect(page.locator('#hint-text')).toContainText('90');
-  await hover(page, 'a40');
-  const down = await expectedLegs(page, 'test_three', 'a40', 90);
-  expectSpheresOn(await hoverLegs(page), down, 'a40 facing down');
-  await clickHole(page, 'a40');
+  await hover(page, 'j40');
+  const down = await expectedLegs(page, 'test_three', 'j40', 90);
+  expectSpheresOn(await hoverLegs(page), down, 'j40 facing down');
+  await clickHole(page, 'j40');
   expect(await lastLegs(page)).toEqual({ type: 'test_three', legs: bare(down) });
-  expect(bare(down).map(l => l.row + (l.col + 1))).toEqual(['a40', 'b40', 'c40']);
+  expect(bare(down).map(l => l.row + (l.col + 1))).toEqual(['j40', 'i40', 'h40']);
 
   // R again: 180.
   await page.keyboard.press('r');
@@ -232,27 +234,29 @@ test('test_three at column 62–63 facing right: red spheres, the edge reason as
   expect(errors).toEqual([]);
 });
 
-test('test_chip at e20 places 8 legs across the gap; hovering a30 shows the straddle reason and places nothing', async ({ page }) => {
+test('test_chip at f20 places 8 legs across the gap; hovering j30 shows the straddle reason and places nothing', async ({ page }) => {
   const errors = watchErrors(page);
   await openEditor(page);
   await pick(page, 'test_chip');
 
-  await hover(page, 'e20');
-  const legs = await expectedLegs(page, 'test_chip', 'e20', 0);
-  expect(bare(legs).map(l => l.row + (l.col + 1))).toEqual(['e20', 'e21', 'e22', 'e23', 'f23', 'f22', 'f21', 'f20']);
+  // The flipped board: the fixture's second row is the next toward row a, so a
+  // chip anchored in row f runs f20..f23 then back along e (T_A of the old e20).
+  await hover(page, 'f20');
+  const legs = await expectedLegs(page, 'test_chip', 'f20', 0);
+  expect(bare(legs).map(l => l.row + (l.col + 1))).toEqual(['f20', 'f21', 'f22', 'f23', 'e23', 'e22', 'e21', 'e20']);
   const s = await hoverLegs(page);
-  expectSpheresOn(s, legs, 'chip at e20');
+  expectSpheresOn(s, legs, 'chip at f20');
   expect(s.some(x => x.red), 'a chip across the gap is not red').toBe(false);
-  await clickHole(page, 'e20');
+  await clickHole(page, 'f20');
   expect(await lastLegs(page)).toEqual({ type: 'test_chip', legs: bare(legs) });
 
-  await hover(page, 'a30');
+  await hover(page, 'j30');
   await expect(page.locator('#hint-text')).toContainText('a chip must sit across the centre gap (rows e and f).');
   const red = await hoverLegs(page);
   expect(red.length).toBe(8);
   expect(red.every(x => x.red), 'every leg is red off the gap').toBe(true);
-  await clickHole(page, 'a30');
-  expect(await count(page), 'nothing placed at a30').toBe(1);
+  await clickHole(page, 'j30');
+  expect(await count(page), 'nothing placed at j30').toBe(1);
   expect(errors).toEqual([]);
 });
 

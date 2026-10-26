@@ -2067,50 +2067,43 @@
     "id": "U2",
     "type": "ic",
     "value": null,
-    "note": "second 8-pin DIP; marking not legible. Taken as the second NE555 of this two-timer traffic-light build (the uploader's title; not a dual op-amp). Pin 1 = the half-moon notch and dot at the left end, lower side (f5).",
+    "note": "second 8-pin DIP; marking not legible. Taken as the second NE555 of this two-timer traffic-light build (the uploader's title; not a dual op-amp). Pin 1 = the half-moon notch and dot at the left end, lower side (f5). Review: the notch is not legible in the photo, so its orientation is left unknown (it is flagged either way).",
     "expect": "flagged",
     "leads": [
      {
-      "pin": "1",
       "hole": "f5",
       "conf": "med"
      },
      {
-      "pin": "2",
       "hole": "f4",
       "conf": "med"
      },
      {
-      "pin": "3",
       "hole": "f3",
       "conf": "med"
      },
      {
-      "pin": "4",
       "hole": "f2",
       "conf": "med"
      },
      {
-      "pin": "5",
       "hole": "e2",
       "conf": "high"
      },
      {
-      "pin": "6",
       "hole": "e3",
       "conf": "high"
      },
      {
-      "pin": "7",
       "hole": "e4",
       "conf": "high"
      },
      {
-      "pin": "8",
       "hole": "e5",
       "conf": "high"
      }
-    ]
+    ],
+    "orientation": "unknown"
    },
    {
     "id": "LED1",

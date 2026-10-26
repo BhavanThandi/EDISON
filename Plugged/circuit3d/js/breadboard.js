@@ -78,10 +78,10 @@
 
     // Body row Y extents (with a little padding)
     const PAD    = 26;  // px
-    const topY1  = wz(ROW_Z.a) - PAD;
-    const topY2  = wz(ROW_Z.e) + PAD;
-    const botY1  = wz(ROW_Z.f) - PAD;
-    const botY2  = wz(ROW_Z.j) + PAD;
+    // Each band spans its two end rows whichever has the smaller canvas Y.
+    const band   = (r1, r2) => [Math.min(wz(ROW_Z[r1]), wz(ROW_Z[r2])) - PAD, Math.max(wz(ROW_Z[r1]), wz(ROW_Z[r2])) + PAD];
+    const [topY1, topY2] = band('a', 'e');
+    const [botY1, botY2] = band('f', 'j');
 
     // ── 1. Board base ────────────────────────────────────────
     ctx.fillStyle = '#e5e0d2';

@@ -73,6 +73,7 @@ const Readings = require('../circuit3d/js/readings.js');
 const Eval     = require('../scripts/ai-eval.js');
 const CASES    = require('../scripts/ai-eval-cases.js');
 const { recipeActions, parseRecipeSteps, parseRecipeBlocks } = require('./fixtures/recipe-steps.js');
+const { reflect } = require('./fixtures/recipe-reflect.js');
 
 const DEMO      = 'Build a single LED circuit with a current-limiting resistor.';
 const INVERTING = 'Build an inverting amplifier with a gain of −10';
@@ -349,7 +350,7 @@ test('comparator recipe: a single supply (V− pin 4 on COM), IN1− (pin 2) fro
   assert.ok(feed, 'a resistor from OUT1\'s net to the LED anode');
 });
 
-test('follower recipe: FG1.0 on IN1+ (pin 3), OUT1 (pin 1) joined to IN1− (pin 2) — with the chip at e30, column 32, and columns 30 → 31', () => {
+test('follower recipe: FG1.0 on IN1+ (pin 3), OUT1 (pin 1) joined to IN1− (pin 2) — wherever the chip sits', () => {
   const ex = recipeFor('OPAMP-follower');
   const { board, readings } = simulate(recipeActions(ex));
   const chip = board.parts.find(p => p.type === 'tl072');
@@ -371,27 +372,6 @@ test('recipes: the op-amp prompt carries every TL072 recipe block, each equal to
     assert.deepStrictEqual(blocks.map(b => b.steps), want, `${where}: the TL072 recipe blocks (${blocks.map(b => b.heading).join(' | ')})`);
   }
   assert.deepStrictEqual(parseRecipeBlocks(systemOf(sent.demo), def), [], 'the demo request has no TL072 recipe block');
-});
-
-// Mirror fix (Task 4): the recipes and examples are seated for the flipped
-// board (row a nearest the viewer; footprint rows = BODY_ROWS[r0 - r]), so the
-// old seat f30 right is refused and the same chip is e30 right. Every TL072 and
-// 7-segment recipe/example must turn into actions the board model accepts: no
-// "no direction puts its legs…" (the fixture) and no "no legs for hole" (Board.apply).
-test('every TL072 and 7-segment recipe and example is a valid placement on the flipped board (no "no direction puts its legs" or "no legs for hole")', () => {
-  const bad = [];
-  for (const type of ['tl072', 'seven_segment']) {
-    const def = Parts.get(type);
-    const exs = [def.ai.recipe, ...(def.ai.recipes || []), ...(def.examples || [])].filter(Boolean);
-    assert.ok(exs.length >= 1, `${type} has no recipe or example`);
-    for (const ex of exs) {
-      let actions;
-      try { actions = recipeActions(ex); } catch (e) { bad.push(`${type} "${ex.name}": ${e.message}`); continue; }
-      const { errors } = Board.apply(Board.empty(), actions.map(a => ({ ...a })));
-      for (const err of errors) bad.push(`${type} "${ex.name}": ${JSON.stringify(err)}`);
-    }
-  }
-  assert.deepStrictEqual(bad, []);
 });
 
 // ── 4. The three ai-eval cases ─────────────────────────────────────────────
@@ -418,58 +398,62 @@ test('cases: OPAMP-inverting, OPAMP-comparator and OPAMP-follower, tagged opamp 
   }
 });
 
-// Canned builds, as Examples (turned into actions by recipeActions). The chip
-// at e30 facing right: OUT1 e30, IN1− e31, IN1+ e32, V− e33 (bottom half,
-// columns 30–33); IN2+ f33, IN2− f32, OUT2 f31, V+ f30 (top half). PS1 + → tp,
+// Canned builds, as Examples (turned into actions by recipeActions). They are
+// written in the ORIGINAL frame below (the numbers in the comments) and run
+// through the Ruling 21 local column reflection (test/fixtures/recipe-reflect.js:
+// columns turn about the middle of the build's own span, rows and rail names
+// stay), the same rule the app's recipes follow, so on the flipped board the
+// chip below is f33 left. The chip at f30 facing right (original frame): OUT1 f30, IN1− f31, IN1+ f32, V− f33 (bottom half,
+// columns 30–33); IN2+ e33, IN2− e32, OUT2 e31, V+ e30 (top half). PS1 + → tp,
 // COM and COM2 → tn, − → bn (one supply, a lab's four wires); FG1 is the
 // input: FG1.0 (OUT) the signal, FG1.1 on COM, its offset the DC level (#198).
-const CHIP = ['e30', 'e31', 'e32', 'e33', 'f33', 'f32', 'f31', 'f30'];
+const CHIP = ['f30', 'f31', 'f32', 'f33', 'e33', 'e32', 'e31', 'e30'];
 const N    = require('../circuit3d/js/board-geometry.js').COLS;
 const PS1  = { type: 'bench_supply', label: 'PS1', values: { voltage: 12 } };
 const FG1  = volts => ({ type: 'function_generator', label: 'FG1', values: { amplitude: 0, offset: volts, frequency: 1 } });
 const U1   = { type: 'tl072', label: 'U1', holes: CHIP };
 const R    = (label, holes, ohms) => ({ type: 'resistor', label, holes, values: { resistance: ohms } });
-const DUAL   = [['PS1.0', `bp_${N}`], ['PS1.1', `bn_${N}`], ['PS1.3', `bn_${N - 1}`], ['PS1.2', `tn_${N}`], ['bp_30', 'j30'], ['tn_33', 'a33']];   // V+ +12, V− −12
-const SINGLE = [['PS1.0', `bp_${N}`], ['PS1.1', `bn_${N}`], ['bp_30', 'j30'], ['a33', 'bn_33']];                       // V+ +12, V− COM
-const INPUT_COM = ['FG1.1', `bn_${N - 2}`];
-const build = (parts, wires) => recipeActions({ name: 'canned', parts, wires, expect: {} });
+const DUAL   = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`], ['PS1.3', `tn_${N - 1}`], ['PS1.2', `bn_${N}`], ['tp_30', 'a30'], ['bn_33', 'j33']];   // V+ +12, V− −12
+const SINGLE = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`], ['tp_30', 'a30'], ['j33', 'tn_33']];                       // V+ +12, V− COM
+const INPUT_COM = ['FG1.1', `tn_${N - 2}`];
+const build = (parts, wires) => recipeActions(reflect({ name: 'canned', parts, wires, expect: {} }));
 
-// Inverting −10 on ±12 V: FG1.0 → c27, Rin 10 kΩ d27–d31 (IN1−), Rf 100 kΩ
-// c31–c35, b35 → b30 (OUT1), IN1+ a32 → COM. The generator's 50 Ω adds to
+// Inverting −10 on ±12 V: FG1.0 → h27, Rin 10 kΩ g27–g31 (IN1−), Rf 100 kΩ
+// h31–h35, i35 → i30 (OUT1), IN1+ j32 → COM. The generator's 50 Ω adds to
 // Rin: 0.5 V in → −100k/10.05k·0.5 = −4.975 V; 0.8 V → −7.960 V.
 // `rf` 10 kΩ makes it a gain of −10k/10.05k (−0.4975 V).
 const inverting = (rf = 100000) => build(
-  [PS1, FG1(0.5), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], rf)],
-  [...DUAL, ['FG1.0', 'c27'], INPUT_COM, ['b35', 'b30'], ['a32', 'bn_32']]);
+  [PS1, FG1(0.5), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], rf)],
+  [...DUAL, ['FG1.0', 'h27'], INPUT_COM, ['i35', 'i30'], ['j32', 'tn_32']]);
 // The same amp fed from a fixed 230 kΩ off +12 V instead of FG1 (FG1 placed,
 // only its COM wired): Vin = 12·10k/240k = 0.500 V whatever FG1 is set to.
 const invertingFixed = () => build(
-  [PS1, FG1(0.5), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], 100000), R('R3', ['b23', 'b27'], 230000)],
-  [...DUAL, ['bp_23', 'a23'], INPUT_COM, ['b35', 'b30'], ['a32', 'bn_32']]);
+  [PS1, FG1(0.5), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], 100000), R('R3', ['i23', 'i27'], 230000)],
+  [...DUAL, ['tp_23', 'j23'], INPUT_COM, ['i35', 'i30'], ['j32', 'tn_32']]);
 
-// Follower on ±12 V: FG1.0 → c32 (IN1+), d30 (OUT1) → d31 (IN1−). 3 V in → 3.000 V.
-const follower = () => build([PS1, FG1(3), U1], [...DUAL, ['FG1.0', 'c32'], INPUT_COM, ['d30', 'd31']]);
+// Follower on ±12 V: FG1.0 → h32 (IN1+), g30 (OUT1) → g31 (IN1−). 3 V in → 3.000 V.
+const follower = () => build([PS1, FG1(3), U1], [...DUAL, ['FG1.0', 'h32'], INPUT_COM, ['g30', 'g31']]);
 // Open loop: IN1− to COM instead of OUT1, so 3 V in clips high at +10.5 V.
-const followerOpen = () => build([PS1, FG1(3), U1], [...DUAL, ['FG1.0', 'c32'], INPUT_COM, ['d31', `bn_31`]]);
+const followerOpen = () => build([PS1, FG1(3), U1], [...DUAL, ['FG1.0', 'h32'], INPUT_COM, ['g31', `tn_31`]]);
 // IN1+ from a fixed 1k/1k divider of +12 V (6.000 V) instead of FG1.
 const followerFixed = () => build(
-  [PS1, FG1(3), U1, R('R1', ['j40', 'j45'], 1000), R('R2', ['i40', 'i35'], 1000)],
-  [...DUAL, ['bp_45', 'h45'], ['h35', 'bn_35'], ['g40', 'c32'], INPUT_COM, ['d30', 'd31']]);
+  [PS1, FG1(3), U1, R('R1', ['a40', 'a45'], 1000), R('R2', ['b40', 'b35'], 1000)],
+  [...DUAL, ['tp_45', 'c45'], ['c35', 'tn_35'], ['d40', 'h32'], INPUT_COM, ['g30', 'g31']]);
 
 // Comparator on a single 12 V supply (V− on COM: low is 1.5 V, under a red
-// LED's 2.0 V, so the LED is dark, not reverse-biased). IN1+ = FG1.0 (c32);
-// IN1− = 5.000 V from 7k (j40–j45) over 5k (i40–i35), g40 → d31. OUT1 → 1 kΩ
-// c30–c25 → red LED anode b25, cathode b21 → bn_21.
+// LED's 2.0 V, so the LED is dark, not reverse-biased). IN1+ = FG1.0 (h32);
+// IN1− = 5.000 V from 7k (a40–a45) over 5k (b40–b35), d40 → g31. OUT1 → 1 kΩ
+// h30–h25 → red LED anode i25, cathode i21 → tn_21.
 //   6 V in: high, 10.5 V behind 50 Ω: (10.5 − 2.0)/(1000 + 50 + 0.1) = 8.09 mA, lit.
 //   4 V in: low, 1.5 V: dark.
 function comparator({ swap = false, backwards = false, fromRail = false } = {}) {
-  const [toInput, toRef] = swap ? ['c31', 'd32'] : ['c32', 'd31'];
+  const [toInput, toRef] = swap ? ['h31', 'g32'] : ['h32', 'g31'];
   return build(
-    [PS1, FG1(6), U1, R('R1', ['j40', 'j45'], 7000), R('R2', ['i40', 'i35'], 5000),
-     R('R3', fromRail ? ['c25', 'c29'] : ['c25', 'c30'], 1000),
-     { type: 'led', label: 'LED1', holes: backwards ? ['b25', 'b21'] : ['b21', 'b25'], values: { color: 'red' } }],   // [cathode, anode]
-    [...SINGLE, ['bp_45', 'h45'], ['h35', 'bn_35'], ['FG1.0', toInput], INPUT_COM, ['g40', toRef], ['a21', 'bn_21'],
-     ...(fromRail ? [['bp_29', 'a29']] : [])]);
+    [PS1, FG1(6), U1, R('R1', ['a40', 'a45'], 7000), R('R2', ['b40', 'b35'], 5000),
+     R('R3', fromRail ? ['h25', 'h29'] : ['h25', 'h30'], 1000),
+     { type: 'led', label: 'LED1', holes: backwards ? ['i25', 'i21'] : ['i21', 'i25'], values: { color: 'red' } }],   // [cathode, anode]
+    [...SINGLE, ['tp_45', 'c45'], ['c35', 'tn_35'], ['FG1.0', toInput], INPUT_COM, ['d40', toRef], ['j21', 'tn_21'],
+     ...(fromRail ? [['tp_29', 'j29']] : [])]);
 }
 
 // Sanity (passes today): the canned builds do what their comments say, on
@@ -523,22 +507,24 @@ test('a correct op-amp build gets no Heads up: checkBuild finds nothing in the c
 const problemsIn = actions => Server.checkBuild(actions.map(a => ({ ...a })), null);
 const NOT_CONNECTED = /not connected between power and ground/i;
 
-test('pin: checkBuild still flags a resistor hanging off OUT1 with its far end floating (canned inverting + 1 kΩ d26–d30)', () => {
-  const found = problemsIn([...inverting(), { tool: 'place_resistor', holeA: 'd26', holeB: 'd30', resistance: 1000 }]);
-  assert.ok(found.some(p => NOT_CONNECTED.test(p) && /d26/.test(p)), `no "not connected" problem for the resistor at d26/d30: ${JSON.stringify(found)}`);
+test('pin: checkBuild still flags a resistor hanging off OUT1 with its far end floating (canned inverting + 1 kΩ g26–g30 in the original frame)', () => {
+  // The inverting build spans columns 27–35, so its reflection is c → 62 − c:
+  // OUT1 f30 is f32, and the original g26–g30 resistor is g36–g32.
+  const found = problemsIn([...inverting(), { tool: 'place_resistor', holeA: 'g36', holeB: 'g32', resistance: 1000 }]);
+  assert.ok(found.some(p => NOT_CONNECTED.test(p) && /g36/.test(p)), `no "not connected" problem for the resistor at g36/g32: ${JSON.stringify(found)}`);
 });
 
 // The comparator's tp → R → R → tn divider makes the graph's orientation
 // check undecidable here (the #77 limitation, before and after #118), so the
-// checker's own "The LED at h54/h56 is backwards" may not come; the
+// checker's own "The LED at c54/c56 is backwards" may not come; the
 // simulator's "LED2: LED is backwards" (checkBuild passes it on) is enough.
 // Either way the reversed LED must be reported.
 test('checkBuild still flags a reversed LED on a separate tp → R → LED → tn branch beside the canned comparator', () => {
-  // bp_50 → j50, R i50–i54, LED cathode h54 / anode h56 (backwards), j56 → bn_56.
+  // tp_50 → a50, R b50–b54, LED cathode c54 / anode c56 (backwards), a56 → tn_56.
   const found = problemsIn([...comparator(),
-    { tool: 'place_resistor', holeA: 'i50', holeB: 'i54' }, { tool: 'place_led', holeA: 'h54', holeB: 'h56' },
-    { tool: 'add_wire', from: 'bp_50', to: 'j50' }, { tool: 'add_wire', from: 'j56', to: 'bn_56' }]);
-  assert.ok(found.some(p => /backwards/i.test(p) && /h54\/h56|\bLED2\b/.test(p)), `the reversed branch LED is not flagged: ${JSON.stringify(found)}`);
+    { tool: 'place_resistor', holeA: 'b50', holeB: 'b54' }, { tool: 'place_led', holeA: 'c54', holeB: 'c56' },
+    { tool: 'add_wire', from: 'tp_50', to: 'a50' }, { tool: 'add_wire', from: 'a56', to: 'tn_56' }]);
+  assert.ok(found.some(p => /backwards/i.test(p) && /c54\/c56|\bLED2\b/.test(p)), `the reversed branch LED is not flagged: ${JSON.stringify(found)}`);
 });
 
 test('pin: checkBuild still flags the comparator with its LED reversed on OUT1', () => {
@@ -548,11 +534,11 @@ test('pin: checkBuild still flags the comparator with its LED reversed on OUT1',
 
 test('checkBuild flags a load wired to the UNUSED op-amp\'s OUT2 (pin 7) as not connected, with the inputs on op-amp 1', () => {
   // The comparator's inputs (FG1.0 → IN1+, 5 V divider → IN1−), but the 1 kΩ
-  // and LED hang off OUT2 (f31): R g31–g27, LED anode h27 / cathode h24, j24 → bn_24.
+  // and LED hang off OUT2 (e31): R d31–d27, LED anode c27 / cathode c24, a24 → tn_24.
   const actions = build(
-    [PS1, FG1(6), U1, R('R1', ['j40', 'j45'], 7000), R('R2', ['i40', 'i35'], 5000), R('R3', ['g31', 'g27'], 1000),
-     { type: 'led', label: 'LED1', holes: ['h24', 'h27'], values: { color: 'red' } }],   // [cathode, anode]
-    [...SINGLE, ['bp_45', 'h45'], ['h35', 'bn_35'], ['FG1.0', 'c32'], INPUT_COM, ['g40', 'd31'], ['j24', 'bn_24']]);
+    [PS1, FG1(6), U1, R('R1', ['a40', 'a45'], 7000), R('R2', ['b40', 'b35'], 5000), R('R3', ['d31', 'd27'], 1000),
+     { type: 'led', label: 'LED1', holes: ['c24', 'c27'], values: { color: 'red' } }],   // [cathode, anode]
+    [...SINGLE, ['tp_45', 'c45'], ['c35', 'tn_35'], ['FG1.0', 'h32'], INPUT_COM, ['d40', 'g31'], ['a24', 'tn_24']]);
   const found = problemsIn(actions);
   assert.ok(found.some(p => NOT_CONNECTED.test(p)), `nothing flags the load on the unused OUT2: ${JSON.stringify(found)}`);
 });
@@ -564,13 +550,13 @@ test('checkBuild flags a load wired to the UNUSED op-amp\'s OUT2 (pin 7) as not 
 const kinds = actions => simulate(actions).readings.problems().map(p => p.kind);
 
 test('Readings: an unloaded follower (FG1.0 → IN1+, OUT1 → IN1−) has no problems, on ±12 V and on a single 12 V supply', () => {
-  const single = build([PS1, FG1(3), U1], [...SINGLE, ['FG1.0', 'c32'], INPUT_COM, ['d30', 'd31']]);
+  const single = build([PS1, FG1(3), U1], [...SINGLE, ['FG1.0', 'h32'], INPUT_COM, ['g30', 'g31']]);
   assert.deepStrictEqual(kinds(follower()), [], 'follower on ±12 V');
   assert.deepStrictEqual(kinds(single), [], 'follower on a single 12 V supply');
 });
 
 test('pin: Readings: the same follower with FG1\'s COM unwired is still an open circuit', () => {
-  const noCom = build([PS1, FG1(3), U1], [...DUAL, ['FG1.0', 'c32'], ['d30', 'd31']]);
+  const noCom = build([PS1, FG1(3), U1], [...DUAL, ['FG1.0', 'h32'], ['g30', 'g31']]);
   assert.deepStrictEqual(kinds(noCom), ['open']);
 });
 

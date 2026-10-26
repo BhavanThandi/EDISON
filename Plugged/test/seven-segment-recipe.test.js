@@ -29,6 +29,7 @@ const BoardIO = require('../circuit3d/js/board-io.js');
 const Sim     = require('../circuit3d/js/simulate.js');
 const Ids     = require('../circuit3d/js/ids.js');
 const { recipeActions, parseRecipeSteps } = require('./fixtures/recipe-steps.js');
+const { reflect, span } = require('./fixtures/recipe-reflect.js');
 
 const N    = require('../circuit3d/js/board-geometry.js').COLS;   // 63
 const ROWS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
@@ -37,29 +38,37 @@ const DEMO_PROMPT = 'Build a single LED circuit with a current-limiting resistor
 const BENCH_PROMPT = 'Power an LED from the bench supply at 5 V with a series resistor.';
 const SEG_MA = (9 - 2) / (470 + 0.1) * 1000;   // 14.891 mA: 9 V, a 2.0 V segment, 470 Ω + 0.1 Ω ron
 
-// The display at e30 facing right, pins in datasheet order
-// (e d com1 c dp b a com2 f g).
-const DISPLAY_AT_E30 = ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'];
-// Each segment's column and half at that placement.
-const SEG_AT = { e: 'bot30', d: 'bot31', c: 'bot33', dp: 'bot34', g: 'top30', f: 'top31', a: 'top33', b: 'top34' };
+// The recipe is written below in its ORIGINAL frame (display at f30 facing
+// right, pins in datasheet order e d com1 c dp b a com2 f g) and run through the
+// Ruling 21 local column reflection (test/fixtures/recipe-reflect.js): columns
+// turn about the middle of the recipe's span 30–39 (c -> 69 − c), rows and
+// rail names stay. So the display is f39 facing left, and a–e / f–j are still
+// the strips the old 'top' / 'bot' labels name.
+const FLIP = c => 69 - c;
+const DISPLAY_ORIGINAL = ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30'];
+const DISPLAY_AT_F39 = DISPLAY_ORIGINAL.map(h => h[0] + FLIP(Number(h.slice(1))));
+// Each segment's column and strip (a–e 'top', f–j 'bot') at that placement.
+const SEG_AT = { e: 'bot' + FLIP(30), d: 'bot' + FLIP(31), c: 'bot' + FLIP(33), dp: 'bot' + FLIP(34),
+                 g: 'top' + FLIP(30), f: 'top' + FLIP(31), a: 'top' + FLIP(33), b: 'top' + FLIP(34) };
 
 // The recipe proven here: every rule in checkRecipe holds, it simulates to
 // "shows 7" (a, b, c at 14.89 mA each, no warnings) and findCircuitProblems
 // finds nothing. Layout:
-//   top half:    a f33 ← R1 i33–i37 ← bp_37→j37      b f34 ← R2 h34–h39 ← bp_39→j39
-//                com2 f32 → j32→bn_32
-//   bottom half: c e33 ← R3 c33–c37 ← e37, jumpered from f37 (column 37 top is +)
-const PROVEN_SEVEN = {
+//   top half:    a e33 ← R1 b33–b37 ← tp_37→a37      b e34 ← R2 c34–c39 ← tp_39→a39
+//                com2 e32 → a32→tn_32
+//   bottom half: c f33 ← R3 h33–h37 ← f37, jumpered from e37 (column 37 top is +)
+const PROVEN_SEVEN_ORIGINAL = {
   name:  "a, b and c each through their own 470 Ω from 9 V, com2 to ground: it shows '7'",
   parts: [{ type: 'battery', label: 'BAT1' },
-          { type: 'seven_segment', label: 'DS1', holes: DISPLAY_AT_E30 },
-          { type: 'resistor', label: 'R1', holes: ['i33', 'i37'], values: { resistance: 470 } },   // a
-          { type: 'resistor', label: 'R2', holes: ['h34', 'h39'], values: { resistance: 470 } },   // b
-          { type: 'resistor', label: 'R3', holes: ['c33', 'c37'], values: { resistance: 470 } }],  // c
-  wires: [['BAT1.0', `bp_${N}`], ['BAT1.1', `bn_${N}`],
-          ['bp_37', 'j37'], ['bp_39', 'j39'], ['f37', 'e37'], ['j32', 'bn_32']],
+          { type: 'seven_segment', label: 'DS1', holes: DISPLAY_ORIGINAL },
+          { type: 'resistor', label: 'R1', holes: ['b33', 'b37'], values: { resistance: 470 } },   // a
+          { type: 'resistor', label: 'R2', holes: ['c34', 'c39'], values: { resistance: 470 } },   // b
+          { type: 'resistor', label: 'R3', holes: ['h33', 'h37'], values: { resistance: 470 } }],  // c
+  wires: [['BAT1.0', `tp_${N}`], ['BAT1.1', `tn_${N}`],
+          ['tp_37', 'a37'], ['tp_39', 'a39'], ['e37', 'f37'], ['a32', 'tn_32']],
   expect: { DS1: { digit: '7', segments: 'abc', dp: false } },
 };
+const PROVEN_SEVEN = reflect(PROVEN_SEVEN_ORIGINAL);
 
 function seg() {
   const def = Parts.get('seven_segment');
@@ -143,7 +152,7 @@ function solveActions(actions) {
 const isBody = h => /^[a-j]\d+$/.test(h);
 const colOf  = h => Number(/\d+$/.exec(h)[0]);
 const rowOf  = h => (isBody(h) ? h[0] : /^(tp|tn|bp|bn)/.exec(h)[1]);
-const halfOf = h => (h[0] <= 'e' ? 'bot' : 'top') + colOf(h);
+const halfOf = h => (h[0] <= 'e' ? 'top' : 'bot') + colOf(h);
 const rowIdx = r => (r === 'tp' || r === 'tn' ? -1 : r === 'bp' || r === 'bn' ? ROWS.length : ROWS.indexOf(r));
 
 // The body holes a wire lies over: a wire in one column covers the rows
@@ -160,17 +169,17 @@ function checkRecipe(ex) {
   const where = ex.name || 'the recipe';
   assert.ok(ex && Array.isArray(ex.parts) && Array.isArray(ex.wires) && ex.expect, `${where}: an Example (parts, wires, expect)`);
 
-  // One battery, wired to the rails at the highest column; the display at e30 facing right.
+  // One battery, wired to the rails at the highest column; the display at f39 facing left (f30 right, reflected).
   const bats = ex.parts.filter(p => p.type === 'battery');
   assert.deepStrictEqual(bats.map(p => p.label), ['BAT1'], `${where}: one battery, BAT1`);
   const wireKeys = ex.wires.map(w => w.join(' -> '));
-  for (const w of [`BAT1.0 -> bp_${N}`, `BAT1.1 -> bn_${N}`]) {
+  for (const w of [`BAT1.0 -> tp_${N}`, `BAT1.1 -> tn_${N}`]) {
     assert.ok(wireKeys.includes(w), `${where}: wire ${w} (battery to the rails at the highest column); wires ${JSON.stringify(wireKeys)}`);
   }
   const displays = ex.parts.filter(p => p.type === 'seven_segment');
   assert.equal(displays.length, 1, `${where}: one 7-segment display`);
   const ds = displays[0];
-  assert.deepStrictEqual(ds.holes, DISPLAY_AT_E30, `${where}: the display at e30 facing right`);
+  assert.deepStrictEqual(ds.holes, DISPLAY_AT_F39, `${where}: the display at f39 facing left`);
   assert.ok(ex.expect[ds.label] && ex.expect[ds.label].digit === '7', `${where}: expect ${ds.label}.digit '7': ${JSON.stringify(ex.expect)}`);
 
   // No hole, body or rail, holds two leads or wire ends.
@@ -190,7 +199,7 @@ function checkRecipe(ex) {
     assert.equal((p.values && p.values.resistance) || 470, 470, `${where}: ${p.label} is 470 Ω`);
     spans.push({ label: p.label, row: rowOf(x), lo: Math.min(colOf(x), colOf(y)), hi: Math.max(colOf(x), colOf(y)) });
   }
-  for (const row of ['e', 'f']) spans.push({ label: ds.label, row, lo: 30, hi: 34 });
+  for (const row of ['e', 'f']) spans.push({ label: ds.label, row, lo: FLIP(34), hi: FLIP(30) });
   for (const s of spans) {
     for (const t of spans) {
       if (s === t || s.row !== t.row) continue;

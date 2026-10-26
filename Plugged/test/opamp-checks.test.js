@@ -42,6 +42,7 @@ const Board  = require('../circuit3d/js/board-model.js');
 const Sim    = require('../circuit3d/js/simulate.js');
 const Parts  = require('../circuit3d/js/parts');
 const { recipeActions } = require('./fixtures/recipe-steps.js');
+const { reflect } = require('./fixtures/recipe-reflect.js');
 const N = require('../circuit3d/js/board-geometry.js').COLS;
 
 const MAX_CHARS = 200;   // the issue: each message at most about 200 characters
@@ -205,15 +206,24 @@ const schmitt = () => build(
   [...SINGLE, FG_COM, ['bp_40', 'j40'], ['j48', 'bn_48'], ['g44', 'd32'], ['FG1.0', 'd31'], ['b36', 'b30'], ['a24', 'bn_24']]);
 
 // The TL072's comparator recipe (6 V in over its 5 V divider: OUT1 high,
-// mode1 'high') with a 10 kΩ load d30–d34 to COM (a34 → bn_34) and the
-// meter across OUT1 (a30) and COM. OUT1 and IN1−'s divider meet only at
-// COM, a supply rail: no feedback, so a clip here is just a comparator.
+// mode1 'high') with a 10 kΩ load from OUT1 to COM (tn) and the meter across
+// OUT1 and COM. OUT1 and IN1−'s divider meet only at COM, a supply rail: no
+// feedback, so a clip here is just a comparator. Ruling 21: the recipe is the
+// original comparator reflected about the middle of its columns (24–45, rows
+// and rails kept), so OUT1 is the reflected original pin 1; the load and the
+// meter hang on OUT1's strip, computed from that rule, not from the app.
 const tl = () => Parts.get('tl072');
 const comparatorRecipe = () => tl().ai.recipes.find(ex => /comparator/i.test(ex.name));
+const comparatorOut1 = () => {
+  const orig = require('./fixtures/recipes-original.js').tl072.recipes.find(ex => /comparator/i.test(ex.name));
+  return reflect(orig).parts.find(p => p.type === 'tl072').holes[0];   // f39
+};
 function comparatorLoaded() {
   const ex = comparatorRecipe();
-  return recipeActions({ ...ex, parts: [...ex.parts, R('R9', ['d30', 'd34'], 10000), MM1()],
-                         wires: [...ex.wires, ['a34', 'bn_34'], ['MM1.0', 'a30'], ['MM1.1', 'bn_50']] });
+  const out1 = comparatorOut1(), col = Number(out1.slice(1)), row = out1[0] === 'f' ? 'j' : 'a';   // the far row of OUT1's strip
+  const meter = out1[0] === 'f' ? 'i' : 'b';
+  return recipeActions({ ...ex, parts: [...ex.parts, R('R9', [`${row}${col}`, `${row}${col - 4}`], 10000), MM1()],
+                         wires: [...ex.wires, [`${meter}${col - 4}`, 'tn_35'], ['MM1.0', `${meter}${col}`], ['MM1.1', 'tn_50']] });
 }
 
 // A comparator on one 12 V rail whose divider and load share ONE ground

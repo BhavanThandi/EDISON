@@ -204,9 +204,9 @@
                 'Its lit segments show a digit.',
       keywords: ['7 segment', 'seven segment', '7-segment', 'seven-segment', 'digit display', 'number display'],
       guide:    'Each segment needs its own resistor (place_resistor); common pins go to ground. ' +
-                'At hole e30, direction right, each pin sits in: e=e30 d=e31 com1=e32 c=e33 dp=e34 (bottom half, ' +
-                'feed from rows a–d) and g=f30 f=f31 com2=f32 a=f33 b=f34 (top half, feed from rows g–j). ' +
-                'Feed each lit segment from + through its own 470 Ω into its column. Wire j32 (com2) to bn. ' +
+                'At hole f39, direction left, each pin sits in: e=f39 d=f38 com1=f37 c=f36 dp=f35 (top half, ' +
+                'feed from rows g–j) and b=e35 a=e36 com2=e37 f=e38 g=e39 (bottom half, feed from rows a–d). ' +
+                'Feed each lit segment from + through its own 470 Ω into its column. Wire a37 (com2) to tn. ' +
                 '1 = b c; 7 = a b c; 8 = all seven.',
       // The digit-7 build, proven on the simulator: the server writes it into
       // the prompt as numbered steps whenever place_seven_segment is sent.
@@ -214,12 +214,12 @@
         name:  "a, b and c each through their own 470 Ω from 9 V, com2 to ground: it shows '7'",
         parts: [{ type: 'battery', label: 'BAT1' },
                 { type: 'seven_segment', label: 'DS1',
-                  holes: ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'] },
-                { type: 'resistor', label: 'R1', holes: ['i33', 'i37'], values: { resistance: 470 } },   // a
-                { type: 'resistor', label: 'R2', holes: ['h34', 'h39'], values: { resistance: 470 } },   // b
-                { type: 'resistor', label: 'R3', holes: ['c33', 'c37'], values: { resistance: 470 } }],  // c
-        wires: [['BAT1.0', 'bp_63'], ['BAT1.1', 'bn_63'],
-                ['bp_37', 'j37'], ['bp_39', 'j39'], ['f37', 'e37'], ['j32', 'bn_32']],
+                  holes: ['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39'] },
+                { type: 'resistor', label: 'R1', holes: ['b36', 'b32'], values: { resistance: 470 } },   // a
+                { type: 'resistor', label: 'R2', holes: ['c35', 'c30'], values: { resistance: 470 } },   // b
+                { type: 'resistor', label: 'R3', holes: ['h36', 'h32'], values: { resistance: 470 } }],  // c
+        wires: [['BAT1.0', 'tp_63'], ['BAT1.1', 'tn_63'],
+                ['tp_32', 'a32'], ['tp_30', 'a30'], ['e32', 'f32'], ['a37', 'tn_37']],
         expect: { DS1: { digit: '7', segments: 'abc', dp: false } },
       },
     },
@@ -231,11 +231,11 @@
         name:  "b and c each through 470 Ω from 9 V, commons to ground: it shows '1'",
         parts: [{ type: 'battery', label: 'BAT1' },
                 { type: 'seven_segment', label: 'DS1',
-                  holes: ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'] },
-                { type: 'resistor', label: 'R1', holes: ['h34', 'h39'] },    // b
-                { type: 'resistor', label: 'R2', holes: ['c33', 'c37'] }],   // c
-        wires: [['BAT1.0', 'bp_63'], ['BAT1.1', 'bn_63'], ['bp_1', 'tp_1'], ['bn_1', 'tn_1'],
-                ['bp_39', 'j39'], ['tp_37', 'a37'], ['j32', 'bn_32'], ['a32', 'tn_32']],
+                  holes: ['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39'] },
+                { type: 'resistor', label: 'R1', holes: ['c35', 'c30'] },    // b
+                { type: 'resistor', label: 'R2', holes: ['h36', 'h32'] }],   // c
+        wires: [['BAT1.0', 'tp_63'], ['BAT1.1', 'tn_63'], ['tp_1', 'bp_1'], ['tn_1', 'bn_1'],
+                ['tp_30', 'a30'], ['bp_32', 'j32'], ['a37', 'tn_37'], ['j37', 'bn_37']],
         expect: { DS1: { digit: '1', segments: 'bc', dp: false } },
       },
     ],

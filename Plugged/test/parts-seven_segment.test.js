@@ -543,22 +543,39 @@ test("ai: keywords include 7 segment, seven segment, digit display, number displ
   assert.match(ai.guide, /common pins go to ground/i, ai.guide);
 });
 
-// #43 follow-up: from the compressed "e d com1 c dp on e30–e34" the model
+// #43 follow-up: from the compressed "e d com1 c dp on f30–f34" the model
 // mis-mapped letters to columns. The guide names each pin's hole for the
-// documented placement, pin then hole ("a f33", "a=f33" or "a: f33").
-// (Mirrored board: the old hole f30 is now e30, every literal through mirrorHoleName.)
-test('the guide has a pin→hole table for hole e30 facing right: all 10 pins, each with its hole, in ≤ 400 characters', () => {
+// documented placement, pin then hole ("a e36", "a=e36" or "a: e36").
+// Ruling 21: the guide's display is the recipe's display, so it follows the
+// recipe's local column reflection (columns 30–39, c -> 69 − c; rows kept):
+// the original f30 right is f39 left. The holes below come from that rule
+// applied to the ORIGINAL recipe (test/fixtures/recipes-original.js), not from
+// the app.
+const ORIGINAL = require('./fixtures/recipes-original.js').seven_segment;
+const { reflect } = require('./fixtures/recipe-reflect.js');
+const GUIDE_HOLES = reflect(ORIGINAL.recipe).parts.find(p => p.type === 'seven_segment').holes;
+
+test('the guide has a pin→hole table for hole f39 facing left: all 10 pins, each with its hole, in ≤ 400 characters', () => {
   const { ai } = seg();
   assert.ok(ai.guide.length <= 400, `at most 400 characters; got ${ai.guide.length}`);
-  assert.match(ai.guide, /\be30\b/, ai.guide);
-  assert.match(ai.guide, /\bright\b/, ai.guide);
-  const legs = Parts.footprintLegs('seven_segment', 'e30', 0);
+  assert.deepStrictEqual(GUIDE_HOLES, ['f39', 'f38', 'f37', 'f36', 'f35', 'e35', 'e36', 'e37', 'e38', 'e39'], 'the rule applied to the original f30 right');
+  assert.match(ai.guide, /\bf39\b/, ai.guide);
+  assert.match(ai.guide, /\bleft\b/, ai.guide);
+  const legs = Parts.footprintLegs('seven_segment', 'f39', 180);
+  assert.deepStrictEqual(legs.map(l => l.row + (l.col + 1)), GUIDE_HOLES, 'f39 facing left seats the display exactly there');
   const pairs = legs.map(l => [l.pin, l.row + (l.col + 1)]);
-  assert.deepStrictEqual(pairs, [['e', 'e30'], ['d', 'e31'], ['com1', 'e32'], ['c', 'e33'], ['dp', 'e34'],
-                                 ['b', 'f34'], ['a', 'f33'], ['com2', 'f32'], ['f', 'f31'], ['g', 'f30']]);
   const missing = pairs.filter(([pin, hole]) => !new RegExp(`(^|[^a-z0-9])${pin}\\s*[:=]?\\s*${hole}(?![0-9])`).test(ai.guide))
     .map(([pin, hole]) => `${pin} ${hole}`);
   assert.deepStrictEqual(missing, [], `the guide should name each pin's hole ("${missing.join('", "')}" missing): ${ai.guide}`);
+});
+
+test('the guide names the strips by their rows: row f pins are the top half (feed from rows g–j), row e pins the bottom half (feed from rows a–d), and com2 goes to ground from a37', () => {
+  const { ai } = seg();
+  assert.match(ai.guide, /top half, feed from rows g[–-]j/, ai.guide);
+  assert.match(ai.guide, /bottom half, feed from rows a[–-]d/, ai.guide);
+  assert.match(ai.guide, /\ba37\b[^.]*com2|com2[^.]*\ba37\b/, ai.guide);
+  assert.match(ai.guide, /\btn\b/, ai.guide);
+  assert.doesNotMatch(ai.guide, /\bbn\b|\bbp\b/, ai.guide);
 });
 
 for (const message of [

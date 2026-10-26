@@ -241,10 +241,10 @@
                 'Each output swings to 1.5 V inside its supply rails and limits at 20 mA.',
       keywords: ['op-amp', 'op amp', 'opamp', 'amplifier', 'comparator', 'tl072', 'follower', 'buffer'],
       listed:   'in-play',
-      guide:    'Pins 1 OUT1, 2 IN1−, 3 IN1+, 4 V−, 5 IN2+, 6 IN2−, 7 OUT2, 8 V+; hole=eC, right: 1-4 eC..eC+3, 8-5 fC..fC+3. ' +
-                'One place_bench_supply PS1; ±12: V+ bp, V− tn. FG1 place_function_generator, COM bn; ' +
+      guide:    'Pins 1 OUT1, 2 IN1−, 3 IN1+, 4 V−, 5 IN2+, 6 IN2−, 7 OUT2, 8 V+; hole=fC, left: 1-4 fC..fC-3, 8-5 eC..eC-3. ' +
+                'One place_bench_supply PS1; ±12: V+ tp, V− bn. FG1 place_function_generator, COM tn; ' +
                 'sine: amplitude=peak V, freq, offset 0; DC: offset, amp 0. Inverting −Rf/Rin; divider→Rin: stiff, R ≤ Rin/10. ' +
-                'Follower: FG1.0→IN1+, OUT1→IN1−. Comparator: V− bn, divider→IN1−, OUT1→place_resistor→place_led.',
+                'Follower: FG1.0→IN1+, OUT1→IN1−. Comparator: V− tn, divider→IN1−, OUT1→place_resistor→place_led.',
       recipe:   {
         // The 0.5 V sine (#5): Vout1 = −(100k/(10k + 50 Ω))·Vin, −4.975 V at the peak (t = 1/4 s) and
         // +4.975 V at the trough (t = 3/4 s) (the generator's 50 Ω; finite gain: < 1 mV off). A plain
@@ -253,28 +253,28 @@
                'Rf 100 kΩ from IN1− to OUT1 (pin 1), IN1+ (pin 3) to COM: OUT1 ≈ −5 V at the peak',
         parts: [{ type: 'bench_supply', label: 'PS1', values: { voltage: 12 } },
                 { type: 'function_generator', label: 'FG1', values: { amplitude: 0.5, offset: 0, frequency: 1 } },
-                { type: 'tl072', label: 'U1', holes: ['e30', 'e31', 'e32', 'e33', 'f33', 'f32', 'f31', 'f30'] },
-                { type: 'resistor', label: 'R1', holes: ['d27', 'd31'], values: { resistance: 10000 } },     // Rin
-                { type: 'resistor', label: 'R2', holes: ['c31', 'c35'], values: { resistance: 100000 } }],  // Rf
-        wires: [['PS1.0', 'bp_63'], ['PS1.1', 'bn_63'], ['PS1.3', 'bn_62'], ['PS1.2', 'tn_63'],   // ±12 V, COM2 grounded
-                ['FG1.1', 'bn_61'],                                  // the generator's COM on ground
-                ['bp_30', 'j30'], ['tn_33', 'a33'],                  // V+ (pin 8) +12 V, V− (pin 4) −12 V
-                ['FG1.0', 'c27'], ['b35', 'b30'], ['a32', 'bn_32']], // input into Rin, Rf to OUT1, IN1+ to COM
+                { type: 'tl072', label: 'U1', holes: ['f32', 'f31', 'f30', 'f29', 'e29', 'e30', 'e31', 'e32'] },
+                { type: 'resistor', label: 'R1', holes: ['g35', 'g31'], values: { resistance: 10000 } },     // Rin
+                { type: 'resistor', label: 'R2', holes: ['h31', 'h27'], values: { resistance: 100000 } }],  // Rf
+        wires: [['PS1.0', 'tp_63'], ['PS1.1', 'tn_63'], ['PS1.3', 'tn_62'], ['PS1.2', 'bn_63'],   // ±12 V, COM2 grounded
+                ['FG1.1', 'tn_61'],                                  // the generator's COM on ground
+                ['tp_32', 'a32'], ['bn_29', 'j29'],                  // V+ (pin 8) +12 V, V− (pin 4) −12 V
+                ['FG1.0', 'h35'], ['i27', 'i32'], ['j30', 'tn_30']], // input into Rin, Rf to OUT1, IN1+ to COM
         expect: { U1: { vout1: [-0.01, 0.01], mode1: 'linear', unused2: true } },
       },
       // One worked build per op-amp request (the AI copies the nearest one),
-      // in the same layout: the chip at e30, op-amp 2 unused.
+      // in the same layout: the chip seated left, op-amp 2 unused.
       recipes:  [
         {
           // OUT1 on IN1− makes Vout1 = Vin: 3.000 V (finite gain: < 0.1 mV off; no input current, so no drop in 50 Ω).
           name:  'voltage follower on ±12 V: FG1 (offset 3 V) into IN1+ (pin 3), OUT1 (pin 1) wired to IN1− (pin 2): OUT1 = 3 V',
           parts: [{ type: 'bench_supply', label: 'PS1', values: { voltage: 12 } },
                   { type: 'function_generator', label: 'FG1', values: { amplitude: 0, offset: 3, frequency: 1 } },
-                  { type: 'tl072', label: 'U1', holes: ['e30', 'e31', 'e32', 'e33', 'f33', 'f32', 'f31', 'f30'] }],
-          wires: [['PS1.0', 'bp_63'], ['PS1.1', 'bn_63'], ['PS1.3', 'bn_62'], ['PS1.2', 'tn_63'],
-                  ['FG1.1', 'bn_61'],
-                  ['bp_30', 'j30'], ['tn_33', 'a33'],                  // V+ (pin 8) +12 V, V− (pin 4) −12 V
-                  ['FG1.0', 'a32'], ['d30', 'd31']],                   // input into IN1+, OUT1 to IN1−
+                  { type: 'tl072', label: 'U1', holes: ['f33', 'f32', 'f31', 'f30', 'e30', 'e31', 'e32', 'e33'] }],
+          wires: [['PS1.0', 'tp_63'], ['PS1.1', 'tn_63'], ['PS1.3', 'tn_62'], ['PS1.2', 'bn_63'],
+                  ['FG1.1', 'tn_61'],
+                  ['tp_33', 'a33'], ['bn_30', 'j30'],                  // V+ (pin 8) +12 V, V− (pin 4) −12 V
+                  ['FG1.0', 'j31'], ['g33', 'g32']],                   // input into IN1+, OUT1 to IN1−
           expect: { U1: { vout1: [2.99, 3.01], mode1: 'linear', unused2: true } },
         },
         {
@@ -285,15 +285,15 @@
                  'IN1− (pin 2) to 5 V, OUT1 (pin 1) through 1 kΩ to a red LED to COM: lit above 5 V',
           parts: [{ type: 'bench_supply', label: 'PS1', values: { voltage: 12 } },
                   { type: 'function_generator', label: 'FG1', values: { amplitude: 0, offset: 6, frequency: 1 } },
-                  { type: 'tl072', label: 'U1', holes: ['e30', 'e31', 'e32', 'e33', 'f33', 'f32', 'f31', 'f30'] },
-                  { type: 'resistor', label: 'R1', holes: ['i41', 'i45'], values: { resistance: 7000 } },
-                  { type: 'resistor', label: 'R2', holes: ['h37', 'h41'], values: { resistance: 5000 } },
-                  { type: 'resistor', label: 'R3', holes: ['c26', 'c30'], values: { resistance: 1000 } },
-                  { type: 'led', label: 'LED1', holes: ['b24', 'b26'], values: { color: 'red' } }],   // cathode i24, anode i26
-          wires: [['PS1.0', 'bp_63'], ['PS1.1', 'bn_63'], ['FG1.1', 'bn_61'],
-                  ['bp_30', 'j30'], ['a33', 'bn_33'],                  // V+ (pin 8) +12 V, V− (pin 4) on COM
-                  ['bp_45', 'j45'], ['j37', 'bn_37'], ['g41', 'd31'],  // the divider, its 5 V into IN1−
-                  ['FG1.0', 'a32'], ['a24', 'bn_24']],                 // input into IN1+, LED cathode to COM
+                  { type: 'tl072', label: 'U1', holes: ['f39', 'f38', 'f37', 'f36', 'e36', 'e37', 'e38', 'e39'] },
+                  { type: 'resistor', label: 'R1', holes: ['b28', 'b24'], values: { resistance: 7000 } },
+                  { type: 'resistor', label: 'R2', holes: ['c32', 'c28'], values: { resistance: 5000 } },
+                  { type: 'resistor', label: 'R3', holes: ['h43', 'h39'], values: { resistance: 1000 } },
+                  { type: 'led', label: 'LED1', holes: ['i45', 'i43'], values: { color: 'red' } }],   // cathode i45, anode i43
+          wires: [['PS1.0', 'tp_63'], ['PS1.1', 'tn_63'], ['FG1.1', 'tn_61'],
+                  ['tp_39', 'a39'], ['j36', 'tn_36'],                  // V+ (pin 8) +12 V, V− (pin 4) on COM
+                  ['tp_24', 'a24'], ['a32', 'tn_32'], ['d28', 'g38'],  // the divider, its 5 V into IN1−
+                  ['FG1.0', 'j37'], ['j45', 'tn_45']],                 // input into IN1+, LED cathode to COM
           expect: { U1: { mode1: 'high' }, LED1: { on: true, current: [7.9, 8.3] } },
         },
       ],
@@ -305,12 +305,12 @@
         // Op-amp 1 follows 6 V (1k/1k of +12 V); op-amp 2, IN2+ on COM, follows 0 V.
         name:  'a follower of 6 V on the bench supply at ±12 V: OUT1 at 6 V, linear',
         parts: [{ type: 'bench_supply', label: 'PS1', values: { voltage: 12 } },
-                { type: 'tl072', label: 'U1', holes: ['e30', 'e31', 'e32', 'e33', 'f33', 'f32', 'f31', 'f30'] },
-                { type: 'resistor', label: 'R1', holes: ['j40', 'j45'], values: { resistance: 1000 } },
-                { type: 'resistor', label: 'R2', holes: ['i40', 'i35'], values: { resistance: 1000 } }],
-        wires: [['PS1.0', 'bp_1'], ['PS1.1', 'bn_1'], ['PS1.2', 'tn_1'],
-                ['bp_30', 'j30'], ['tn_33', 'a33'], ['bp_45', 'h45'], ['h35', 'bn_35'],
-                ['g40', 'a32'], ['d30', 'd31'], ['j33', 'bn_33'], ['i32', 'i31']],
+                { type: 'tl072', label: 'U1', holes: ['f45', 'f44', 'f43', 'f42', 'e42', 'e43', 'e44', 'e45'] },
+                { type: 'resistor', label: 'R1', holes: ['a35', 'a30'], values: { resistance: 1000 } },
+                { type: 'resistor', label: 'R2', holes: ['b35', 'b40'], values: { resistance: 1000 } }],
+        wires: [['PS1.0', 'tp_1'], ['PS1.1', 'tn_1'], ['PS1.2', 'bn_1'],
+                ['tp_45', 'a45'], ['bn_42', 'j42'], ['tp_30', 'c30'], ['c40', 'tn_40'],
+                ['d35', 'j43'], ['g45', 'g44'], ['a42', 'tn_42'], ['b43', 'b44']],
         expect: { U1: { vout1: [5.99, 6.01], mode1: 'linear', vout2: [-0.01, 0.01], mode2: 'linear' } },
       },
     ],

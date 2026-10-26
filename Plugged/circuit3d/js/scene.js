@@ -21,7 +21,7 @@
     thumb: { pos: [20, 22, 20], target: [0, 0, 0] },
   };
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
+  const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 300);   // 42 before the board flip: the near-side battery spot sits past the right edge of the home view
   camera.position.set(...App.CAMERA.home.pos);
   camera.lookAt(...App.CAMERA.home.target);
 

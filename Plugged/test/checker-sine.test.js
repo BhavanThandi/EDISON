@@ -31,7 +31,6 @@ const Server  = require('../backend/server.js');
 const Board   = require('../circuit3d/js/board-model.js');
 const Sim     = require('../circuit3d/js/simulate.js');
 const Parts   = require('../circuit3d/js/parts');
-const Recipes = require('./fixtures/recipes.js');
 const { recipeActions } = require('./fixtures/recipe-steps.js');
 const N = require('../circuit3d/js/board-geometry.js').COLS;
 

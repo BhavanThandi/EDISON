@@ -1062,3 +1062,45 @@ test('A3: each crop sent to /api/photo/leads has a thin magenta outline on its i
   for (const side of ['left', 'right']) expect(got[side], `magenta along the box's ${side} edge (${JSON.stringify(got)})`).toBeGreaterThan(got.lenY * 0.5);
   expect(got.total, 'thin: the outline is not a fill').toBeLessThan(2 * (got.lenX + got.lenY) * 12);
 });
+
+// A4 (the survey): the image /api/photo gets is the whole flattened board drawn
+// by PhotoCrops.render, so it carries the column-number / row-letter margin: a
+// white band round the board with dark label pixels in it. The render may scale
+// the image (2M px cap), so this checks pixels, not sizes: the outermost rows
+// and columns are white, and the top 12% of the image has dark label pixels.
+// Today's image is the bare warped board, whose edge is not white.
+test('A4: the image sent to /api/photo has the column-number and row-letter margin', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openEditor(page);
+  let body = null;
+  await page.route('**/api/photo', route => {
+    body = route.request().postDataJSON();
+    return route.fulfill({ json: { reading: MOCK_READING, provider: 'fixture', model: 'fixture', ms: 10, key: KEY } });
+  });
+  await openSample(page);
+  await expect.poll(() => body, { message: 'the page posts /api/photo' }).not.toBeNull();
+
+  const m = await page.evaluate(async b => {
+    const im = new Image();
+    await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = b.image; });
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    const lightShare = (x, y, w, h) => {
+      const d = g.getImageData(x, y, w, h).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if ((d[i] + d[i + 1] + d[i + 2]) / 3 > 200) n++;
+      return n / (d.length / 4);
+    };
+    const top = Math.floor(c.height * 0.12), d = g.getImageData(0, 0, c.width, top).data;
+    let dark = 0;
+    for (let i = 0; i < d.length; i += 4) if ((d[i] + d[i + 1] + d[i + 2]) / 3 < 110) dark++;
+    return { w: c.width, h: c.height, topRow: lightShare(0, 0, c.width, 2), bottomRow: lightShare(0, c.height - 2, c.width, 2),
+             leftCol: lightShare(0, 0, 2, c.height), rightCol: lightShare(c.width - 2, 0, 2, c.height), dark };
+  }, body);
+  for (const edge of ['topRow', 'bottomRow', 'leftCol', 'rightCol']) {
+    expect(m[edge], `the ${edge} edge of the ${m.w}x${m.h} image is white margin`).toBeGreaterThan(0.85);
+  }
+  expect(m.dark, 'the top margin area carries dark label pixels (column numbers)').toBeGreaterThan(50);
+});

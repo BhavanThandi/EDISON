@@ -1815,14 +1815,14 @@ async function handlePhoto(req, res) {
   const bytes = Buffer.byteLength(body);
   let input;
   try { input = JSON.parse(body || '{}'); } catch { input = {}; }
-  const { image, grid, sample } = input && typeof input === 'object' ? input : {};
+  const { image, grid, sample, window: frame } = input && typeof input === 'object' ? input : {};
   const fail = (code, out, retries, usage) => { logPhoto({ sample, out, error: code, started, bytes, retries, usage }); return photoError(res, code); };
   if (!isPhotoDataUrl(image)) return fail('BAD_IMAGE');
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
 
   let out;
   try {
-    out = await readPhoto({ image, grid, sample });
+    out = await readPhoto({ image, grid, sample, window: frame });
   } catch (e) {
     return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries, e.usage);
   }

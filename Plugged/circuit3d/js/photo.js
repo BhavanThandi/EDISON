@@ -61,6 +61,7 @@
 
   const PHOTO_PAGE_TIMEOUT_MS = 60000;   // above the server's 45 s PHOTO_TIMEOUT_MS
   const PHOTO_LEADS_PAGE_TIMEOUT_MS = 45000;   // the server's 40 s PHOTO_LEADS_TIMEOUT_MS plus the upload
+  const MAX_SURVEY_W = 2048;                // the box-round image is at most this wide
   const MAX_SIDE  = 3000;                // the original is resized to this before flattening
   const SAMPLE_READ_MS = 7000;           // a board sample's photo under READING, then its board (#15; 7 s since #19)
   const READING   = 'Reading your board…';
@@ -328,6 +329,15 @@
     finally { clearTimeout(timer); }
   }
 
+  // PhotoCrops.window over the whole board, shrunk to at most MAX_SURVEY_W px wide (the contract's image width).
+  function surveyWindow(grid) {
+    const w = PhotoCrops.window(grid, [0, 0, grid.width, grid.height]);
+    if (w.width <= MAX_SURVEY_W) return w;
+    const k = MAX_SURVEY_W / w.width, aw = (w.width - 2 * w.padLeft) / w.scale, ah = (w.height - 2 * w.padTop) / w.scale;
+    const scale = w.scale * k, pad = Math.round(w.padLeft * k);
+    return { x: w.x, y: w.y, scale, padLeft: pad, padTop: pad, width: Math.min(MAX_SURVEY_W, Math.round(aw * scale) + 2 * pad), height: Math.round(ah * scale) + 2 * pad };
+  }
+
   async function send(im, grid, sample) {
     const my = nextJob();
     showStatus(READING, false);
@@ -335,7 +345,11 @@
     if (my !== job) return;
     const src  = downsize(im, grid);
     const flat = flatten(src, grid);
-    const body = { image: flat.toDataURL('image/jpeg', 0.9),
+    // The survey image (A4): the whole flattened board with the column-number
+    // and row-letter margin; window tells the server how it maps back.
+    const win  = surveyWindow(grid);
+    const body = { image: PhotoCrops.render(src.pixels, src.H, grid, win, null),
+                   window: win,
                    grid: { cols: grid.cols, pitch: grid.pitch, x0: grid.x0, y0: grid.y0, width: grid.width, height: grid.height } };
     if (sample) body.sample = sample;
 

@@ -44,7 +44,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
-        loadFixture, parseLooseJSON, isSafeId, failed, num, obj, list } = require('./photo-reader');
+        loadFixture, thinkingConfig, parseLooseJSON, isSafeId, failed, num, obj, list } = require('./photo-reader');
 const { PHOTO_CROP_PROMPT_BATCH, PHOTO_CROP_SCHEMA_BATCH, cropShows } = require('./photo-prompt');
 
 const LEADS_DIR      = path.join(__dirname, '..', 'test', 'fixtures', 'photo', 'leads');
@@ -157,7 +157,7 @@ function batchBody(batch) {
   });
   return {
     contents: [{ role: 'user', parts }],
-    generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_CROP_SCHEMA_BATCH(batch.map(i => i.id)), temperature: 1, maxOutputTokens: 32768 },
+    generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_CROP_SCHEMA_BATCH(batch.map(i => i.id)), temperature: 1, maxOutputTokens: 32768, ...thinkingConfig() },
   };
 }
 

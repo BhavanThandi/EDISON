@@ -115,6 +115,12 @@ function parseLooseJSON(text) {
   throw failed('the JSON in the reply is cut off');
 }
 
+// Keeps a render window only when it is a usable one.
+function framed(win) {
+  const w = obj(win);
+  return ['x', 'y', 'scale', 'padLeft', 'padTop', 'width', 'height'].every(k => Number.isFinite(w[k])) && w.scale > 0 && w.width > 0 && w.height > 0 ? w : null;
+}
+
 const round1 = v => Math.round(v * 10) / 10;
 
 // A resistor's value guess in Ω: 470, "470", "4.7k", "1M". Else 0.
@@ -128,35 +134,53 @@ function ohms(v) {
 // over the flattened image → a pixel box [x0, y0, x1, y1]; the 2 legs (or
 // wire ends) start at the midpoints of its short edges, hole '?', and
 // 'leads' goes in unsure: placeholders the page and the next step replace.
-function boxesToReading(answer, grid) {
+//
+// The survey (A4): an item may carry leads [{pin, point:[y,x]}] on the same
+// 0–1000 scale; they replace the placeholders (hole still '?', the page snaps
+// them; a point off the board is kept and snaps to 'off'). The type is kept
+// for ic, capacitor, potentiometer, diode and button; an ic also keeps
+// pins, notch and label. win (optional) is the page's render window when the
+// image carries the label margin: points and boxes are then on the margined
+// image and map back to flattened pixels.
+function boxesToReading(answer, grid, win) {
   const items = Array.isArray(answer) ? answer : obj(answer).items;
   if (!Array.isArray(items)) throw failed('the reply has no items');
   const parts = [], wires = [], count = {};
   const nextId = prefix => `${prefix}${(count[prefix] = (count[prefix] || 0) + 1)}`;
 
+  const w = framed(win);
+  const fx = n => (w ? (n / 1000 * w.width - w.padLeft) / w.scale + w.x : n / 1000 * grid.width);
+  const fy = n => (w ? (n / 1000 * w.height - w.padTop) / w.scale + w.y : n / 1000 * grid.height);
+
   for (const it of items.map(obj)) {
     const b = it.box_2d;
     if (!Array.isArray(b) || b.length !== 4 || !b.every(Number.isFinite)) continue;
-    const x0 = round1(Math.min(b[1], b[3]) / 1000 * grid.width),  x1 = round1(Math.max(b[1], b[3]) / 1000 * grid.width);
-    const y0 = round1(Math.min(b[0], b[2]) / 1000 * grid.height), y1 = round1(Math.max(b[0], b[2]) / 1000 * grid.height);
+    const x0 = round1(Math.min(fx(b[1]), fx(b[3]))),  x1 = round1(Math.max(fx(b[1]), fx(b[3])));
+    const y0 = round1(Math.min(fy(b[0]), fy(b[2]))),  y1 = round1(Math.max(fy(b[0]), fy(b[2])));
     const mx = round1((x0 + x1) / 2), my = round1((y0 + y1) / 2);
     const ends = x1 - x0 >= y1 - y0 ? [[x0, my], [x1, my]] : [[mx, y0], [mx, y1]];
+    const said_leads = list(it.leads).map(obj).filter(l => Array.isArray(l.point) && l.point.length === 2 && l.point.every(Number.isFinite));
+    const spots = said_leads.slice(0, MAX_LEADS).map(l => ({ pin: str(l.pin), pt: [round1(fx(l.point[1])), round1(fy(l.point[0]))] }));
     const type = str(it.type).trim().toLowerCase();
     const said  = typeof it.value === 'number' ? String(it.value) : str(it.value).trim();
     const guess = /^null$/i.test(said) ? '' : said;
 
     if (type === 'wire') {
-      wires.push({ id: nextId('W'), color: '', ends: ends.map(pt => ({ hole: '?', pt })), box: [x0, y0, x1, y1],
+      const wEnds = spots.length === 2 ? spots.map(q => q.pt) : ends;
+      wires.push({ id: nextId('W'), color: '', ends: wEnds.map(pt => ({ hole: '?', pt })), box: [x0, y0, x1, y1],
                    confidence: num(it.conf), unsure: ['leads'] });
       continue;
     }
-    const kind = type === 'resistor' || type === 'led' ? type : 'other';
-    parts.push({
-      id: nextId({ resistor: 'R', led: 'LED', other: 'X' }[kind]), type: kind,
+    const kind = PART_TYPES.includes(type) ? type : 'other';
+    const part = {
+      id: nextId(ID_PREFIX[kind]), type: kind,
       what: guess ? `${guess} ${type || 'part'}` : type || 'part', value: kind === 'resistor' ? ohms(it.value) : 0,
-      bands: [], color: '', leads: ends.map(pt => ({ hole: '?', pt, role: 'unknown' })),
+      bands: [], color: '', leads: spots.length ? spots.map(q => ({ hole: '?', pt: q.pt, role: 'unknown', ...(q.pin ? { pin: q.pin } : {}) }))
+                                               : ends.map(pt => ({ hole: '?', pt, role: 'unknown' })),
       box: [x0, y0, x1, y1], confidence: num(it.conf), unsure: ['leads'],
-    });
+    };
+    if (kind === 'ic') Object.assign(part, chipFacts(it));
+    parts.push(part);
   }
 
   const rails = obj(obj(answer).rails);
@@ -384,6 +408,13 @@ function withFallback(er, startFallback, signal) {
   });
 }
 
+// PHOTO_THINKING = default | minimal | low | medium | high. default (or unset)
+// sends nothing: the model's own level. Else generationConfig.thinkingConfig.thinkingLevel.
+function thinkingConfig() {
+  const v = String(process.env.PHOTO_THINKING || '').trim().toLowerCase();
+  return ['minimal', 'low', 'medium', 'high'].includes(v) ? { thinkingConfig: { thinkingLevel: v } } : {};
+}
+
 const geminiProvider = {
   name: 'gemini',
   read: async (input, ctx) => {
@@ -392,12 +423,12 @@ const geminiProvider = {
     const model = photoGeminiModel();
     const body  = {
       contents: [{ role: 'user', parts: [{ text: PHOTO_PROMPT }, geminiImagePart(input.image)] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_SCHEMA, temperature: 1, maxOutputTokens: 32768 },
+      generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_SCHEMA, temperature: 1, maxOutputTokens: 32768, ...thinkingConfig() },
     };
     const once = m => async signal => {
       const who  = `gemini ${m}`;
       const data = await postJSON(ctx, signal, who, `${GEMINI_BASE}${m}:generateContent`, { 'x-goog-api-key': apiKey }, body);
-      return { reading: boxesToReading(parseLooseJSON(geminiText(data, who)), input.grid), model: m };
+      return { reading: boxesToReading(parseLooseJSON(geminiText(data, who)), input.grid, input.window), model: m };
     };
     // No per-call cap: Gemini gets the whole deadline (#172).
     const er     = raceGemini(once(model), { maxCalls: BOX_MAX_CALLS, signal: ctx.signal, deadlineAt: ctx.deadlineAt, stats: ctx.tally });
@@ -431,7 +462,7 @@ const deepseekProvider = {
     const data = await postJSON(ctx, ctx.signal, DEEPSEEK_PHOTO_MODEL, DEEPSEEK_URL, { Authorization: `Bearer ${apiKey}` }, body);
     const text = str(obj(obj(list(obj(data).choices)[0]).message).content);
     if (!text.trim()) throw failed(`${DEEPSEEK_PHOTO_MODEL}: empty reply`);
-    return { reading: boxesToReading(parseLooseJSON(text), input.grid), model: DEEPSEEK_PHOTO_MODEL };
+    return { reading: boxesToReading(parseLooseJSON(text), input.grid, input.window), model: DEEPSEEK_PHOTO_MODEL };
   },
 };
 
@@ -440,7 +471,11 @@ const PROVIDERS = { fixture: fixtureProvider, gemini: geminiProvider, deepseek: 
 
 // ── Reading v1 ───────────────────────────────────────────────
 const RAIL_SIGNS  = ['+', '-', '?'];
-const PART_TYPES  = ['resistor', 'led', 'other'];
+// Reading v1.1: the survey's types are kept (v1 had resistor, led, other).
+const PART_TYPES  = ['resistor', 'led', 'capacitor', 'ic', 'button', 'diode', 'potentiometer', 'other'];
+const ID_PREFIX   = { resistor: 'R', led: 'LED', capacitor: 'C', ic: 'U', button: 'SW', diode: 'D', potentiometer: 'RV', other: 'X' };
+const MAX_LEADS   = 16;
+const NOTCHES     = ['left', 'right', 'unsure'];
 const LEAD_ROLES  = ['anode', 'cathode', 'none', 'unknown'];
 const POWER_KINDS = ['battery_9v', 'bench_supply', 'unknown'];
 const HOLE        = /^(?:[a-j]\d{1,2}|rail:(?:aOuter|aInner|jInner|jOuter):\d{1,2}|gap|off|\?)$/;
@@ -453,6 +488,14 @@ const oneOf  = (v, list, other) => (list.includes(v) ? v : other);
 const obj    = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const list   = v => (Array.isArray(v) ? v : []);
 const hole   = v => (typeof v === 'string' && HOLE.test(v) ? v : '?');
+// An ic's survey facts: pins (count), notch, label (text or null).
+function chipFacts(it) {
+  const out = {};
+  if (Number.isFinite(it.pins) && it.pins > 0) out.pins = Math.round(it.pins);
+  if (NOTCHES.includes(it.notch)) out.notch = it.notch;
+  if (typeof it.label === 'string' && it.label.trim()) out.label = it.label.trim();
+  return out;
+}
 const endOf  = v => ({ hole: hole(obj(v).hole), pt: nums(obj(v).pt, 2) });
 
 // Coerces raw to Reading v1 (unknown enum → other/unknown/?, missing number
@@ -476,8 +519,10 @@ function validateReading(raw) {
     parts.push({
       id: str(p.id), type: oneOf(p.type, PART_TYPES, 'other'), what: str(p.what), value: num(p.value),
       bands: strs(p.bands), color: str(p.color),
-      leads: p.leads.map(l => ({ ...endOf(l), role: oneOf(obj(l).role, LEAD_ROLES, 'unknown') })),
+      leads: p.leads.slice(0, MAX_LEADS).map(l => ({ ...endOf(l), role: oneOf(obj(l).role, LEAD_ROLES, 'unknown'),
+                                                     ...(typeof obj(l).pin === 'string' ? { pin: l.pin } : {}) })),
       box: nums(p.box, 4), confidence: num(p.confidence), unsure: strs(p.unsure),
+      ...chipFacts(p), ...(typeof p.pin1 === 'string' && HOLE.test(p.pin1) ? { pin1: p.pin1 } : {}),
     });
   }
 
@@ -577,6 +622,6 @@ async function readPhoto(input, opts = {}) {
 module.exports = {
   readPhoto, validateReading, parseLooseJSON, PROVIDERS, isSafeId,
   // Shared with photo-leads.js (#159, #172).
-  GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
+  GEMINI_BASE, thinkingConfig, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
   loadFixture, failed, num, obj, list,
 };

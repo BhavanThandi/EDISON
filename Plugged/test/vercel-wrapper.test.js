@@ -121,7 +121,8 @@ test('.vercelignore keeps tests, sources, build output, modules and the local .e
   const file = path.join(ROOT, '.vercelignore');
   assert.ok(fs.existsSync(file), 'Plugged/.vercelignore exists');
   const entries = fs.readFileSync(file, 'utf8').split('\n').map(l => l.trim().replace(/^\//, '')).filter(l => l && !l.startsWith('#'));
-  for (const want of ['test/', 'e2e/', 'src/', 'out/', 'node_modules/', 'backend/.env']) {
+  for (const want of ['test/*', 'e2e/', 'src/', 'out/', 'node_modules/', 'backend/.env',
+                      '!/test/fixtures/photo/*.json', '!/test/fixtures/photo/leads']) {
     assert.ok(entries.includes(want), `.vercelignore lists ${want}; has ${JSON.stringify(entries)}`);
   }
 });

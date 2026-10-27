@@ -1,15 +1,27 @@
 {
   "cleanUrls": false,
   "redirects": [
-    { "source": "/", "destination": "/circuit3d/index.html?ui=edison", "permanent": false }
+    {
+      "source": "/",
+      "destination": "/circuit3d/index.html?ui=edison",
+      "permanent": false
+    }
   ],
   "functions": {
-    "api/[...path].js": { "maxDuration": 300 }
+    "api/[...path].js": {
+      "maxDuration": 300,
+      "includeFiles": "test/fixtures/photo/**/*.json"
+    }
   },
   "headers": [
     {
       "source": "/api/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
     }
   ]
 }

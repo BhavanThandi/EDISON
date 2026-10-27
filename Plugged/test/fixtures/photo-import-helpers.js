@@ -43,6 +43,13 @@ const ledOf = (id, leads, color = 'red') => ({
 });
 const led = (id, cathode, anode, color = 'red') =>
   ledOf(id, [{ hole: cathode, role: 'cathode' }, { hole: anode, role: 'anode' }], color);
+// An ic part. `leads` are [pin, hole] pairs ('1', 'e30'); opts are the ic's
+// own fields (pins, notch, label, isOpAmp, pin1Confirmed).
+const ic = (id, leads, opts = {}) => Object.assign({
+  id, type: 'ic', what: 'dual op-amp', value: 0, bands: [], color: '',
+  leads: leads.map(([pin, hole]) => Object.assign(lead(hole, 'none'), { pin })),
+  box: [0, 0, 0, 0], confidence: 0.8, unsure: [],
+}, opts);
 const wire = (id, color, a, b) => ({ id, color, ends: [end(a), end(b)], confidence: 0.9, unsure: [] });
 const battery = (plus, minus, volts = 9, kind = 'battery_9v') => ({ kind, volts, plus: end(plus), minus: end(minus), unsure: [] });
 
@@ -55,6 +62,8 @@ function reading({ parts = [], wires = [], power = [], rails = BB830, cols = 63 
 const HOLE = /^(?:([a-j])(\d+)|(tp|tn|bn|bp)_(\d+))$/;
 const ref  = h => { const m = HOLE.exec(String(h)); if (!m) return null; return m[1] ? { col: +m[2] - 1, row: m[1] } : { col: +m[4] - 1, row: m[3] }; };
 const BOARD = { cols: GEOMETRY.COLS, bodyRows: GEOMETRY.BODY_ROWS };
+// A footprint part's direction as its rotation (the app's own map).
+const ROTATION = { right: 0, left: 180 };
 const toolOf = def => (def.ai && def.ai.tool) || 'place_' + def.type;
 const defFor = tool => Parts.all().find(d => toolOf(d) === tool) || null;
 
@@ -100,6 +109,16 @@ function checkInvariants(out) {
     }
     const def = defFor(a.tool);
     assert.ok(def, `action ${i}: unknown tool ${a.tool}`);
+    if (def.place.kind === 'footprint') {
+      // A chip: all its legs must be free, and then they are taken.
+      const legs = Parts.footprintLegs(def.type, a.hole, ROTATION[a.direction]);
+      assert.ok(legs, `action ${i} ${a.tool} ${a.hole} ${a.direction}: no footprint`);
+      for (const l of legs) {
+        assert.ok(!map.has(l.hole), `action ${i} ${a.tool} ${a.hole}: ${l.hole} already holds ${JSON.stringify(map.get(l.hole))}`);
+        map.set(l.hole, { label: def.type, pin: l.pin });
+      }
+      return;
+    }
     if (def.place.kind !== 'span') return;
     const legs = [a.holeA, a.holeB].map((h, k) => Object.assign({ pin: def.pins[k], hole: h }, ref(h)));
     const check = Parts.checkPlacement(def.type, legs, map, BOARD);
@@ -133,6 +152,20 @@ function terminals(rd, out) {
   for (const p of rd.parts) {
     const label = out.labels[p.id];
     if (!label || skippedIds(out).includes(p.id)) continue;
+    if (p.type === 'ic') {
+      // A chip's 8 pins: the node of each is where the seat puts it. The
+      // seat comes from pin 1's and pin N/2's half and column: pin 1 in a–e
+      // → e{c} right (rotation 0); pin 1 in f–j → f{c} left (180).
+      const pins = p.pins || 8;
+      const named = n => p.leads.find(l => l.pin === String(n));
+      const pair  = named(1) && named(pins / 2) ? [named(1), named(pins / 2)] : p.leads.length === 2 ? p.leads : null;
+      const m = pair && /^([a-j])(\d+)$/.exec(pair[0].hole);
+      assert.ok(m, `${p.id}: a built chip needs a pin 1 on a body hole`);
+      const top = 'abcde'.includes(m[1]);
+      const legs = Parts.footprintLegs('tl072', (top ? 'e' : 'f') + m[2], top ? 0 : 180);
+      legs.forEach((leg, k) => terms.push({ name: `${p.id}.pin${k + 1}`, node: readingNode(leg.hole), label, pin: k }));
+      continue;
+    }
     p.leads.forEach((l, k) => {
       let pin = k;
       if (p.type === 'led') {
@@ -199,7 +232,7 @@ const backwardsFor = (problems, label) => problems.some(p => p.kind === 'backwar
 
 module.exports = {
   Parts, Board, GEOMETRY,
-  build, BB830, lead, end, resistor, ledOf, led, wire, battery, reading,
+  build, BB830, lead, end, ic, resistor, ledOf, led, wire, battery, reading,
   ref, wiresOf, placesOf, kinds, skippedIds, hasFlag, jumpersOf,
   checkInvariants, readingNode, builtNets, assertSameNets, simulate, backwardsFor,
 };

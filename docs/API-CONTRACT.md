@@ -433,7 +433,7 @@ photo.js  pick / drop / sample, corner taps → PhotoGrid.homography → PhotoGr
           → Build it (any time) → PhotoImport.build
           → SparkyChat.applyBuild(actions) → App.runSimulation() → sparkyAsk(question, { context })
 ```
-- **Loading:** `photo-grid.js` and `photo-import.js` are UMD modules (Node + browser, like `simulate.js`), after `ids.js` and before `app.js` in `circuit3d/index.html`; `samples/samples.js` and then `photo.js` (DOM) after `chat.js`. Node requires them from `circuit3d/js/`.
+- **Loading:** `photo-grid.js`, `photo-chips.js` and `photo-import.js` are UMD modules (Node + browser, like `simulate.js`), after `ids.js` and before `app.js` in `circuit3d/index.html`; `samples/samples.js` and then `photo.js` (DOM) after `chat.js`. Node requires them from `circuit3d/js/`.
 - **Coordinates:** every point is a pixel `[x, y]` in the **flattened image** (see `PhotoGrid`), never in the original photo.
 
 ### `POST /api/photo` (#138, #139)
@@ -538,7 +538,7 @@ The reader's first guess at the board. On the confirm screen Maya moves every wr
              plus: { hole, pt }, minus: { hole, pt }, unsure: [] } ],
 }
 ```
-- **Reading v1.1 (A4)** is v1 plus optional fields; a v1 Reading is still valid unchanged. A part may have up to 16 `leads`, each optionally with `pin` (the survey's pin label, a string). An `ic` part may carry `pins` (count), `notch` (`left|right|unsure`), `label` (printed text) and `pin1` (a hole); absent fields are simply absent.
+- **Reading v1.1 (A4)** is v1 plus optional fields; a v1 Reading is still valid unchanged. A part may have up to 16 `leads`, each optionally with `pin` (the survey's pin label, a string). An `ic` part may carry `pins` (count), `notch` (`left|right|unsure`), `label` (printed text) and `pin1` (a hole); absent fields are simply absent. The confirm screen keeps Maya's answers on that `ic` part: `isOpAmp` (`true` / `false`: she said it is, or isn't, a dual op-amp like a TL072) and `pin1Confirmed` (`true`: she confirmed which end is pin 1). `PhotoImport` reads both.
 - **Endpoint `hole`:** a body hole `c14`; a rail `rail:<rail>:<col>` (e.g. `rail:aOuter:14`); `gap` (the centre channel); `off` (off the board); or `?` (not seen).
 - **Rails are named by side:** `aOuter` and `aInner` are the strips next to row a, `jInner` and `jOuter` the strips next to row j. A rail's column is the nearest body column, cosmetic (each rail is one node).
 - `confidence` is 0–1. `unsure` lists what the reader wasn't sure of, as short words (e.g. `'value'`, `'polarity'`).
@@ -628,18 +628,42 @@ Photo pixels ↔ breadboard holes. Pure: no DOM, no THREE.
 - **`PhotoGrid.warp(src, H, out)`** → `out`. `src` and `out` are RGBA images `{ width, height, data }` (an `ImageData`-like `Uint8ClampedArray`, 4 bytes per pixel); `out` is pre-sized to the grid's `width` × `height`. Each `out` pixel samples `src` at `H · (x, y)` (bilinear); points outside `src` get (40, 40, 40, 255). No DOM, so it runs in Node tests.
 - **Mock:** none. Tests build grids from synthetic taps (identity and trapezoid round trips).
 
+### `PhotoChips` (`circuit3d/js/photo-chips.js`, `window.PhotoChips`; photo fix B1)
+Which chip a printed label names, and which way round a DIP-8 sits. Pure: no DOM, no dependencies. Used by `PhotoImport` and `scripts/photo-eval.js`.
+
+- **`PhotoChips.DUAL_OPAMPS`**: `TL052`, `TL062`, `TL072`, `TL082`, `LM358`, `LM2904`, `LF353`, `LF412`, `NE5532`, `MC1458`, `RC4558`: the dual op-amps built as a TL072 (pin for pin the same).
+- **`PhotoChips.identify(label)`** → `'opamp' | 'other' | 'unknown'`. The label is uppercased and stripped to letters and digits. Empty → `unknown`; contains a `DUAL_OPAMPS` entry → `opamp` (`'TL072CP'`, `'tl 072'`); else a digit in it → `other` (`'NE555'`: a chip we can name but don't build); else `unknown` (a bare `'ST'` is a maker's mark).
+- **`PhotoChips.seat({ pin1, pinN, pins = 8, notch, cols = 63 })`** → `{ hole, direction, sure }` or `{ why }` (plain English). Never throws.
+  - `pin1`, `pinN`: Reading body holes (`'e30'`) of pin 1 and pin `pins / 2`. Only the column and the half (a–e / f–j) count; rows inside a half are free.
+  - Pin 1 in a–e with pin N three columns higher in a–e → `{ hole: 'e<c1>', direction: 'right' }`; pin 1 in f–j with pin N three columns lower in f–j → `{ hole: 'f<c1>', direction: 'left' }`. These are `place_tl072`'s `hole` and `direction`: `Parts.footprintLegs('tl072', hole, right 0 | left 180)` puts pin 1 and pin 4 in those columns.
+  - `{ why }` for anything else, so a chip is never seated backwards: a pin count other than 8, a hole that isn't a body hole, the two pins in different halves, a clockwise pair (pin 1 at the end where the pins count clockwise), a gap other than 3 columns, or legs past column `cols`.
+  - `sure`: the `notch` agrees (`left` = pin 1 is the lower column, so `right`; `right` → `left`). `unsure`, missing or disagreeing → `sure: false`, same seat.
+- **Mock:** none; tests seat real footprints (`Parts.footprintLegs`, `Parts.checkPlacement`).
+
 ### `PhotoImport` (`circuit3d/js/photo-import.js`, `window.PhotoImport`; #136, #137)
-A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `Ids` and the board geometry (`require('./parts')` etc. in Node; `window.Parts`, `window.App`, `App.BOARD_GEOMETRY` in the browser).
+A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `Ids`, `PhotoChips` and the board geometry (`require('./parts')` etc. in Node; `window.Parts`, `window.App`, `window.PhotoChips`, `App.BOARD_GEOMETRY` in the browser).
 
 - **`PhotoImport.build(reading, { components })`** → `{ actions, labels, flags, skipped }`. Never throws: anything it can't build lands in `flags` and `skipped`.
   - `components`: the parts already on the board (`{ type, label }`), for numbering labels with `Ids.nextLabel`. The page passes `[]`: a photo always builds on an empty board (see `SparkyChat.applyBuild`).
 - **A lead's node** is its column plus half (a–e, f–j), a rail, or an off-board pin. Rows inside a half never change the circuit, so leads may move row; **every lead keeps its node**.
 - **`actions`**, in this order, for `Chat.acceptBuild` (one undo step):
   1. the battery: `place_battery { voltage }` per power entry;
-  2. every part: `place_resistor { holeA, holeB, resistance }`, `place_led { holeA: cathode, holeB: anode, color }`;
+  2. every part, chips first: `place_tl072 { hole, direction }` per built chip (Reading order), then `place_resistor { holeA, holeB, resistance }`, `place_led { holeA: cathode, holeB: anode, color }`;
   3. every wire: the battery's leads `add_wire { from: 'BAT1.0', to: <+ rail hole>, color: 'red' }` and `{ from: 'BAT1.1', to: <− rail hole>, color: 'black' }`, the bridge jumpers, then the Reading's wires (`add_wire { from, to, color }`, colour mapped to red, yellow, green, blue, black or white).
 
   Parts go before wires because wire ends take holes. **No `delete_all`**. Rail holes are `tp_10`-style.
+- **Chips (Reading v1.1 `ic` parts):** an `ic` is built as a TL072 (dual op-amps share its pins), labelled `U1`…, only when it is safe: never backwards, never as the wrong chip. Otherwise it is in `skipped` (type `ic`) with one flag, from the first row that matches:
+
+| Not built when | Flag | `why` (U1 = the Reading id) |
+|---|---|---|
+| `pins` is given and isn't 8 | `type` | `U1 has 14 pins; only 8-pin dual op-amps can be built from a photo yet. Add it by hand.` |
+| `isOpAmp` is `false`, or `PhotoChips.identify(label)` is `other` and `isOpAmp` isn't `true` | `type` | `U1 (NE555) isn't a dual op-amp with the TL072's pins, so it can't be built from a photo yet. Add it by hand.` (no label in brackets when she answered no) |
+| `identify` is `unknown` and `isOpAmp` isn't `true` | `chip` (asked) | `Is U1 a dual op-amp like a TL072? Its label couldn't be read.` |
+| pin 1 and pin 4 aren't known: no leads whose `pin` is `'1'` and `'4'`, and not exactly 2 leads without a `pin` (taken in order) | `position` | `U1 isn't built: which of its leads are pin 1 and pin 4 isn't known.` |
+| `PhotoChips.seat({ pin1, pinN, pins, notch, cols: board.cols })` gives a `why` | `position` | `U1 isn't built: <the seat's why>`. `pin1Confirmed` never overrides this. |
+| the seat isn't `sure` and `pin1Confirmed` isn't `true` | `pin1` (asked) | `U1: which end is pin 1 isn't certain. Check the 1 dot (⇄ turns the chip), then confirm.` |
+
+  A built chip's 8 holes (`Parts.footprintLegs`) are claimed like photo holes, so no bridge helper uses its column-halves, and taken (with its pin names) before any other part is placed: another lead photographed in one of them moves to another row of the same column-half (flagged `moved`), and a 5th one there (the chip's pin holds a hole) is not built (`position`). Each `place_tl072` passes `Parts.checkPlacement` against the running hole map; a chip on an earlier chip's holes is not built (`mismatch`). An unbuilt chip's photo holes are claimed as any unbuilt part's. A Reading with no `ic` builds exactly as before.
 - **Rails by side and printed sign:**
 
 | Side | `+` strip | `−` strip |
@@ -648,7 +672,7 @@ A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `
 | j-side (`jInner`, `jOuter`) | `bp` | `bn` |
 
 - **Rail fallback:** when a side's two signs are `?` or the same, outer → + and inner → − (our model's position default), flagged `rails`.
-- **`labels`:** Reading id → app label. Each part → its `Ids.nextLabel` label (a skipped part shifts later numbers); each power entry, keyed `power:<i>`, → its battery label; each Reading wire → its wire id `W<n>`, counted over **every** `add_wire` in output order (battery leads and bridge jumpers take W1, W2… first), so it matches `nextWireId` on an empty board.
+- **`labels`:** Reading id → app label. Each part → its `Ids.nextLabel` label (a skipped part shifts later numbers; a built chip → `U1`, `U2`… in Reading order); each power entry, keyed `power:<i>`, → its battery label; each Reading wire → its wire id `W<n>`, counted over **every** `add_wire` in output order (battery leads and bridge jumpers take W1, W2… first), so it matches `nextWireId` on an empty board.
 - **Keys** in `labels`, `flags` and `skipped`: the entry's Reading id; a missing or blank id → `part<n>` / `wire<n>` (1-based within `parts` / `wires`); a different entry reusing an id → `<id>#2`, `<id>#3`…. Only exact copies are dropped (a part with the same type, value and lead holes; a wire with the same two ends), listed in `skipped` under their own key.
 - **`flags`:** `[{ kind, id, why }]`. `id` is the Reading id (`power:<i>` for power, `null` for the whole board); `why` is plain English for the confirm screen (e.g. `"drawn with a jumper: on your board it runs from the + rail to column 14"`).
 
@@ -659,15 +683,17 @@ A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `
 | `moved` | a lead or wire end was put in another hole of its node, or the part was drawn shorter or with a jumper (the bridge) |
 | `shorted` | both leads of a part are in one node (built, so the simulator shows it) |
 | `source` | no power entry but rails in use (a 9 V battery is assumed on them), or a bench supply or unknown source built as a battery |
-| `position` | a lead or end still `?`, `gap` or `off`, or a 6th lead into a full column-half (not built) |
-| `mismatch` | no free helper for a bridge (not built) |
-| `type` | a part of type `other` (not built: IC, button, …) |
+| `position` | a lead or end still `?`, `gap` or `off`, a 6th lead into a full column-half, or a chip with no seat (pin 1 / pin 4 unknown, or `PhotoChips.seat`'s why) (not built) |
+| `mismatch` | no free helper for a bridge, or a chip on an earlier chip's holes (not built) |
+| `type` | a part of type `other` (button, …), or an `ic` that isn't an 8-pin dual op-amp: not 8 pins, another chip (`identify` → `other`), or `isOpAmp: false` (not built) |
+| `chip` | an `ic` whose label couldn't be read (`identify` → `unknown`) and no `isOpAmp` answer: asked, not built |
+| `pin1` | a seated chip whose notch is `unsure`, missing or disagrees, and no `pin1Confirmed`: asked, not built |
 | `rails` | a side's rail signs fell back to the position default |
 
-- **`skipped`:** `[{ id, type, why }]`, everything not built: `other` parts, unplaceable parts, and a wire with both ends in one node.
+- **`skipped`:** `[{ id, type, why }]`, everything not built: `other` parts, chips not built (type `ic`), unplaceable parts, and a wire with both ends in one node.
 - **Invariants, checked in tests:**
   - **Zero refusals:** every `place_*` passes `Parts.checkPlacement` in order against the running hole map (wire ends included), and `Board.apply(Board.empty(), actions)` gives no errors.
-  - **Same nets:** the nets of the built board equal the nets of the confirmed Reading for every built part.
+  - **Same nets:** the nets of the built board equal the nets of the confirmed Reading for every built part (a chip's 8 pins on the column-halves its seat gives).
   - **LED polarity is kept exactly as confirmed**, never chosen to make the circuit work.
 - **Mock:** the mock Reading above builds to:
 ```js

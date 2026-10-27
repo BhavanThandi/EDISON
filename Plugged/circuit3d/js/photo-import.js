@@ -13,9 +13,21 @@
 //    keeps its node; rows inside a half and a rail's column are free.
 //  - Rails by side and printed sign: a-side + → tp, − → tn; j-side + → bp,
 //    − → bn. A side whose signs are `?` or equal: outer +, inner −, flagged.
-//  - Actions: every battery, then every part, then every wire (battery
-//    leads, bridge jumpers, the Reading's), because wire ends take holes.
-//    No delete_all.
+//  - Actions: every battery, then every chip, then every other part, then
+//    every wire (battery leads, bridge jumpers, the Reading's), because
+//    wire ends take holes. No delete_all.
+//  - An `ic` is built as a TL072 (place_tl072 { hole, direction }), U1…, only
+//    when sure; checked in this order, the first that fails decides:
+//      pins (p.pins or 8) ≠ 8                       → type
+//      isOpAmp false, or PhotoChips.identify other  → type
+//      identify unknown and isOpAmp not true        → chip (asked)
+//      no pin 1 / pin 4 leads (by `pin`, else the
+//      two leads in order when there are exactly 2) → position
+//      PhotoChips.seat gives a why                  → position
+//      seat not sure and not pin1Confirmed          → pin1 (asked)
+//    A built chip's 8 holes are claimed and taken before any other part, so
+//    other leads move to another row of their column-half. One on an
+//    earlier chip's holes → mismatch.
 //  - A part sits on its own two nodes when both leads are body holes in one
 //    half with the span in range (on one row, the photo's if free), or
 //    straight across the gap in one column (vertical). Both leads in one
@@ -43,18 +55,22 @@
   if (root) root.PhotoImport = PhotoImport;
 })(typeof window !== 'undefined' ? window : null, function () {
 
-  const inNode   = typeof module === 'object' && module.exports;
-  const Parts    = inNode ? require('./parts') : window.Parts;
-  const Ids      = inNode ? require('./ids.js') : window.App;
-  const GEOMETRY = inNode ? require('./board-geometry.js') : window.App.BOARD_GEOMETRY;
+  const inNode     = typeof module === 'object' && module.exports;
+  const Parts      = inNode ? require('./parts') : window.Parts;
+  const Ids        = inNode ? require('./ids.js') : window.App;
+  const GEOMETRY   = inNode ? require('./board-geometry.js') : window.App.BOARD_GEOMETRY;
+  const PhotoChips = inNode ? require('./photo-chips.js') : window.PhotoChips;
 
   const COLS  = GEOMETRY.COLS;
   const TOP   = GEOMETRY.BODY_ROWS.slice(0, 5);
   const BOT   = GEOMETRY.BODY_ROWS.slice(5);
   const BOARD = { cols: COLS, bodyRows: GEOMETRY.BODY_ROWS };
 
-  // Reading part types → the registry types built (Tier 1).
+  // Reading part types → the registry types built (Tier 1). An `ic` is a
+  // TL072 when PhotoChips seats it (see build).
   const BUILT = { resistor: 'resistor', led: 'led' };
+  const CHIP  = 'tl072';
+  const TURN  = { right: 0, left: 180 };   // a seat's direction → the rotation (Board's ROTATION)
 
   const WIRE_COLORS = ['red', 'yellow', 'green', 'blue', 'black', 'white'];
   const WIRE_ALIAS  = { orange: 'yellow', gray: 'black', grey: 'black', brown: 'black', purple: 'blue', violet: 'blue' };
@@ -194,12 +210,44 @@
     const at       = hole => { const e = endpoint(hole, rails.map); if (e && e.strip) used.add(e.strip); return e; };
     const claim    = ends => { for (const e of ends) if (e.at) claims.push(e); };
 
+    // An ic → its seat in `chips` (its 8 holes claimed), or not built, its
+    // photo holes claimed as any unbuilt part's (the RULES' order).
+    const chips = [];
+    function chipOf(p, id) {
+      const leads = list(p.leads), pins = Number(p.pins) || 8, name = String(p.label == null ? '' : p.label).trim();
+      const no    = (kind, why) => {
+        claim(leads.map((l, k) => ({ at: endpoint(l && l.hole, rails.map), owner: `${id}.${k}` })));
+        notBuilt(id, 'ic', kind, why);
+      };
+      if (pins !== 8) return no('type', `${id} has ${pins} pins; only 8-pin dual op-amps can be built from a photo yet. Add it by hand.`);
+      const is    = p.isOpAmp === true ? 'opamp' : p.isOpAmp === false ? 'no' : PhotoChips.identify(p.label);
+      if (is === 'no' || is === 'other') {
+        return no('type', `${id}${is === 'other' ? ` (${name})` : ''} isn't a dual op-amp with the TL072's pins, so it can't be built from a photo yet. Add it by hand.`);
+      }
+      if (is === 'unknown') return no('chip', `Is ${id} a dual op-amp like a TL072? Its label couldn't be read.`);
+      const pinOf   = l => (l && l.pin != null ? String(l.pin).trim() : '');
+      const named   = n => leads.find(l => pinOf(l) === n);
+      const N       = String(pins / 2);
+      const pair    = named('1') && named(N) ? [named('1'), named(N)]
+                    : leads.length === 2 && leads.every(l => l && !pinOf(l)) ? leads : null;
+      if (!pair) return no('position', `${id} isn't built: which of its leads are pin 1 and pin ${N} isn't known.`);
+      const seat    = PhotoChips.seat({ pin1: pair[0].hole, pinN: pair[1].hole, pins, notch: p.notch, cols });
+      if (seat.why) return no('position', `${id} isn't built: ${seat.why[0].toLowerCase()}${seat.why.slice(1)}`);
+      if (!seat.sure && p.pin1Confirmed !== true) {
+        return no('pin1', `${id}: which end is pin 1 isn't certain. Check the 1 dot (⇄ turns the chip), then confirm.`);
+      }
+      const legs = Parts.footprintLegs(CHIP, seat.hole, TURN[seat.direction]);
+      claim(legs.map((l, k) => ({ at: endpoint(l.hole, rails.map), owner: `${id}.${k}` })));
+      chips.push({ id, hole: seat.hole, direction: seat.direction, legs });
+    }
+
     // ── 1. Resolve every endpoint; drop what can't be built ──
     const parts = [];
     list(rd.parts).forEach((p, i) => {
       const id   = keyOf(p && p.id, `part${i + 1}`);
       const type = p && typeof p.type === 'string' ? p.type : 'other';
       if (p && isCopy(['part', type, p.value, holesOf(p.leads)])) return notBuilt(id, type, null, `${id} is a copy of an earlier part; it is built once.`);
+      if (type === 'ic') return chipOf(p, id);
       const def = BUILT[type] ? Parts.get(BUILT[type]) : null;
       if (!def) {
         claim(list(p && p.leads).map((l, k) => ({ at: endpoint(l && l.hole, rails.map), owner: `${id}.${k}` })));
@@ -402,7 +450,17 @@
       }
     }
 
-    // ── 4. Parts ──
+    // ── 4. Chips (each takes its 8 holes), then the other parts ──
+    for (const c of chips) {
+      const def = Parts.get(CHIP), hit = c.legs.find(l => taken.has(l.hole));
+      if (!Parts.checkPlacement(CHIP, c.legs, taken, BOARD).ok) {
+        notBuilt(c.id, 'ic', 'mismatch', `${c.id} would share ${hit ? `${hit.hole} with ${taken.get(hit.hole).label}` : 'its holes with another part'}, so it isn't built. Add it by hand.`);
+        continue;
+      }
+      actions.push({ tool: toolOf(def), hole: c.hole, direction: c.direction });
+      const lab = labels[c.id] = label(CHIP);
+      c.legs.forEach(l => taken.set(l.hole, { label: lab, pin: l.pin }));
+    }
     for (const x of parts) {
       const [lA, lB] = x.type === 'led' ? ledOrder(x, flag) : x.leads;   // → holeA, holeB
       const A = lA.at, B = lB.at, shorted = A.node === B.node;

@@ -238,3 +238,30 @@ test('photo-eval prints calls, 429s and cost', () => {
   // $1/M in, $5/M out: 5000/1e6 + 750/1e6 * 5 = 0.00875.
   assert.ok(Math.abs(t.costUsd - 0.00875) < 1e-9, `estimated cost: ${t.costUsd}`);
 });
+
+// ── 4. A7: which model answered, and an honest cost line ────────────────────
+// Names the builder must use (the tests can't see photo-eval's output otherwise):
+//   - table()'s header gains a 'model' column; row() puts 'er' there when
+//     net['/api/photo'].model is the Robotics-ER model, 'fallback' for any other model.
+//   - totals(results).fallbacks counts the surveys a non-ER model answered.
+//   - totals(results).costText is the cost wording main() prints: it starts
+//     "≥ $", then the amount, and says resent and aborted calls are billed but not counted.
+test('photo-eval shows which model answered the survey, counts fallback answers, and says the cost is a floor', () => {
+  const ER = 'gemini-robotics-er-2-preview', FB = 'gemini-3.1-flash-lite';
+  const result = (id, model) => ({
+    id, run: 1, ms: 4000, placedMs: 9000, outcome: 'ok',
+    net: { '/api/photo': { status: 200, provider: 'gemini', model, s: 3, usage: { calls: 1, http429: 0, promptTokens: 1000, outputTokens: 200, thoughtTokens: 0 } } },
+  });
+  const header = Eval.table([]).split('\n')[0].split(/\s{2,}/);
+  assert.ok(header.includes('model'), `the table header has no "model" column: ${JSON.stringify(header)}`);
+  const cell = r => String(Eval.row(r)[header.indexOf('model')]);
+  assert.equal(cell(result('p1', ER)), 'er');
+  assert.equal(cell(result('p2', FB)), 'fallback');
+  assert.equal(cell(result('p3', 'gemini-something-else')), 'fallback', 'anything but the ER model is a fallback answer');
+
+  const t = Eval.totals([result('p1', ER), result('p2', FB), result('p3', FB)]);
+  assert.equal(t.fallbacks, 2, `fallback answers: ${JSON.stringify(t)}`);
+  assert.equal(Eval.totals([result('p1', ER)]).fallbacks, 0);
+  assert.match(String(t.costText), /^≥ \$\d/, `cost text: ${t.costText}`);
+  assert.match(String(t.costText), /resent and aborted calls.*not counted/i, `cost text: ${t.costText}`);
+});

@@ -25,7 +25,9 @@
 //      flag pin1, or built → ⇄ turns it end for end (Ruling B3a): its seat
 //      (the built place_tl072, else PhotoChips' rule) → named leads 1 and
 //      N at the T_A row of the other's hole (e30 / e33 → f33 / f30), pts
-//      at their hole centres, pin1Confirmed
+//      at their hole centres, pin1Confirmed. On a board printed a on top
+//      (grid.aTop, photo fix B5) the seat is in Edison's frame and the
+//      leads are written back in the printed names (T_A again)
 //      its dots carry their pin (Ruling B3b): label 'U1.1', drawn by the dot
 //    value / colour dropdowns, battery volts (as typed: PhotoImport flags
 //    and falls back to 9 V outside 1–24 V)
@@ -34,9 +36,11 @@
 //    result.power; her pick is C.power (null: PhotoImport's auto). Hidden
 //    while the Reading has its own power entries (result.power 'reading'),
 //    and on a rehearsed sample that builds its own board (open's ownBoard).
-//    every edit re-runs PhotoImport.build(reading, { components: [], power })
-//    and redraws; a row is amber (.photo-flagged) with each flag's why,
-//    greyed (.photo-notbuilt) if skipped
+//    every edit re-runs PhotoImport.build(reading, { components: [], power, aTop })
+//    (aTop: grid.aTop, photo fix B5) and redraws; a row is amber
+//    (.photo-flagged) with each flag's why, greyed (.photo-notbuilt) if
+//    skipped; the whole board's flags (no battery seen, rails guessed, the
+//    rows flipped) head the list
 //    Build it → onBuild(that build) (photo.js hands it on), at any time,
 //    crops out or not
 //
@@ -104,6 +108,8 @@
   const unknown = () => C.reading.parts.some(p => isLed(p) && !picked(p));   // her + not chosen: Build waits
   const where   = e => grid.holeCentre(e.hole) || e.pt;
   const powerAt = id => /^power:(\d+)$/.exec(id);
+  const aTop    = () => !!(grid && grid.aTop);   // the board's letters printed a on top (B5)
+  const reframe = h => (aTop() ? Mirror.mirrorHoleName(h) : h);   // printed ↔ Edison's hole (T_A is its own inverse)
   const current = id => {   // the item in C.reading now, by id ('power:N' a battery)
     const m = powerAt(id);
     return m ? C.reading.power[+m[1]] : C.reading.parts.find(p => p.id === id) || C.reading.wires.find(w => w.id === id);
@@ -170,9 +176,10 @@
     draw();
   }
 
-  // The build, and the picker showing what it powers the rails with.
+  // The build (flipped through T_A when the grid is a on top), and the
+  // picker showing what it powers the rails with.
   function rebuild() {
-    C.result = PhotoImport.build(C.reading, { components: [], power: C.power });
+    C.result = PhotoImport.build(C.reading, { components: [], power: C.power, aTop: aTop() });
     buildB.disabled = unknown();
     powerB.hidden = ownBoard || C.result.power === 'reading';
     if (!powerB.hidden) powerB.value = C.result.power;
@@ -216,15 +223,17 @@
   // built (the k-th chip built is the k-th place_tl072), PhotoChips' rule
   // while the build asks which end is pin 1 (leads named 1 and N → seat,
   // two unnamed → seatFromColumns), else null: nothing to turn. With the
-  // holes of its pin 1 and pin N (N = pins / 2).
+  // holes of its pin 1 and pin N (N = pins / 2), in Edison's frame: on an
+  // a-on-top grid the Reading's printed holes go through T_A first, as the
+  // build does.
   function seatOf(p) {
     const n = names().parts, key = n[C.reading.parts.indexOf(p)], pins = Number(p.pins) || 8, N = String(pins / 2);
     const k = C.reading.parts.filter((q, j) => isChip(q) && C.result.labels[n[j]]).indexOf(p);
     let s = k >= 0 ? C.result.actions.filter(a => a.tool === 'place_' + CHIP)[k] : null;
     if (!s && C.result.flags.some(f => f.id === key && f.kind === 'pin1')) {
       const named = x => p.leads.find(l => pinOf(l) === x);
-      s = named('1') && named(N) ? PhotoChips.seat({ pin1: named('1').hole, pinN: named(N).hole, pins, notch: p.notch })
-                                 : PhotoChips.seatFromColumns({ ends: p.leads.map(l => l.hole), notch: p.notch });
+      s = named('1') && named(N) ? PhotoChips.seat({ pin1: reframe(named('1').hole), pinN: reframe(named(N).hole), pins, notch: p.notch })
+                                 : PhotoChips.seatFromColumns({ ends: p.leads.map(l => reframe(l.hole)), notch: p.notch });
     }
     const legs = s && !s.why ? Parts.footprintLegs(CHIP, s.hole, TURN[s.direction]) : null;
     return legs ? { N, pin1: legs[0].hole, pinN: legs[pins / 2 - 1].hole } : null;
@@ -400,7 +409,7 @@
   // focus, what she typed and an open picker.
   function renderList(keep) {
     const rows = [];
-    for (const f of C.result.flags.filter(x => x.id == null)) {   // the whole board: no battery seen, rails guessed
+    for (const f of C.result.flags.filter(x => x.id == null)) {   // the whole board: no battery seen, rails guessed, flipped
       const li = document.createElement('li');
       li.className = 'photo-flagged photo-board';
       li.textContent = f.why;
@@ -586,9 +595,11 @@
   // ⇄ on a chip (Ruling B3a): turned end for end, its leads become pin 1
   // and pin N, named, each at the T_A row of the other's hole (e30 / e33
   // → f33 / f30), at its hole's centre. pin1Confirmed: she has looked.
+  // The seat is Edison's; on an a-on-top grid the turned holes go back
+  // through T_A to the printed names the Reading keeps (B5).
   function turnChip(id) {
     const p = current(id), s = p && seatOf(p);
-    const to = s ? [Mirror.mirrorHoleName(s.pinN), Mirror.mirrorHoleName(s.pin1)] : [];
+    const to = s ? [Mirror.mirrorHoleName(s.pinN), Mirror.mirrorHoleName(s.pin1)].map(reframe) : [];
     if (!s || !to.every(h => grid.holeCentre(h))) return;
     p.leads = [['1', to[0]], [s.N, to[1]]].map(([pin, hole]) => ({ hole, pt: grid.holeCentre(hole), role: 'none', pin }));
     p.pin1Confirmed = true;
@@ -663,7 +674,7 @@
   powerB.addEventListener('change', () => { C.power = powerB.value; edited(); });
   buildB.addEventListener('click', () => {
     if (unknown()) return;
-    C.built = PhotoImport.build(C.reading, { components: [], power: C.power });
+    C.built = PhotoImport.build(C.reading, { components: [], power: C.power, aTop: aTop() });
     onBuild(C.built);
   });
 

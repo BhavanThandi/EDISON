@@ -1200,3 +1200,116 @@ test('B4 off-board: both ends off is today\'s behaviour (position, skipped), not
   assert.deepStrictEqual(out.flags.filter(x => x.id === 'W3').map(x => x.kind), ['position']);
   assert.ok(!out.flags.some(x => x.kind === 'offboard'));
 });
+
+// ── B5: a-on-top boards ──────────────────────────────────────────────────
+// build(reading, { aTop: true }) flips the Reading through T_A first (body
+// rows a↔j … e↔f; rail strips aOuter↔jOuter and aInner↔jInner keeping their
+// printed signs), builds, and adds a board flag `flipped`. Same circuit; the
+// built hole names are Edison's, not the printed ones.
+const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit; the hole names on screen won't match your board's letters.";
+const T_A  = { a: 'j', b: 'i', c: 'h', d: 'g', e: 'f', f: 'e', g: 'd', h: 'c', i: 'b', j: 'a' };
+const STRIP = { aOuter: 'jOuter', jOuter: 'aOuter', aInner: 'jInner', jInner: 'aInner' };
+const flipHole = h => {
+  let m = /^([a-j])(\d+)$/.exec(h);
+  if (m) return T_A[m[1]] + m[2];
+  m = /^rail:(\w+):(\d+)$/.exec(h);
+  return m ? `rail:${STRIP[m[1]]}:${m[2]}` : h;
+};
+// The Reading as T_A leaves it (the test's own copy of the rule; the nets are
+// checked by the real helpers on this image).
+function flippedImage(rd) {
+  const back = JSON.parse(JSON.stringify(rd));
+  const r = rd.board.rails;
+  back.board.rails = { aOuter: r.jOuter, aInner: r.jInner, jInner: r.aInner, jOuter: r.aOuter };
+  for (const p of back.parts) for (const l of p.leads) l.hole = flipHole(l.hole);
+  for (const w of back.wires) for (const e of w.ends) e.hole = flipHole(e.hole);
+  for (const s of back.power) { s.plus.hole = flipHole(s.plus.hole); s.minus.hole = flipHole(s.minus.hole); }
+  return back;
+}
+const buildTop = (rd, extra = {}) => PhotoImportMod.build(rd, Object.assign({ components: [], aTop: true }, extra));
+const flipFlags = out => out.flags.filter(f => f.kind === 'flipped');
+
+// Printed a-on-top: a TL072 notch left with pin 1 at f30, pin 4 at f33 (named
+// leads), a resistor and wires on the printed a-side and the printed rails.
+const topBoard = (chip = ic('U1', [['1', 'f30'], ['4', 'f33']], { pins: 8, notch: 'left', label: 'TL072CP' })) => reading({
+  parts: [chip, resistor('R1', 'a10', 'a14')],
+  wires: [
+    wire('W1', 'red',   'rail:aOuter:5', 'g30'),   // printed + rail → pin 1's column-half
+    wire('W2', 'black', 'rail:aInner:6', 'a33'),   // printed − rail → pin 4's column-half
+    wire('W3', 'blue',  'b10', 'j20'),
+  ],
+  power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+});
+
+test('B5 an a-on-top notch-left chip at printed f30 / f33 builds e30 right and a flipped board flag with the exact text', () => {
+  const out = buildTop(topBoard());
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  assert.deepStrictEqual(flipFlags(out), [{ kind: 'flipped', id: null, why: FLIPPED_WHY }]);
+  assert.deepStrictEqual(out.skipped, []);
+  assert.ok(!out.flags.some(f => f.kind === 'pin1' || f.kind === 'position'), kinds(out).join());
+  assert.strictEqual(out.labels.U1, 'U1');
+});
+
+test('B5 an a-on-top board has the T_A image of the Reading\'s nets: every part and wire at its mirrored hole, zero refusals', () => {
+  const rd = topBoard();
+  const out = buildTop(rd);
+  const board = checkInvariants(out);
+  assertSameNets(flippedImage(rd), out, board);
+  // The resistor's printed a10 / a14 sit at Edison's j10 / j14.
+  const r = out.actions.find(a => a.tool === 'place_resistor');
+  assert.deepStrictEqual([r.holeA, r.holeB], ['j10', 'j14']);
+  // Wires: printed b10 / j20 are Edison's i10 / a20.
+  const w3 = wiresOf(out).find(w => w.color === 'blue');
+  assert.deepStrictEqual([w3.from, w3.to], ['i10', 'a20']);
+  // W1 / W2 end in the chip's column-halves (printed g30 → d30, a33 → j33).
+  const ends = wiresOf(out).filter(w => ['red', 'black'].includes(w.color) && !/^BAT/.test(w.from)).map(w => [w.from, w.to]);
+  assert.deepStrictEqual(ends.flat().filter(h => /^[a-j]\d+$/.test(h)).sort(), ['d30', 'j33']);
+});
+
+test('B5 on an a-on-top board the printed a-side + rail lands on bp and the printed a-side − rail on bn', () => {
+  const rd = topBoard();
+  const out = buildTop(rd);
+  const to = id => out.labels[id] && wiresOf(out)[+out.labels[id].slice(1) - 1];
+  assert.match(to('W1').from, /^bp_\d+$/, 'aOuter + → bp');
+  assert.match(to('W2').from, /^bn_\d+$/, 'aInner − → bn');
+  const bat = wiresOf(out).filter(w => /^BAT1\./.test(w.from));
+  assert.deepStrictEqual(bat.map(w => [w.from, w.to.replace(/\d+$/, '')]), [['BAT1.0', 'bp_'], ['BAT1.1', 'bn_']]);
+  assert.ok(!out.flags.some(f => f.kind === 'rails'), 'both signs were read: no rails flag');
+});
+
+test('B5 a placeholder (unnamed) chip on an a-on-top board seats from its columns the same way after the flip', () => {
+  for (const [notch, seat] of [['left', { hole: 'e30', direction: 'right' }], ['right', { hole: 'f33', direction: 'left' }]]) {
+    const chip = ic('U1', [[undefined, 'f30'], [undefined, 'f33']], { pins: 8, notch, label: 'TL072', pin1Confirmed: true });
+    const out = buildTop(topBoard(chip));
+    assert.deepStrictEqual(chipsOf(out), [Object.assign({ tool: 'place_tl072' }, seat)], `notch ${notch}`);
+    assert.strictEqual(flipFlags(out).length, 1);
+    const plain = PhotoImportMod.build(topBoard(chip), { components: [] });
+    assert.deepStrictEqual(chipsOf(plain), chipsOf(out), 'the same seat as without the flip');
+  }
+});
+
+test('B5 an unsure a-on-top chip is still asked (flip does not make a seat sure); and an a-on-top board without a chip still carries the flag', () => {
+  const unsure = ic('U1', [['1', 'f30'], ['4', 'f33']], { pins: 8, notch: 'unsure', label: 'TL072' });
+  const out = buildTop(topBoard(unsure));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.ok(hasFlag(out, 'pin1', 'U1'));
+  assert.strictEqual(flipFlags(buildTop(stage())).length, 1);
+});
+
+test('B5 aTop false and absent are today\'s result exactly: no flipped flag, the same actions and flags as without the option', () => {
+  for (const rd of [stage(), topBoard()]) {
+    const base = PhotoImportMod.build(rd, { components: [] });
+    assert.deepStrictEqual(PhotoImportMod.build(rd, { components: [], aTop: false }), base);
+    assert.deepStrictEqual(PhotoImportMod.build(rd), PhotoImportMod.build(rd, {}));
+    assert.strictEqual(flipFlags(base).length, 0);
+  }
+  // The stage board flipped is not the stage board: rows change.
+  assert.notDeepStrictEqual(buildTop(stage()).actions, build(stage()).actions);
+});
+
+test('B5 the flip never mutates the Reading it is given', () => {
+  const rd = topBoard();
+  const copy = JSON.parse(JSON.stringify(rd));
+  buildTop(rd);
+  assert.deepStrictEqual(rd, copy);
+});

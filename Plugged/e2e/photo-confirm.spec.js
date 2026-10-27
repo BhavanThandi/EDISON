@@ -1190,3 +1190,72 @@ test('B4: power picker, the rehearsed ensc-lab sample (it has its own board) hid
   await expect(page.locator('#photo-power'), 'Build it builds the sample\'s board, so a power choice would mislead').toBeHidden();
   expect(errors).toEqual([]);
 });
+
+// ── B5: boards printed the other way (a on top) ──────────────────────────
+// PhotoGrid.homography returns aTop: true when a1 is the photo's top-left and
+// j1 its bottom-left (like eval photo e07). The confirm screen then builds
+// with { aTop: grid.aTop }: PhotoImport flips the Reading through T_A, adds the
+// board flag `flipped`, and ⇄ maps the built seat back through T_A so the
+// Reading's named leads stay in the PRINTED names (f30/f33 notch left turns to
+// e33/e30, the T_A image of Edison's f33/f30).
+
+const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit; the hole names on screen won't match your board's letters.";
+
+// The demo sample's four corners, re-tapped as a1 top-left … j1 bottom-left.
+async function useATopTaps(page) {
+  await page.evaluate(() => {
+    window.PhotoSamples['demo-board'].taps = { a1: [264.2, 189.8], a63: [949, 189], j63: [949, 513.3], j1: [264.2, 513.3] };
+  });
+}
+
+function aTopChipReading() {
+  const r = stageReading();
+  r.parts.push({ id: 'U1', type: 'ic', what: 'TL072 dual op-amp', value: 0, bands: [], color: '',
+    label: 'TL072', pins: 8, notch: 'left',
+    leads: [{ hole: 'f30', pt: [0, 0], role: 'none', pin: '1' }, { hole: 'f33', pt: [0, 0], role: 'none', pin: '4' }],
+    box: [0, 0, 0, 0], confidence: 0.8, unsure: [] });
+  return r;
+}
+
+test('B5: an a-on-top photo shows the board-level flipped warning and builds the notch-left chip at e30 right; ⇄ writes printed e33 / e30 and builds f33 left; ⇄ again returns to e30 right', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await useATopTaps(page);
+  await openConfirm(page, aTopChipReading());
+
+  expect(await page.evaluate(() => window.PhotoCapture.grid.aTop), 'the taps make an a-on-top grid').toBe(true);
+  const board = page.locator('#photo-parts li.photo-board');
+  await expect(board.filter({ hasText: FLIPPED_WHY }), 'the board-level flipped warning').toHaveCount(1);
+  expect(await page.evaluate(() => window.PhotoConfirm.result.flags.filter(f => f.kind === 'flipped')))
+    .toEqual([{ kind: 'flipped', id: null, why: FLIPPED_WHY }]);
+
+  expect(await tl072(page), 'printed f30 / f33 notch left is e30 right on Edison\'s board').toEqual([{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  expect(leadHoles(await u1(page)), 'the Reading keeps the printed names').toEqual({ 1: 'f30', 4: 'f33' });
+  const fixed = await page.evaluate(() => JSON.stringify(window.PhotoImport.build(window.PhotoConfirm.reading, { components: [], aTop: true })));
+  expect(await page.evaluate(() => JSON.stringify(window.PhotoConfirm.result)), 'the screen builds with aTop').toBe(fixed);
+
+  const swap = rowOf(page, 'U1').locator('.photo-swap');
+  await swap.click();
+  let u = await u1(page);
+  expect(leadHoles(u), 'printed: the T_A image of Edison\'s f33 / f30').toEqual({ 1: 'e33', 4: 'e30' });
+  const c = await centre(page, 'e33');
+  expect(u.leads.find(l => l.pin === '1').pt, 'pts from the grid').toEqual(c.map(v => expect.closeTo(v, 3)));
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'f33', direction: 'left' }]);
+  expect(u.pin1Confirmed).toBe(true);
+
+  await swap.click();
+  u = await u1(page);
+  expect(leadHoles(u)).toEqual({ 1: 'f30', 4: 'f33' });
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  await expect(board.filter({ hasText: FLIPPED_WHY }), 'the warning stays').toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test('B5: a j-on-top photo has no flipped warning (the sample\'s own grid)', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ notch: 'left' }));
+  expect(await page.evaluate(() => window.PhotoCapture.grid.aTop)).toBe(false);
+  expect(await page.evaluate(() => window.PhotoConfirm.result.flags.filter(f => f.kind === 'flipped'))).toEqual([]);
+  expect(errors).toEqual([]);
+});

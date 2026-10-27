@@ -4,11 +4,17 @@
 //
 //  CONTRACT (docs/API-CONTRACT.md → "Reading v1", "PhotoImport")
 //  ────────
-//    build(reading, { components, power }) → { actions, labels, flags, skipped, power }
+//    build(reading, { components, power, aTop }) → { actions, labels, flags, skipped, power }
 //  Never throws: what it can't build lands in flags and skipped.
 //
 //  RULES
 //  ─────
+//  - aTop (photo fix B5; PhotoGrid's grid.aTop: the board's letters printed
+//    a on top): first, a copy of the Reading through T_A (body holes by
+//    BoardMirror.mirrorHoleName, a↔j … e↔f; the strips aOuter↔jOuter and
+//    aInner↔jInner, each keeping its printed sign; an ic's pin1), flagged
+//    flipped (id null); '?', gap, off and pts as they are. Everything below
+//    builds that copy; the Reading given is never changed.
 //  - A lead's node is its column + half (a–e / f–j) or a rail. Every lead
 //    keeps its node; rows inside a half and a rail's column are free.
 //  - Rails by side and printed sign: a-side + → tp, − → tn; j-side + → bp,
@@ -74,6 +80,7 @@
   const Ids        = inNode ? require('./ids.js') : window.App;
   const GEOMETRY   = inNode ? require('./board-geometry.js') : window.App.BOARD_GEOMETRY;
   const PhotoChips = inNode ? require('./photo-chips.js') : window.PhotoChips;
+  const Mirror     = inNode ? require('./board-mirror.js') : window.App.BoardMirror;
 
   const COLS  = GEOMETRY.COLS;
   const TOP   = GEOMETRY.BODY_ROWS.slice(0, 5);
@@ -102,6 +109,10 @@
   const SUPPLY     = [['tp', 0, 'red'], ['tn', 1, 'black'], ['bn', 2, 'blue']];
   const SUPPLY_WHY = 'The board is powered by a ±12 V bench supply (+12 V on tp, ground on tn, −12 V on bn), as in the ENSC 220 lab. Change it above.';
   const BP_WHY     = "The j-side + rail (bp) isn't connected: the ±12 V supply powers tp, tn and bn.";
+
+  // aTop (photo fix B5): T_A's strip map, and the board flag's why.
+  const FLIP_STRIP  = { aOuter: 'jOuter', jOuter: 'aOuter', aInner: 'jInner', jInner: 'aInner' };
+  const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit; the hole names on screen won't match your board's letters.";
 
   const list   = v => (Array.isArray(v) ? v : []);
   const sign   = s => (s === '+' ? '+' : s === '-' || s === '−' ? '-' : '?');
@@ -140,6 +151,44 @@
     if (!strip) return null;
     const rail = railMap[strip], col = Math.min(Math.max(+m[2], 1), COLS);
     return { kind: 'rail', strip, rail, col, node: 'rail:' + rail, hole: rail + '_' + col };
+  }
+
+  // A Reading endpoint through T_A: "f30" → "e30", "rail:aOuter:5" →
+  // "rail:jOuter:5"; '?', 'gap', 'off' or anything else as it is.
+  function flipHole(hole) {
+    const s = typeof hole === 'string' ? hole.trim() : '';
+    if (/^[a-j]\d+$/i.test(s)) return Mirror.mirrorHoleName(s.toLowerCase());
+    const m = /^rail:(\w+):(\d+)$/i.exec(s);
+    const strip = m && Object.keys(FLIP_STRIP).find(n => n.toLowerCase() === m[1].toLowerCase());
+    return strip ? `rail:${FLIP_STRIP[strip]}:${m[2]}` : hole;
+  }
+
+  // The Reading in Edison's frame (aTop): every endpoint flipped, each strip's
+  // printed sign moved with it, an ic's pin1. A copy, field by field: the
+  // Reading given is never changed, and whatever isn't an object stays as it is.
+  function flipped(rd) {
+    const obj  = v => v && typeof v === 'object';
+    const end  = e => (obj(e) ? Object.assign({}, e, { hole: flipHole(e.hole) }) : e);
+    const ends = v => (Array.isArray(v) ? v.map(end) : v);
+    const out  = Object.assign({}, rd);
+    if (obj(rd.board)) {
+      out.board = Object.assign({}, rd.board);
+      if (obj(rd.board.rails)) {
+        out.board.rails = {};
+        for (const [k, v] of Object.entries(rd.board.rails)) out.board.rails[FLIP_STRIP[k] || k] = v;
+      }
+    }
+    if (Array.isArray(rd.parts)) {
+      out.parts = rd.parts.map(p => {
+        if (!obj(p)) return p;
+        const q = Object.assign({}, p, { leads: ends(p.leads) });
+        if (p.type === 'ic' && p.pin1 != null) q.pin1 = flipHole(p.pin1);
+        return q;
+      });
+    }
+    if (Array.isArray(rd.wires)) out.wires = rd.wires.map(w => (obj(w) ? Object.assign({}, w, { ends: ends(w.ends) }) : w));
+    if (Array.isArray(rd.power)) out.power = rd.power.map(s => (obj(s) ? Object.assign({}, s, { plus: end(s.plus), minus: end(s.minus) }) : s));
+    return out;
   }
 
   // "a12" / "tp_12" → { col (0-based), row }.
@@ -206,7 +255,9 @@
   // ── build ──────────────────────────────────────────────────
 
   function build(reading, options) {
-    const rd      = reading && typeof reading === 'object' ? reading : {};
+    const aTop    = !!options && options.aTop === true;
+    const given   = reading && typeof reading === 'object' ? reading : {};
+    const rd      = aTop ? flipped(given) : given;
     const board   = rd.board && typeof rd.board === 'object' ? rd.board : {};
     const rails   = railsBySign(board.rails && typeof board.rails === 'object' ? board.rails : {});
     const cols    = Number.isInteger(board.cols) && board.cols >= 1 && board.cols <= COLS ? board.cols : COLS;
@@ -232,6 +283,7 @@
     const claims   = [];          // every photo hole, in Reading order: { at, owner }
     const at       = hole => { const e = endpoint(hole, rails.map); if (e && e.strip) used.add(e.strip); return e; };
     const claim    = ends => { for (const e of ends) if (e.at) claims.push(e); };
+    if (aTop) flag('flipped', null, FLIPPED_WHY);
 
     // An ic → its seat in `chips` (its 8 holes claimed), or not built, its
     // photo holes claimed as any unbuilt part's (the RULES' order).

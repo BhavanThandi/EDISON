@@ -7,7 +7,7 @@
 
   const FB = 'https://www.gstatic.com/firebasejs/10.12.0/';
   const LOAD_MS = 8000;
-  let ready = null;   // Promise<firebase.auth.Auth | null>
+  let loading = null;   // the one Firebase load: Promise<firebase.auth.Auth | null>; cleared if it fails
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -19,21 +19,22 @@
     });
   }
 
+  // Each call waits at most LOAD_MS; a slow load keeps going and the next call picks it up.
   function init() {
-    if (ready) return ready;
-    const load = (async () => {
-      await loadScript(FB + 'firebase-app-compat.js');
-      await loadScript(FB + 'firebase-auth-compat.js');
-      await loadScript('../firebase-config.js');
-      if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-      const auth = firebase.auth();
-      await new Promise(resolve => { const off = auth.onAuthStateChanged(() => { off(); resolve(); }); });
-      auth.onAuthStateChanged(paint);
-      paint(auth.currentUser);
-      return auth;
-    })().catch(() => null);
-    const timeout = new Promise(r => setTimeout(() => r(null), LOAD_MS));
-    return (ready = Promise.race([load, timeout]));
+    if (!loading) {
+      loading = (async () => {
+        await loadScript(FB + 'firebase-app-compat.js');
+        await loadScript(FB + 'firebase-auth-compat.js');
+        await loadScript('../firebase-config.js');
+        if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+        const auth = firebase.auth();
+        await new Promise(resolve => { const off = auth.onAuthStateChanged(() => { off(); resolve(); }); });
+        auth.onAuthStateChanged(paint);
+        paint(auth.currentUser);
+        return auth;
+      })().catch(() => { loading = null; return null; });
+    }
+    return Promise.race([loading, new Promise(r => setTimeout(() => r(null), LOAD_MS))]);
   }
 
   function paint(user) {

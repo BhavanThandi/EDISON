@@ -222,3 +222,65 @@ test('Firebase CDN blocked and EdisonAuth not stubbed: the editor loads with no 
   expect(auth, 'no token, no header').toBeUndefined();
   expect(errors).toEqual([]);
 });
+
+// ── Fix round 1 ────────────────────────────────────────────────────────────
+
+const FB_HOST = /gstatic\.com\/firebasejs/;
+
+test('fix 1: real auth-ui.js, Firebase CDN blocked: #auth-chip (initial + Sign out) is hidden for a signed-out visitor', async ({ page }) => {
+  await page.route(FB_HOST, route => route.abort());
+  await openEditor(page);
+  await expect(page.locator('#auth-chip')).toBeHidden();
+  await expect(page.locator('#auth-signout')).toBeHidden();
+});
+
+test('fix 2: Firebase loads slower than the 8 s timeout, then completes: a later signIn() works (no permanent "unavailable")', async ({ page }) => {
+  test.setTimeout(40_000);
+  // A fake firebase served from the CDN route (no real Firebase, no popup):
+  // the app script is held 9 s (past auth-ui.js's 8 s load timeout), then served.
+  const APP = `window.firebase = { apps: [], initializeApp() { this.apps.push({}); },
+    auth: Object.assign(() => ({ currentUser: null,
+        onAuthStateChanged(cb) { setTimeout(() => cb(null), 0); return () => {}; },
+        signInWithPopup: async () => { window.__popups = (window.__popups || 0) + 1; } }),
+      { GoogleAuthProvider: function () {} }) };`;
+  await page.route(FB_HOST, async route => {
+    if (/firebase-app-compat/.test(route.request().url())) {
+      await new Promise(r => setTimeout(r, 9000));
+      return route.fulfill({ contentType: 'application/javascript', body: APP }).catch(() => {});
+    }
+    return route.fulfill({ contentType: 'application/javascript', body: '' }).catch(() => {});
+  });
+  await openEditor(page);
+  expect(await page.evaluate(() => window.EdisonAuth.token()), 'while loading: token is null at the timeout').toBeNull();
+  await page.waitForTimeout(2500);                 // Firebase is now ready (t > 9 s)
+  const result = await page.evaluate(() => window.EdisonAuth.signIn().then(() => 'ok', e => 'error: ' + e.message));
+  expect(result, 'signIn works once Firebase has loaded').toBe('ok');
+  expect(await page.evaluate(() => window.__popups)).toBe(1);
+});
+
+test('fix 3: a token() that never resolves delays a typed question by under 2.5 s; the request goes out without Authorization', async ({ page }) => {
+  await page.addInitScript(() => {
+    const fake = { token: () => new Promise(() => {}), signIn: () => Promise.resolve(), user: () => null };
+    Object.defineProperty(window, 'EdisonAuth', { get: () => fake, set: () => {}, configurable: false });
+  });
+  let sentAt = 0, auth = 'unset';
+  await page.route('**/api/ask', route => { sentAt = Date.now(); auth = authOf(route.request()); return route.fulfill({ json: { reply: 'Hello.', actions: [] } }); });
+  await openEditor(page);
+  const t0 = Date.now();
+  await ask(page, 'Explain how a diode works in detail');
+  await expect.poll(() => sentAt, { timeout: 5000 }).toBeGreaterThan(0);
+  expect(sentAt - t0, 'ms from Enter to the request').toBeLessThan(2500);
+  expect(auth).toBeUndefined();
+});
+
+test('fix 4: after 401 → sign-in → automatic re-send, the chat shows the question once', async ({ page }) => {
+  await stubAuth(page, false);
+  let n = 0;
+  await page.route('**/api/ask', route => (++n === 1 ? route.fulfill(SIGN_IN_401) : route.fulfill({ json: LED_BUILD })));
+  await openEditor(page);
+  const q = 'Explain how a diode works in detail';
+  await ask(page, q);
+  await page.locator('.chat-signin').click();
+  await expect(page.locator('#sparky-pending-bar')).toBeVisible();
+  await expect(page.locator('.chat-msg.user', { hasText: q })).toHaveCount(1);
+});

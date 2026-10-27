@@ -423,8 +423,13 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
   }
 
   // The Firebase ID token when signed in (auth-ui.js), else null: the editor works signed out.
+  // Waits at most TOKEN_WAIT_MS: a slow token never delays a question.
+  const TOKEN_WAIT_MS = 2000;
   async function authToken() {
-    try { return window.EdisonAuth ? await window.EdisonAuth.token() : null; } catch { return null; }
+    try {
+      if (!window.EdisonAuth) return null;
+      return await Promise.race([window.EdisonAuth.token(), new Promise(r => setTimeout(() => r(null), TOKEN_WAIT_MS))]);
+    } catch { return null; }
   }
 
   // explain (issue #169): an answer only, so the server offers the AI no tools.
@@ -432,11 +437,11 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
     const canned = cannedAnswer(userMsg);
     if (canned) { await new Promise(r => setTimeout(r, CANNED_MS)); return canned; }
     // A stalled AI ends in a clear message, not a minutes-long spinner (#129).
+    const token = await authToken();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Chat.ASK_TIMEOUT_MS);
     let res, data = null;
     try {
-      const token = await authToken();
       res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
@@ -701,7 +706,7 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
   // { context }: a line added to the message sent (and kept in the history),
   // never shown in her bubble (the photo build's, issue #143).
   // { explain }: this one ask wants an answer, not an edit (issue #169).
-  async function sparkyAsk(overrideMsg, { context, explain, retried } = {}) {
+  async function sparkyAsk(overrideMsg, { context, explain, retried, resend } = {}) {
     const input = document.getElementById('sparky-input');
     const msg   = (overrideMsg !== undefined) ? overrideMsg : input.value.trim();
     if (!msg) return;
@@ -710,9 +715,11 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
     // If there's an open preview, dismiss it before sending a new message.
     dropPreview();
 
-    sparkyAddMsg(msg, 'user');
-    input.value = '';
-    input.style.height = 'auto';
+    if (!resend) {   // the automatic re-send after sign-in: the question is already shown
+      sparkyAddMsg(msg, 'user');
+      input.value = '';
+      input.style.height = 'auto';
+    }
 
     const typingEl = sparkyTyping();
 
@@ -742,7 +749,7 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
           btn.disabled = true;
           try { await window.EdisonAuth.signIn(); } catch (e) { btn.disabled = false; sparkyAddMsg('⚠️ ' + (e && e.message || 'Sign-in did not finish.'), 'system'); return; }
           btn.remove();
-          sparkyAsk(msg, { context, explain, retried: true });
+          sparkyAsk(msg, { context, explain, retried: true, resend: true });
         });
       }
     }

@@ -124,7 +124,7 @@
   // The Firebase ID token when signed in (auth-ui.js), else null.
   async function authHeader() {
     try {
-      const t = window.EdisonAuth && await window.EdisonAuth.token();
+      const t = window.EdisonAuth && await Promise.race([window.EdisonAuth.token(), new Promise(r => setTimeout(() => r(null), 2000))]);
       return t ? { Authorization: 'Bearer ' + t } : {};
     } catch { return {}; }
   }

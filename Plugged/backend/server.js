@@ -15,7 +15,8 @@
  * GET  anything else       the app's static files
  *
  * REQUIRE_AUTH=1 (deploy): /api/ask, /api/photo and /api/photo/leads need a Firebase
- * ID token (auth.js), and /api/ask and /api/photo keep daily limits (quota.js).
+ * ID token (auth.js), and /api/ask and /api/photo keep daily limits (quota.js);
+ * a recorded sample photo needs neither.
  */
 
 const http = require('http');
@@ -1781,14 +1782,16 @@ function readBody(req, res, max, tooLarge) {
 // off, and nothing below runs). /api/ask and /api/photo then need a
 // Firebase ID token (`Authorization: Bearer …`) and take one from the user's
 // day and one from the day's global pool, in that order; /api/photo/leads
-// needs the token only (it belongs to its photo). The texts are the
-// contract's, word for word (docs/API-CONTRACT.md).
+// needs the token only (it belongs to its photo), and a recorded sample
+// photo needs neither (D3c). The texts are the contract's
+// (docs/API-CONTRACT.md), with the configured numbers.
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const LIMIT_REPLY = {
-  SIGN_IN:      'Sign in with Google to ask your own questions (5 a day).',
-  ASK_USER:     "You've used today's 5 questions. The demos still work — come back tomorrow.",
-  ASK_GLOBAL:   "Edison's free AI questions are used up for today. The demos still work — come back tomorrow.",
-  PHOTO_USER:   "You've used today's photo read. Try a sample photo — they always work.",
-  PHOTO_GLOBAL: "Today's free photo reads are used up. Try a sample photo — they always work.",
+  SIGN_IN:      n => `Sign in with Google to ask your own questions (${n} a day).`,
+  ASK_USER:     n => `You've used today's ${plural(n, 'question')}. The demos still work — come back tomorrow.`,
+  ASK_GLOBAL:   () => "Edison's free AI questions are used up for today. The demos still work — come back tomorrow.",
+  PHOTO_USER:   n => `You've used today's ${n === 1 ? 'photo read' : plural(n, 'photo read')}. Try a sample photo — they always work.`,
+  PHOTO_GLOBAL: () => "Today's free photo reads are used up. Try a sample photo — they always work.",
 };
 const DAY_LIMITS = {
   ask:   { user: ['ASK_PER_USER_DAY', 5],   global: ['ASK_GLOBAL_DAY', 100],  userReply: LIMIT_REPLY.ASK_USER,   globalReply: LIMIT_REPLY.ASK_GLOBAL },
@@ -1809,7 +1812,7 @@ async function signedInUser(req, res, extra) {
     return uid;
   } catch (e) {
     console.warn(`[auth] ${req.url} refused: ${e.code || 'ERROR'}`);
-    sendJSON(res, 401, limitBody('SIGN_IN', LIMIT_REPLY.SIGN_IN, extra));
+    sendJSON(res, 401, limitBody('SIGN_IN', LIMIT_REPLY.SIGN_IN(dayLimit(DAY_LIMITS.ask.user)), extra));
     return null;
   }
 }
@@ -1819,12 +1822,13 @@ async function signedInUser(req, res, extra) {
 // refusal; null when the request may go on.
 async function overDayLimit(res, uid, route, extra) {
   const L = DAY_LIMITS[route];
-  if (!(await Quota.take(`u:${uid}:${route}`, dayLimit(L.user))).ok) {
-    sendJSON(res, 429, limitBody('DAILY_LIMIT', L.userReply, extra));
+  const mine = dayLimit(L.user);
+  if (!(await Quota.take(`u:${uid}:${route}`, mine)).ok) {
+    sendJSON(res, 429, limitBody('DAILY_LIMIT', L.userReply(mine), extra));
     return 'DAILY_LIMIT';
   }
   if (!(await Quota.take(`g:${route}`, dayLimit(L.global))).ok) {
-    sendJSON(res, 429, limitBody('DAILY_LIMIT_GLOBAL', L.globalReply, extra));
+    sendJSON(res, 429, limitBody('DAILY_LIMIT_GLOBAL', L.globalReply(), extra));
     return 'DAILY_LIMIT_GLOBAL';
   }
   return null;
@@ -1869,8 +1873,6 @@ async function handlePhoto(req, res) {
     logPhoto({ error: 'RATE', started, bytes: 0 });
     return sendJSON(res, 429, { reply: PHOTO_REPLY.RATE });
   }
-  const uid = authRequired() ? await signedInUser(req, res) : '';
-  if (uid === null) return logPhoto({ error: 'SIGN_IN', started, bytes: 0 });
   const body = await readBody(req, res, MAX_PHOTO_BYTES, { reply: PHOTO_REPLY.TOO_LARGE, code: 'TOO_LARGE' });
   if (body === null) return logPhoto({ error: 'TOO_LARGE', started, bytes: MAX_PHOTO_BYTES });
   const bytes = Buffer.byteLength(body);
@@ -1880,13 +1882,22 @@ async function handlePhoto(req, res) {
   const fail = (code, out, retries, usage) => { logPhoto({ sample, out, error: code, started, bytes, retries, usage }); return photoError(res, code); };
   if (!isPhotoDataUrl(image)) return fail('BAD_IMAGE');
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
-  // A valid photo takes the allowance; a refused one never reaches a reader.
-  const over = uid ? await overDayLimit(res, uid, 'photo') : null;
-  if (over) return logPhoto({ sample, error: over, started, bytes });
+  const photoIn = { image, grid, sample, window: frame };
 
-  let out;
+  // REQUIRE_AUTH=1 (D3c): a sample id with a recording is replayed with no
+  // token and no allowance, by the fixture reader alone, so it can never
+  // reach a live AI (the image is ignored). Anything else (no sample, or one
+  // with no recording) signs in and takes the allowance before any reader.
+  const gated = authRequired();
+  let out = gated && isSafeId(sample) ? await readPhoto(photoIn, { providers: ['fixture'] }).catch(() => null) : null;
+  if (!out && gated) {
+    const uid = await signedInUser(req, res);
+    if (uid === null) return logPhoto({ sample, error: 'SIGN_IN', started, bytes });
+    const over = await overDayLimit(res, uid, 'photo');
+    if (over) return logPhoto({ sample, error: over, started, bytes });
+  }
   try {
-    out = await readPhoto({ image, grid, sample, window: frame });
+    if (!out) out = await readPhoto(photoIn);
   } catch (e) {
     return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries, e.usage);
   }

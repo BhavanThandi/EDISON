@@ -39,6 +39,9 @@ process.env.TRUST_PROXY = '1';
 process.env.FIREBASE_PROJECT_ID = PROJECT;
 const Server = require('../backend/server.js');
 
+const fs = require('node:fs');
+const path = require('node:path');
+const DEMO_READING = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/photo/demo-board.json'), 'utf8')).reading;
 const keys = makeKeys();
 const CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 const SIGN_IN = 'Sign in with Google to ask your own questions (5 a day).';
@@ -53,7 +56,8 @@ const ENV = ['REQUIRE_AUTH', 'ASK_PER_USER_DAY', 'PHOTO_PER_USER_DAY', 'ASK_GLOB
 beforeEach(() => {
   deepseekCalls = 0;
   for (const k of ENV) delete process.env[k];
-  process.env.PHOTO_PROVIDERS = 'fixture';
+  process.env.PHOTO_PROVIDERS = 'fakeai';
+  require('../backend/photo-reader.js').PROVIDERS.fakeai = { name: 'fakeai', read: async () => ({ reading: DEMO_READING, model: 'fake-model' }) };
   for (const m of ['log', 'info', 'warn', 'error']) vi.spyOn(console, m).mockImplementation(() => {});
   const Q = (() => { try { return require('../backend/quota.js'); } catch { return null; } })();
   if (Q && Q.resetMemory) Q.resetMemory();
@@ -69,7 +73,7 @@ beforeEach(() => {
     throw new Error(`unexpected network call to ${url}`);
   });
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { delete require('../backend/photo-reader.js').PROVIDERS.fakeai; vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 // A token for `uid`, valid against the real clock (the server uses Date.now()).
 const tokenFor = uid => sign(keys.privateKey, { now: Math.floor(Date.now() / 1000), payload: { sub: uid } });
@@ -95,7 +99,11 @@ const ask = (opts, message = 'hi') => post('/api/ask', { markdown: '', message, 
 
 const GRID = { cols: 63, pitch: 30, x0: 90, y0: 190, width: 2040, height: 710 };
 const IMG = `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(2048, 'a')]).toString('base64')}`;
-const photo = opts => post('/api/photo', { image: IMG, grid: GRID, sample: 'demo-board' }, opts);
+// A real photo: no sample id, read by a registered fake provider. A body with a
+// `sample` id is a recorded replay (no AI call): it needs no token and takes no
+// allowance even with REQUIRE_AUTH=1 (D3c).
+const photo = opts => post('/api/photo', { image: IMG, grid: GRID }, opts);
+const photoSample = opts => post('/api/photo', { image: IMG, grid: GRID, sample: 'demo-board' }, opts);
 const WINDOW = { x: 0, y: 0, scale: 1, padLeft: 0, padTop: 0, width: 100, height: 100 };
 const leads = opts => post('/api/photo/leads', { key: 'resistors', items: [{ id: 'R1', image: IMG, window: WINDOW }] }, opts);
 
@@ -142,6 +150,26 @@ describe('REQUIRE_AUTH=1', () => {
     assert.equal(res.json.message, ASK_LIMIT);
     assert.equal(deepseekCalls, 5, 'the refused ask never reached the model');
     assert.equal((await ask({ token: tokenFor('u-other') })).status, 200);
+  });
+
+  test('the limit message uses the env number: ASK_PER_USER_DAY=3 says 3 (the default text says 5)', async () => {
+    process.env.ASK_PER_USER_DAY = '3';
+    const token = tokenFor('u-three');
+    for (let i = 1; i <= 3; i++) assert.equal((await ask({ token })).status, 200, `ask ${i}`);
+    const res = await ask({ token });
+    assert.equal(res.status, 429, res.raw.slice(0, 200));
+    assert.equal(res.json.code, 'DAILY_LIMIT');
+    assert.equal(res.json.message, "You've used today's 3 questions. The demos still work — come back tomorrow.");
+  });
+
+  test('a recorded sample replay needs no token and takes no photo allowance', async () => {
+    const out = await photoSample({});
+    assert.equal(out.status, 200, out.raw.slice(0, 200));
+    const token = tokenFor('sample-user');
+    assert.equal((await photoSample({ token })).status, 200);
+    assert.equal((await photoSample({ token })).status, 200, 'sample replays are not counted');
+    assert.equal((await photo({ token })).status, 200, 'the signed-in user still has the one real read');
+    assert.equal((await photo({ token })).status, 429);
   });
 
   test('ASK_PER_USER_DAY is read per request', async () => {

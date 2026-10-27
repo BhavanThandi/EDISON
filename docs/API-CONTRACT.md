@@ -725,6 +725,7 @@ A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `
 ```
 
 ### Page additions (photo; #140, #143)
+- **Welcome demos (D2):** the welcome card's buttons fire `welcome:demo` (`detail.demo` = `build` | `photo` | `run`); `welcome.js` hides the card and runs it with no login and no `/api/ask` or `/api/photo` call. `build`: `window.DemoCanned = { reply, actions }` (the recorded LED answer) then `sparkyAsk('Build me an LED circuit')`; `chat.js` `askSparky` returns it once after the 1.2 s typing delay, so it previews with Accept. `photo`: clicks the `thandi-blinker` sample tile. `run`: loads `../demo.sparky` if the board is empty, then `App.runSimulation()`.
 - **`SparkyChat.applyBuild(actions)`** (browser half of `chat.js`) → `{ applied, failed }` from `Chat.acceptBuild`. It:
   1. clears any pending AI preview;
   2. if the board isn't empty, calls `App.clearAll()` first: a new "Untitled" circuit, so her open saved circuit is never overwritten (never `delete_all`, which keeps the circuit);

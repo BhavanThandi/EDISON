@@ -409,7 +409,10 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
   // each once, after CANNED_MS of typing. Anything else: null, the real AI.
   const CANNED_MS = 1200;
   const FIX_ASK   = /fix|correct|repair|solve/i;
+  // window.DemoCanned (welcome.js): the welcome card's LED demo, { reply, actions }, once.
   function cannedAnswer(msg) {
+    const d = window.DemoCanned;
+    if (d) { window.DemoCanned = null; return { reply: d.reply, actions: JSON.parse(JSON.stringify(d.actions)) }; }
     const c = window.PhotoCanned;
     if (!c) return null;
     if (c.explain != null) { const reply = c.explain; c.explain = null; return { reply, actions: [] }; }

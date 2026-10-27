@@ -427,6 +427,9 @@
   // The samples the picker offers (#200): every one but offered: false.
   const offered = () => Object.entries(window.PhotoSamples).filter(([, s]) => s.offered !== false);
 
+  // The welcome card's photo demo (D2): the sample's board straight, no corner taps, no /api/photo.
+  window.PhotoDemo = id => sendSample(id, true);
+
   // The sample picker (#182): a tile per offered sample, built the first time
   // it opens. With one sample there is nothing to pick: it goes straight to it.
   function showSamples() {
@@ -456,12 +459,13 @@
 
   // A sample with a `board` and a recorded `reading` (#22): the corner step on
   // its photo, then Looks right as for a rehearsed upload of it.
-  async function sendSample(id) {
+  async function sendSample(id, direct) {
     const my = nextJob();
     open();
     const s   = window.PhotoSamples[id];
-    const tap = Boolean(s.board && s.reading);
+    const tap = !direct && Boolean(s.board && s.reading);
     if (!tap) showStatus(READING, false);
+    if (direct) credit.textContent = s.credit || '';
     const im = await loadImage(s.file).catch(() => null);
     if (my !== job) return;
     if (!im) return showStatus(AI_FAILED, true);

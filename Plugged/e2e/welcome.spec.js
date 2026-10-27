@@ -34,7 +34,7 @@ test('/ ends in the Edison editor, not the landing page', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('the welcome card shows the title, the pitch and three demo buttons, all clickable', async ({ page }) => {
+test('the welcome card shows the title, the pitch and three demo buttons, visible and enabled', async ({ page }) => {
   const errors = await open(page);
   const c = card(page);
   await expect(c).toBeVisible();
@@ -47,7 +47,13 @@ test('the welcome card shows the title, the pitch and three demo buttons, all cl
     await expect(b).toHaveText(label);
     await expect(b).toBeEnabled();
   }
-  for (const [demo] of DEMOS) await page.locator(`[data-demo="${demo}"]`).click({ force: true, trial: true });
+  // Visible and enabled only: clicking one starts its demo and hides the card
+  // (welcome-demos.spec.js covers what each does).
+  for (const [demo] of DEMOS) {
+    const b = page.locator(`[data-demo="${demo}"]`);
+    await expect(b).toBeVisible();
+    await expect(b).toBeEnabled();
+  }
   expect(errors).toEqual([]);
 });
 

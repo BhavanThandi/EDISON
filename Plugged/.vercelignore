@@ -1,0 +1,6 @@
+test/
+e2e/
+src/
+out/
+node_modules/
+backend/.env

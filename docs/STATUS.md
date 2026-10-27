@@ -55,6 +55,15 @@ Overnight, all shipped to `dev`:
 6. **Small things:** a stale comment in `test/tl072.test.js` section 4 (the 5.4 s freeze was at the lower threshold); `fingerprint()` hashes any picked file (cap it at, say, 50 MB).
 7. **Not done:** the course labs with hard-coded steps (Aarmen: a separate job, later).
 
+## Deploy (Vercel)
+
+- **Project root directory: `Plugged/`** (set in the Vercel project). Static files (`circuit3d/`, `edison/`, ...) are served from Vercel's CDN; the server's own static branch is not used.
+- **The function:** `Plugged/api/[...path].js` is the only function. It requires `backend/server.js` once (it doesn't listen) and passes each `/api/*` request to the server's handler, so NDJSON streams (`/api/photo/leads`) flush line by line.
+- **`Plugged/vercel.json`:** `/` redirects (302) to `/circuit3d/index.html?ui=edison`; the function's `maxDuration` is 60 s (above the 45 s photo deadline `PHOTO_TIMEOUT_MS`); `/api/(.*)` is `Cache-Control: no-store, no-cache, must-revalidate`; `cleanUrls` is off.
+- **`Plugged/.vercelignore`:** `test/`, `e2e/`, `src/`, `out/`, `node_modules/`, `backend/.env` stay out of the upload.
+- **Env vars, set by a person in Vercel (names only; see `.env.example` for meaning and defaults):** `AI_PROVIDER`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_TIMEOUT_MS`, `DEEPSEEK_FALLBACK_MODEL`, `DEEPSEEK_PRIMARY_TIMEOUT_MS`, `DEEPSEEK_THINKING`, `DEEPSEEK_REASONING_EFFORT`, `DEEPSEEK_MAX_TOKENS`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `PHOTO_PROVIDERS`, `PHOTO_GEMINI_MODEL`, `PHOTO_FALLBACK_MODEL`, `PHOTO_FALLBACK_AT_MS`, `PHOTO_TIMEOUT_MS`, `PHOTO_THINKING`, `PHOTO_HEDGE_MS`, `PHOTO_LEADS_TIMEOUT_MS`, `PHOTO_LEADS_BATCH`, `PHOTO_LEADS_CONCURRENCY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_STT_MODEL`, `ELEVENLABS_TTS_MODEL`, `VOICE_PROVIDER`, `VOICE_TIMEOUT_MS`, `TRUST_PROXY` (set to 1: Vercel is one proxy). Only the keys and `AI_PROVIDER` are required; the rest have defaults. `PORT`, `PHOTO_RECORD` and `AI_PROVIDER=claude` are local-only. Never paste key values into the repo or chat.
+- **Added by D3 (auth and limits):** its variable names (Firebase project, `REQUIRE_AUTH`, daily caps, Upstash) will be listed here when it lands.
+
 ## Where things are
 
 - **`main`** = `dev`, promoted in PR #211: Edison UI, Lab HUD, the parts redo, the photo feature, and the 2026-10-03 bug-fix round below. This is the demo branch.

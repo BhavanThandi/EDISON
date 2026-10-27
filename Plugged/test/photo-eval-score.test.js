@@ -66,6 +66,16 @@ test('a flagged chip scores right when it is not built', () => {
   assert.deepStrictEqual(score(t, board([chipRead(DIP, 'tl072')])).flagged, { right: 0, total: 1 }, 'value case does not matter');
 });
 
+// The eval's chip family is PhotoChips.identify(label) === 'opamp' (one list, not a second regex).
+test('a flagged chip is built wrong exactly when the reading names a dual op-amp (agrees with PhotoChips.identify)', () => {
+  const PhotoChips = require('../circuit3d/js/photo-chips.js');
+  const t = circuit([chipTruth({ expect: 'flagged' })]);
+  for (const [value, wrong] of [['LM358', true], ['NE5532', true], ['TL072CP', true], ['LF353N', true], ['NE555', false], ['LM741', false], ['74HC00', false]]) {
+    assert.strictEqual(PhotoChips.identify(value) === 'opamp', wrong, `identify(${value})`);
+    assert.deepStrictEqual(score(t, board([chipRead(DIP, value)])).flagged, wrong ? { right: 0, total: 1 } : { right: 1, total: 1 }, value);
+  }
+});
+
 test('a flagged chip next to a real TL072 is still right (its paired part decides, not a global check)', () => {
   const t = circuit([chipTruth({ expect: 'flagged' }), chipTruth({}, DIP2, 'U2')]);
   const s = score(t, board([chipRead(DIP2, 'TL072', 'U2')]));

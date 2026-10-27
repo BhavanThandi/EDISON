@@ -638,16 +638,18 @@ function elementHtml(html, id) {
   return null;
 }
 
-test('the editor loads photo-grid.js and photo-import.js between ids.js and app.js, and samples/samples.js then photo.js after chat.js', () => {
+test('the editor loads photo-grid.js, photo-chips.js and photo-import.js between ids.js and app.js, and samples/samples.js then photo.js after chat.js', () => {
   const order = scriptOrder(read('circuit3d/index.html'));
   const at = f => order.indexOf(f);
   const list = order.join(', ');
-  for (const f of ['js/parts/registry.js', 'js/board-geometry.js', 'js/ids.js', 'js/photo-grid.js', 'js/photo-import.js',
+  for (const f of ['js/parts/registry.js', 'js/board-geometry.js', 'js/ids.js', 'js/photo-grid.js', 'js/photo-chips.js', 'js/photo-import.js',
                    'js/app.js', 'js/chat.js', 'samples/samples.js', 'js/photo.js']) {
     assert.ok(at(f) >= 0, `circuit3d/index.html loads ${f}: ${list}`);
   }
   assert.ok(at('js/ids.js') < at('js/photo-grid.js') && at('js/photo-grid.js') < at('js/app.js'),
     `photo-grid.js loads after ids.js and before app.js: ${list}`);
+  assert.ok(at('js/photo-grid.js') < at('js/photo-chips.js') && at('js/photo-chips.js') < at('js/photo-import.js'),
+    `photo-chips.js loads after photo-grid.js and before photo-import.js: ${list}`);
   assert.ok(at('js/ids.js') < at('js/photo-import.js') && at('js/photo-import.js') < at('js/app.js'),
     `photo-import.js loads after ids.js and before app.js: ${list}`);
   const lastPart = Math.max(...order.map((x, i) => (x.startsWith('js/parts/') ? i : -1)));

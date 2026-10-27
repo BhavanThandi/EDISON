@@ -30,7 +30,8 @@ const net  = require('node:net');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const PhotoGrid = require('../circuit3d/js/photo-grid.js');
+const PhotoGrid  = require('../circuit3d/js/photo-grid.js');
+const PhotoChips = require('../circuit3d/js/photo-chips.js');
 
 const ROOT     = path.join(__dirname, '..');
 const FIXTURES = path.join(ROOT, 'test/fixtures/photo');
@@ -164,7 +165,7 @@ function score(truth, got) {
   // is "unlocated": counted, never right or wrong. A chip's orientation is right when the truth
   // names pin 1 and the paired reading's pin 1 is on that node. A chip the truth flags (one the
   // app can't build, e.g. a SOIC adapter or an NE555) is right when ITS paired reading part, if
-  // any, is not a TL072-family build.
+  // any, is not named a dual op-amp (PhotoChips.identify).
   const xTruth = truth.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
     type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
   const xRead  = got.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
@@ -187,7 +188,7 @@ function score(truth, got) {
     if (!t.flagged) continue;
     flagged.total++;
     const p = mate(t);
-    if (!p || !/^TL0[78]\d/i.test(String(p.value || '').trim())) flagged.right++;
+    if (!p || PhotoChips.identify(p.value) !== 'opamp') flagged.right++;
   }
   let pin1Right = 0, pin1Known = 0;
   for (const t of located) {

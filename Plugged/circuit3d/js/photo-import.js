@@ -21,10 +21,14 @@
 //      pins (p.pins or 8) ≠ 8                       → type
 //      isOpAmp false, or PhotoChips.identify other  → type
 //      identify unknown and isOpAmp not true        → chip (asked)
-//      no pin 1 / pin 4 leads (by `pin`, else the
-//      two leads in order when there are exactly 2) → position
-//      PhotoChips.seat gives a why                  → position
+//      no leads named 1 and 4, and not exactly 2
+//      unnamed leads                                → position
+//      the seat gives a why                         → position
 //      seat not sure and not pin1Confirmed          → pin1 (asked)
+//    Leads named 1 and 4 seat it (PhotoChips.seat; other named leads are
+//    ignored). Exactly 2 unnamed leads are the reader's box-end placeholders
+//    (Ruling B2b), never a pin cue: PhotoChips.seatFromColumns, from their
+//    columns and the notch, never sure, so always asked.
 //    A built chip's 8 holes are claimed and taken before any other part, so
 //    other leads move to another row of their column-half. One on an
 //    earlier chip's holes → mismatch.
@@ -228,10 +232,10 @@
       const pinOf   = l => (l && l.pin != null ? String(l.pin).trim() : '');
       const named   = n => leads.find(l => pinOf(l) === n);
       const N       = String(pins / 2);
-      const pair    = named('1') && named(N) ? [named('1'), named(N)]
-                    : leads.length === 2 && leads.every(l => l && !pinOf(l)) ? leads : null;
-      if (!pair) return no('position', `${id} isn't built: which of its leads are pin 1 and pin ${N} isn't known.`);
-      const seat    = PhotoChips.seat({ pin1: pair[0].hole, pinN: pair[1].hole, pins, notch: p.notch, cols });
+      const boxed   = leads.length === 2 && leads.every(l => l && !pinOf(l));   // the reader's box-end placeholders (B2b)
+      if (!(named('1') && named(N)) && !boxed) return no('position', `${id} isn't built: which of its leads are pin 1 and pin ${N} isn't known.`);
+      const seat    = !boxed ? PhotoChips.seat({ pin1: named('1').hole, pinN: named(N).hole, pins, notch: p.notch, cols })
+                             : PhotoChips.seatFromColumns({ ends: leads.map(l => l.hole), notch: p.notch, cols });
       if (seat.why) return no('position', `${id} isn't built: ${seat.why[0].toLowerCase()}${seat.why.slice(1)}`);
       if (!seat.sure && p.pin1Confirmed !== true) {
         return no('pin1', `${id}: which end is pin 1 isn't certain. Check the 1 dot (⇄ turns the chip), then confirm.`);

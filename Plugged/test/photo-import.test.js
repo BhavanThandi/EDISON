@@ -867,10 +867,6 @@ test('a wire end and an LED lead photographed on the chip\'s holes (f32, f30) al
 });
 
 test.each([
-  { name: 'exactly 2 leads, no pin names: taken in order as pin 1 and pin 4',
-    leads: [[undefined, 'e30'], [undefined, 'e33']], at: 'e30' },
-  { name: 'exactly 2 leads, empty pin names',
-    leads: [['', 'f33'], ['', 'f30']], at: 'f33', notch: 'right' },
   { name: '8 leads named 1…8 (a truth-style chip): the leads named 1 and 4 are used',
     leads: Parts.footprintLegs('tl072', 'e30', 0).map((l, k) => [String(k + 1), l.hole]), at: 'e30' },
   { name: '8 leads named 1…8 listed in a shuffled order',
@@ -898,12 +894,68 @@ test('a chip with no usable pin 1 / pin 4 leads (3 unnamed leads, or a lead in t
   }
 });
 
-test('a 14-pin chip is not built (only 8-pin dual op-amps have a seat): skipped, flagged position', () => {
+test('a 14-pin chip is not built (Ruling B2a): skipped, flagged type, and why says 14 pins', () => {
   const chip = ic('U1', [['1', 'e30'], ['7', 'e36']], { pins: 14, notch: 'left', label: 'TL074' });
   const out = build(chipBoard(chip));
   assert.strictEqual(chipsOf(out).length, 0);
   assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
-  assert.strictEqual(out.flags.filter(f => f.id === 'U1').length, 1);
+  const f = out.flags.filter(x => x.id === 'U1');
+  assert.deepStrictEqual(f.map(x => x.kind), ['type']);
+  assert.match(String(f[0].why), /14/);
+  assert.match(String(f[0].why), /pins?/);
+});
+
+// Ruling B2b: unnamed ic leads are the reader's box-end placeholders, never a
+// pin cue. Only their columns count (3 apart, on the board, else position);
+// the seat comes from the notch (left: e{min} right; right: f{min+3} left;
+// unsure/missing: e{min} right) and is never sure: pin1 unless pin1Confirmed.
+const unnamedChip = (pair, opts = {}) =>
+  ic('U1', pair.map(h => [undefined, h]), Object.assign({ pins: 8, label: 'TL072' }, opts));
+
+test.each([
+  { name: 'e30/e33, notch left',                 pair: ['e30', 'e33'], opts: { notch: 'left' } },
+  { name: 'f30/f33, notch right',                pair: ['f30', 'f33'], opts: { notch: 'right' } },
+  { name: 'c30/h33 (rows are free), notch left', pair: ['c30', 'h33'], opts: { notch: 'left' } },
+  { name: 'e30/e33, notch unsure',               pair: ['e30', 'e33'], opts: { notch: 'unsure' } },
+  { name: 'e30/e33, no notch',                   pair: ['e30', 'e33'], opts: {} },
+])('placeholders are never sure: unnamed leads $name -> not built, flagged pin1', ({ pair, opts }) => {
+  const out = build(chipBoard(unnamedChip(pair, opts)));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1').map(f => f.kind), ['pin1']);
+  assert.match(String(out.flags.find(f => f.id === 'U1').why), /U1/);
+});
+
+test.each([
+  { name: 'e30/e33 + notch left',                         pair: ['e30', 'e33'], opts: { notch: 'left' },    at: 'e30', dir: 'right' },
+  { name: 'f30/f33 + notch right',                        pair: ['f30', 'f33'], opts: { notch: 'right' },   at: 'f33', dir: 'left' },
+  { name: 'e30/e33 + notch unsure',                       pair: ['e30', 'e33'], opts: { notch: 'unsure' },  at: 'e30', dir: 'right' },
+  { name: 'e30/e33 + no notch',                           pair: ['e30', 'e33'], opts: {},                   at: 'e30', dir: 'right' },
+  { name: 'c33/h30 (either order, any row) + notch left', pair: ['c33', 'h30'], opts: { notch: 'left' },    at: 'e30', dir: 'right' },
+])('placeholders + pin1Confirmed: unnamed leads $name -> $at $dir', ({ pair, opts, at, dir }) => {
+  const rd = chipBoard(unnamedChip(pair, Object.assign({ pin1Confirmed: true }, opts)));
+  const out = build(rd);
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: at, direction: dir }]);
+  assert.strictEqual(out.labels.U1, 'U1');
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1'), []);
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test.each([
+  { name: 'columns 30 and 32 (2 apart)', pair: ['e30', 'e32'] },
+  { name: 'columns 30 and 34 (4 apart)', pair: ['e30', 'e34'] },
+  { name: 'the same column',             pair: ['e30', 'f30'] },
+])('placeholders in the wrong columns: unnamed leads $name -> not built, flagged position (even with pin1Confirmed)', ({ pair }) => {
+  const out = build(chipBoard(unnamedChip(pair, { notch: 'left', pin1Confirmed: true })));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1').map(f => f.kind), ['position']);
+});
+
+test('a named pin 1 / pin 4 pair still builds sure: no pin1 flag, no confirmation needed', () => {
+  const out = build(chipBoard(tl072('U1', { notch: 'left' })));
+  assert.strictEqual(chipsOf(out).length, 1);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1'), []);
 });
 
 test('two chips are labelled U1 and U2 in Reading order, both placed before the resistor', () => {

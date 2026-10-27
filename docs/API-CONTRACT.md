@@ -638,6 +638,9 @@ Which chip a printed label names, and which way round a DIP-8 sits. Pure: no DOM
   - Pin 1 in a–e with pin N three columns higher in a–e → `{ hole: 'e<c1>', direction: 'right' }`; pin 1 in f–j with pin N three columns lower in f–j → `{ hole: 'f<c1>', direction: 'left' }`. These are `place_tl072`'s `hole` and `direction`: `Parts.footprintLegs('tl072', hole, right 0 | left 180)` puts pin 1 and pin 4 in those columns.
   - `{ why }` for anything else, so a chip is never seated backwards: a pin count other than 8, a hole that isn't a body hole, the two pins in different halves, a clockwise pair (pin 1 at the end where the pins count clockwise), a gap other than 3 columns, or legs past column `cols`.
   - `sure`: the `notch` agrees (`left` = pin 1 is the lower column, so `right`; `right` → `left`). `unsure`, missing or disagreeing → `sure: false`, same seat.
+- **`PhotoChips.seatFromColumns({ ends, notch, cols = 63 })`** → `{ hole, direction, sure: false }` or `{ why }` (Ruling B2b). Never throws.
+  - `ends`: two unnamed points, the reader's box-end placeholders (`backend/photo-reader.js`): never a pin cue. Only their columns count; rows and order are free. They must be body holes 3 columns apart, with the legs inside column `cols`, else `{ why }`.
+  - The notch picks the starting seat: `right` → `{ hole: 'f<max>', direction: 'left' }`; `left`, `unsure` or missing → `{ hole: 'e<min>', direction: 'right' }`. **Never sure**: which end is pin 1 is always asked.
 - **Mock:** none; tests seat real footprints (`Parts.footprintLegs`, `Parts.checkPlacement`).
 
 ### `PhotoImport` (`circuit3d/js/photo-import.js`, `window.PhotoImport`; #136, #137)
@@ -659,9 +662,13 @@ A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `
 | `pins` is given and isn't 8 | `type` | `U1 has 14 pins; only 8-pin dual op-amps can be built from a photo yet. Add it by hand.` |
 | `isOpAmp` is `false`, or `PhotoChips.identify(label)` is `other` and `isOpAmp` isn't `true` | `type` | `U1 (NE555) isn't a dual op-amp with the TL072's pins, so it can't be built from a photo yet. Add it by hand.` (no label in brackets when she answered no) |
 | `identify` is `unknown` and `isOpAmp` isn't `true` | `chip` (asked) | `Is U1 a dual op-amp like a TL072? Its label couldn't be read.` |
-| pin 1 and pin 4 aren't known: no leads whose `pin` is `'1'` and `'4'`, and not exactly 2 leads without a `pin` (taken in order) | `position` | `U1 isn't built: which of its leads are pin 1 and pin 4 isn't known.` |
-| `PhotoChips.seat({ pin1, pinN, pins, notch, cols: board.cols })` gives a `why` | `position` | `U1 isn't built: <the seat's why>`. `pin1Confirmed` never overrides this. |
+| no leads whose `pin` is `'1'` and `'4'`, and not exactly 2 leads without a `pin` | `position` | `U1 isn't built: which of its leads are pin 1 and pin 4 isn't known.` |
+| the seat gives a `why` (below) | `position` | `U1 isn't built: <the seat's why>`. `pin1Confirmed` never overrides this. |
 | the seat isn't `sure` and `pin1Confirmed` isn't `true` | `pin1` (asked) | `U1: which end is pin 1 isn't certain. Check the 1 dot (⇄ turns the chip), then confirm.` |
+
+  **The seat**, with `cols` = `board.cols` (clamped: `board.cols` when it is a whole number 1–63, else 63):
+  - Leads named `'1'` and `'4'`: `PhotoChips.seat({ pin1, pinN, pins, notch, cols })`. Only those two decide the seat; other named leads are ignored.
+  - Otherwise exactly 2 leads without a `pin` (Ruling B2b): they are the reader's box-end placeholders, never a pin cue. `PhotoChips.seatFromColumns({ ends, notch, cols })`: only their columns count (3 apart, on the board, else `position`); the notch sets the starting seat (`right` → `f<max>` left; `left`, `unsure` or missing → `e<min>` right); it is **never sure**, so the chip is flagged `pin1` and built at that seat only once `pin1Confirmed` is `true`.
 
   A built chip's 8 holes (`Parts.footprintLegs`) are claimed like photo holes, so no bridge helper uses its column-halves, and taken (with its pin names) before any other part is placed: another lead photographed in one of them moves to another row of the same column-half (flagged `moved`), and a 5th one there (the chip's pin holds a hole) is not built (`position`). Each `place_tl072` passes `Parts.checkPlacement` against the running hole map; a chip on an earlier chip's holes is not built (`mismatch`). An unbuilt chip's photo holes are claimed as any unbuilt part's. A Reading with no `ic` builds exactly as before.
 - **Rails by side and printed sign:**
@@ -687,7 +694,7 @@ A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `
 | `mismatch` | no free helper for a bridge, or a chip on an earlier chip's holes (not built) |
 | `type` | a part of type `other` (button, …), or an `ic` that isn't an 8-pin dual op-amp: not 8 pins, another chip (`identify` → `other`), or `isOpAmp: false` (not built) |
 | `chip` | an `ic` whose label couldn't be read (`identify` → `unknown`) and no `isOpAmp` answer: asked, not built |
-| `pin1` | a seated chip whose notch is `unsure`, missing or disagrees, and no `pin1Confirmed`: asked, not built |
+| `pin1` | a seated chip whose notch is `unsure`, missing or disagrees, or one seated from its box-end placeholders (always), and no `pin1Confirmed`: asked, not built |
 | `rails` | a side's rail signs fell back to the position default |
 
 - **`skipped`:** `[{ id, type, why }]`, everything not built: `other` parts, chips not built (type `ic`), unplaceable parts, and a wire with both ends in one node.

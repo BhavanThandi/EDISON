@@ -7,6 +7,8 @@
 //    identify(label)  → 'opamp' | 'other' | 'unknown'
 //    seat({ pin1, pinN, pins = 8, notch, cols = 63 })
 //                     → { hole, direction, sure } | { why }
+//    seatFromColumns({ ends, notch, cols = 63 })
+//                     → { hole, direction, sure: false } | { why }
 //  Never throws: what it can't seat comes back as { why }, in plain English.
 //
 //  RULES
@@ -24,6 +26,11 @@
 //  - A chip whose legs would pass the board's last column (cols) has no seat.
 //  - sure: the notch agrees. `left` means pin 1 is the lower column, `right`
 //    the higher. `unsure`, missing or disagreeing → sure: false.
+//  - seatFromColumns (Ruling B2b): `ends` are two unnamed points, the
+//    reader's box-end placeholders, never a pin cue. Only their columns
+//    count (rows and order are free): they must be 3 apart and on the board.
+//    The notch picks the starting seat: right → f{max} left; left, unsure or
+//    missing → e{min} right. Never sure.
 //
 //  EXPORTS
 //  ───────
@@ -72,5 +79,15 @@
     return { hole: (right ? 'e' : 'f') + p.col, direction, sure: agrees };
   }
 
-  return { DUAL_OPAMPS, identify, seat };
+  function seatFromColumns({ ends, notch, cols = 63 } = {}) {
+    const ps = (Array.isArray(ends) ? ends : []).map(parse);
+    if (ps.length !== 2 || ps.some(q => !q)) return { why: 'The chip\'s two ends must both be in the board\'s main holes.' };
+    const lo = Math.min(ps[0].col, ps[1].col), hi = Math.max(ps[0].col, ps[1].col);
+    if (hi - lo !== 3) return { why: `The chip's two ends must be 3 columns apart; these are ${hi - lo} apart.` };
+    const s = notch === 'right' ? seat({ pin1: 'f' + hi, pinN: 'f' + lo, notch, cols })
+                                : seat({ pin1: 'e' + lo, pinN: 'e' + hi, notch: 'left', cols });
+    return s.why ? s : { hole: s.hole, direction: s.direction, sure: false };
+  }
+
+  return { DUAL_OPAMPS, identify, seat, seatFromColumns };
 });

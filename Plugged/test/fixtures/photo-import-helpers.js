@@ -153,16 +153,23 @@ function terminals(rd, out) {
     const label = out.labels[p.id];
     if (!label || skippedIds(out).includes(p.id)) continue;
     if (p.type === 'ic') {
-      // A chip's 8 pins: the node of each is where the seat puts it. The
-      // seat comes from pin 1's and pin N/2's half and column: pin 1 in a–e
-      // → e{c} right (rotation 0); pin 1 in f–j → f{c} left (180).
-      const pins = p.pins || 8;
-      const named = n => p.leads.find(l => l.pin === String(n));
-      const pair  = named(1) && named(pins / 2) ? [named(1), named(pins / 2)] : p.leads.length === 2 ? p.leads : null;
-      const m = pair && /^([a-j])(\d+)$/.exec(pair[0].hole);
-      assert.ok(m, `${p.id}: a built chip needs a pin 1 on a body hole`);
-      const top = 'abcde'.includes(m[1]);
-      const legs = Parts.footprintLegs('tl072', (top ? 'e' : 'f') + m[2], top ? 0 : 180);
+      // A chip's 8 pins sit where the built footprint puts them. Each NAMED
+      // lead must be in the column + half of its own pin's leg (checked here,
+      // not re-derived by the code's seat rule); unnamed leads are box-end
+      // placeholders, so only their columns must be pin 1's and pin 4's.
+      const chips = out.actions.filter(a => a.tool === 'place_tl072');
+      const act = chips[+/\d+/.exec(label)[0] - 1];
+      assert.ok(act, `${p.id}: ${label} has no place_tl072`);
+      const legs = Parts.footprintLegs('tl072', act.hole, ROTATION[act.direction]);
+      const named = p.leads.filter(l => l.pin);
+      for (const l of named) {
+        assert.strictEqual(readingNode(l.hole), readingNode(legs[+l.pin - 1].hole), `${p.id} pin ${l.pin} (${l.hole}) is not on its leg ${legs[+l.pin - 1].hole}`);
+      }
+      if (!named.length) {
+        const colOf = h => +/\d+/.exec(h)[0];
+        assert.deepStrictEqual(p.leads.map(l => colOf(l.hole)).sort((a, b) => a - b),
+          [colOf(legs[0].hole), colOf(legs[3].hole)].sort((a, b) => a - b), `${p.id}: placeholder columns are not pin 1's and pin 4's`);
+      }
       legs.forEach((leg, k) => terms.push({ name: `${p.id}.pin${k + 1}`, node: readingNode(leg.hole), label, pin: k }));
       continue;
     }

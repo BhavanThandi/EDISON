@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 //  photo-confirm.js — the confirm screen (issues #141, #142), inside the
 //  📷 overlay: the flattened photo with a dot on every lead, wire end and
-//  battery lead, the parts list (values, colours, volts, amber flags,
-//  greyed not-built parts, a chip's questions), + Add a part, swap + / −
-//  per rail side, and Build it.
+//  battery lead, the power picker, the parts list (values, colours, volts,
+//  amber flags, greyed not-built parts, a chip's questions), + Add a part,
+//  swap + / − per rail side, and Build it.
 //  DOM only: the geometry is PhotoGrid, the flags and actions are
 //  PhotoImport.build, a chip's seat PhotoChips and its turn App.BoardMirror.
 //  Each row and canvas label is named by its Reading id (PhotoImport's key
@@ -30,10 +30,14 @@
 //    value / colour dropdowns, battery volts (as typed: PhotoImport flags
 //    and falls back to 9 V outside 1–24 V)
 //    + Add a part → resistor / LED / wire → tap two holes (snapped)
-//    every edit re-runs PhotoImport.build and redraws; a row is amber
-//    (.photo-flagged) with each flag's why, greyed (.photo-notbuilt) if skipped
-//    Build it → onBuild(PhotoImport.build(reading)) (photo.js hands it on),
-//    at any time, crops out or not
+//    #photo-power (photo fix B4): ±12 V bench supply / 9 V battery, showing
+//    result.power; her pick is C.power (null: PhotoImport's auto). Hidden
+//    while the Reading has its own power entries (result.power 'reading').
+//    every edit re-runs PhotoImport.build(reading, { components: [], power })
+//    and redraws; a row is amber (.photo-flagged) with each flag's why,
+//    greyed (.photo-notbuilt) if skipped
+//    Build it → onBuild(that build) (photo.js hands it on), at any time,
+//    crops out or not
 //
 //  LEGS AS THEY ANSWER (#173)
 //  ──────────────────────────
@@ -53,10 +57,11 @@
 //
 //  EXPORTS
 //  ───────
-//  Browser: window.PhotoConfirm = { reading, result, selected, dots(), built, placing,
+//  Browser: window.PhotoConfirm = { reading, result, selected, dots(), built, power, placing,
 //                                   open(reading, image, grid, onBuild), cancelMove(),
 //                                   place(id, entry), startPlacing(ids), stopPlacing() }
-//  (placing: a Set of the ids whose crop line hasn't arrived; dots(): one
+//  (power: her #photo-power pick, 'supply12' | 'battery9', null until she
+//   picks; placing: a Set of the ids whose crop line hasn't arrived; dots(): one
 //   { id, end, hole, x, y, label, plus, name, pin } per drawn end, a chip
 //   lead's label '<name>.<pin>')
 // ─────────────────────────────────────────────────────────────
@@ -78,7 +83,7 @@
 
   const $ = id => document.getElementById(id);
   const box    = $('photo-confirm'), canvas = $('photo-confirm-canvas'), list = $('photo-parts');
-  const buildB = $('photo-build');
+  const buildB = $('photo-build'), powerB = $('photo-power');
 
   let image = null, grid = null, onBuild = null;
   let adding = null;   // + Add a part: { type, pts } until its second tap
@@ -86,7 +91,7 @@
   let sent = 0;              // crops out this round, for "Placing legs N/M…"
 
   const C = window.PhotoConfirm = {
-    reading: null, result: null, selected: null, built: null, placing: new Set(),
+    reading: null, result: null, selected: null, built: null, power: null, placing: new Set(),
     dots, open, cancelMove, place, startPlacing, stopPlacing,
   };
 
@@ -106,6 +111,7 @@
     C.reading  = JSON.parse(JSON.stringify(reading));
     C.selected = null;
     C.built    = null;
+    C.power    = null;
     C.placing  = new Set();
     image = img;  grid = g;  onBuild = built;  adding = null;  touched = new Set();  sent = 0;
     picker.hidden = true;
@@ -159,9 +165,12 @@
     draw();
   }
 
+  // The build, and the picker showing what it powers the rails with.
   function rebuild() {
-    C.result = PhotoImport.build(C.reading, { components: [] });
+    C.result = PhotoImport.build(C.reading, { components: [], power: C.power });
     buildB.disabled = unknown();
+    powerB.hidden = C.result.power === 'reading';
+    if (!powerB.hidden) powerB.value = C.result.power;
   }
 
   // Each part's and wire's name on this screen (#178), in Reading order:
@@ -646,9 +655,10 @@
 
   $('photo-rails-a').addEventListener('click', () => swapRails('aOuter', 'aInner'));
   $('photo-rails-j').addEventListener('click', () => swapRails('jInner', 'jOuter'));
+  powerB.addEventListener('change', () => { C.power = powerB.value; edited(); });
   buildB.addEventListener('click', () => {
     if (unknown()) return;
-    C.built = PhotoImport.build(C.reading, { components: [] });
+    C.built = PhotoImport.build(C.reading, { components: [], power: C.power });
     onBuild(C.built);
   });
 

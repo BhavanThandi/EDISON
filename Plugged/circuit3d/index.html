@@ -264,6 +264,11 @@
         </div>
         <div class="photo-side">
           <div id="photo-confirm-help">Check every dot against your board. Tap a dot, then the hole it's really in. The + dot is the LED's long leg.</div>
+          <!-- What powers the rails (photo fix B4); hidden when the photo shows its own battery -->
+          <select id="photo-power" aria-label="What powers the rails" title="What powers the board's rails" style="font-family: inherit; font-size: 12px">
+            <option value="supply12">±12 V bench supply</option>
+            <option value="battery9">9 V battery</option>
+          </select>
           <ul id="photo-parts"></ul>
           <div class="photo-btns">
             <button class="btn-secondary" id="photo-rails-a" title="The a-side rail signs are the other way round">a side: swap + / −</button>

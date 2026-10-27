@@ -4,7 +4,7 @@
 //
 //  CONTRACT (docs/API-CONTRACT.md → "Reading v1", "PhotoImport")
 //  ────────
-//    build(reading, { components }) → { actions, labels, flags, skipped }
+//    build(reading, { components, power }) → { actions, labels, flags, skipped, power }
 //  Never throws: what it can't build lands in flags and skipped.
 //
 //  RULES
@@ -13,9 +13,19 @@
 //    keeps its node; rows inside a half and a rail's column are free.
 //  - Rails by side and printed sign: a-side + → tp, − → tn; j-side + → bp,
 //    − → bn. A side whose signs are `?` or equal: outer +, inner −, flagged.
-//  - Actions: every battery, then every chip, then every other part, then
-//    every wire (battery leads, bridge jumpers, the Reading's), because
+//  - Actions: the power, then every chip, then every other part, then
+//    every wire (the power's leads, bridge jumpers, the Reading's), because
 //    wire ends take holes. No delete_all.
+//  - Power (photo fix B4): a Reading with power entries → a battery per
+//    entry (result.power 'reading'), whatever options.power says. Else, for
+//    the rails in use, options.power: 'supply12' → a ±12 V bench supply
+//    (PS1.0 → tp, PS1.1 → tn, PS1.2 → bn; bp in use is flagged, unpowered),
+//    'battery9' → the assumed 9 V battery; 'auto' (the default) → supply12
+//    when an `ic` is an op-amp by identity (isOpAmp, else
+//    PhotoChips.identify), built or not, else battery9. The leads take rail
+//    column 1, else the nearest free hole.
+//  - A wire with one end `off` and the other on a hole: not built, flagged
+//    offboard (with that hole).
 //  - An `ic` is built as a TL072 (place_tl072 { hole, direction }), U1…, only
 //    when sure; checked in this order, the first that fails decides:
 //      pins (p.pins or 8) ≠ 8                       → type
@@ -86,9 +96,18 @@
   const STRIPS    = ['aOuter', 'aInner', 'jInner', 'jOuter'];
   const RAIL_SAID = { tp: 'a-side +', tn: 'a-side −', bp: 'j-side +', bn: 'j-side −' };
 
+  // The power options, and the ±12 V bench supply's leads (ENSC 220): rail,
+  // pin (PS1.0 +, PS1.1 COM, PS1.2 −), colour.
+  const POWERS     = ['auto', 'supply12', 'battery9'];
+  const SUPPLY     = [['tp', 0, 'red'], ['tn', 1, 'black'], ['bn', 2, 'blue']];
+  const SUPPLY_WHY = 'The board is powered by a ±12 V bench supply (+12 V on tp, ground on tn, −12 V on bn), as in the ENSC 220 lab. Change it above.';
+  const BP_WHY     = "The j-side + rail (bp) isn't connected: the ±12 V supply powers tp, tn and bn.";
+
   const list   = v => (Array.isArray(v) ? v : []);
   const sign   = s => (s === '+' ? '+' : s === '-' || s === '−' ? '-' : '?');
   const toolOf = def => (def.ai && def.ai.tool) || 'place_' + def.type;
+  // An ic's identity: her answer (isOpAmp) first, else its label's.
+  const identity = p => (p.isOpAmp === true ? 'opamp' : p.isOpAmp === false ? 'no' : PhotoChips.identify(p.label));
 
   // Each Reading strip → its app rail, and the sides whose signs were guessed.
   function railsBySign(signs) {
@@ -194,8 +213,8 @@
     const placed  = list(options && options.components).filter(c => c && typeof c === 'object');
     const actions = [], labels = {}, flags = [], skipped = [];
 
-    const flag     = (kind, id, why) => flags.push({ kind, id, why });
-    const notBuilt = (id, type, kind, why) => { skipped.push({ id, type, why }); if (kind) flag(kind, id, why); };
+    const flag     = (kind, id, why, more) => flags.push(Object.assign({ kind, id, why }, more));
+    const notBuilt = (id, type, kind, why, more) => { skipped.push({ id, type, why }); if (kind) flag(kind, id, why, more); };
     const label    = type => { const l = Ids.nextLabel(placed, type); placed.push({ type, label: l }); return l; };
     const uses     = new Map();   // key → how many entries use it
     const copies   = new Set();   // what each part and wire is, to drop exact copies
@@ -224,7 +243,7 @@
         notBuilt(id, 'ic', kind, why);
       };
       if (pins !== 8) return no('type', `${id} has ${pins} pins; only 8-pin dual op-amps can be built from a photo yet. Add it by hand.`);
-      const is    = p.isOpAmp === true ? 'opamp' : p.isOpAmp === false ? 'no' : PhotoChips.identify(p.label);
+      const is    = identity(p);
       if (is === 'no' || is === 'other') {
         return no('type', `${id}${is === 'other' ? ` (${name})` : ''} isn't a dual op-amp with the TL072's pins, so it can't be built from a photo yet. Add it by hand.`);
       }
@@ -271,6 +290,10 @@
       claim(ends);
       return { key, src, plus: ends[0], minus: ends[1] };
     });
+    // What powers the rails (result.power): the Reading's own entries, else the option.
+    const want   = options && POWERS.includes(options.power) ? options.power : 'auto';
+    const opAmp  = list(rd.parts).some(p => p && p.type === 'ic' && identity(p) === 'opamp');
+    const choice = power.length ? 'reading' : want !== 'auto' ? want : opAmp ? 'supply12' : 'battery9';
 
     const wires = [];
     list(rd.wires).forEach((w, i) => {
@@ -279,6 +302,10 @@
       const ends = list(w && w.ends).map((e, k) => ({ at: at(e && e.hole), owner: `${id}.${k}` }));
       if (ends.length !== 2 || ends.some(e => !e.at)) {
         claim(ends);
+        const on = holesOf(w.ends).filter(h => h.trim().toLowerCase() === 'off').length === 1 && ends.find(e => e.at);
+        if (ends.length === 2 && on) {   // a lead to an instrument off the board
+          return notBuilt(id, 'wire', 'offboard', `${id} leaves the board at ${said(on.at)}: connect your signal source or meter there.`, { hole: on.at.hole });
+        }
         return notBuilt(id, 'wire', 'position', `${id}: an end isn't on a hole yet (unseen, in the gap or off the board), so it isn't built.`);
       }
       if (ends[0].at.node === ends[1].at.node) return notBuilt(id, 'wire', null, `${id} has both ends in one strip, so it joins nothing; left out.`);
@@ -423,8 +450,8 @@
       return null;
     }
 
-    // ── 3. Batteries ──
-    const pending = [];   // wires in output order: { id, color, reading, ends: [{ pin } | end] } | a jumper { id, color, holes }
+    // ── 3. The power: each battery, or the assumed battery or bench supply ──
+    const pending = [];   // wires in output order: { id, by, color, reading, ends: [{ pin } | end] } | a jumper { id, color, holes }
     for (const s of power) {
       const kind = s.src.kind, volts = s.src.volts;
       const ok   = Parts.checkValue('battery', 'voltage', volts).ok;
@@ -440,18 +467,24 @@
         pending.push({ id: s.key, color, ends: [{ pin: bat + '.' + pin }, e] });
       });
     }
-    if (!power.length) {
-      const inUse = new Set([...used].map(strip => rails.map[strip]));
-      const plus  = ['tp', 'bp'].filter(r => inUse.has(r)), minus = ['tn', 'bn'].filter(r => inUse.has(r));
-      if (plus.length || minus.length) {
-        actions.push({ tool: 'place_battery', voltage: 9 });
-        const bat  = label('battery');
-        const rail = r => ({ at: { kind: 'rail', rail: r, col: 1, node: 'rail:' + r, hole: r + '_1' }, owner: 'assumed', assumed: true });
-        for (const r of plus)  pending.push({ id: null, color: 'red',   ends: [{ pin: bat + '.0' }, rail(r)] });
-        for (const r of minus) pending.push({ id: null, color: 'black', ends: [{ pin: bat + '.1' }, rail(r)] });
-        const on = plus.concat(minus).map(r => RAIL_SAID[r]);
-        flag('source', null, `No battery in the photo, so a 9 V battery is assumed on the ${on.join(' and ')} rail${on.length > 1 ? 's' : ''}.`);
+    const inUse = new Set([...used].map(strip => rails.map[strip]));
+    const rail  = r => ({ at: { kind: 'rail', rail: r, col: 1, node: 'rail:' + r, hole: r + '_1' }, owner: 'assumed', assumed: true });
+    if (!power.length && inUse.size && choice === 'supply12') {
+      actions.push({ tool: 'place_bench_supply', voltage: 12 });
+      const ps = label('bench_supply');
+      for (const [r, pin, color] of SUPPLY) {
+        if (inUse.has(r)) pending.push({ id: null, by: 'The bench supply', color, ends: [{ pin: ps + '.' + pin }, rail(r)] });
       }
+      flag('source', null, SUPPLY_WHY);
+      if (inUse.has('bp')) flag('source', null, BP_WHY, { rail: 'bp' });
+    } else if (!power.length && inUse.size) {
+      const plus = ['tp', 'bp'].filter(r => inUse.has(r)), minus = ['tn', 'bn'].filter(r => inUse.has(r));
+      actions.push({ tool: 'place_battery', voltage: 9 });
+      const bat = label('battery');
+      for (const r of plus)  pending.push({ id: null, by: 'The battery', color: 'red',   ends: [{ pin: bat + '.0' }, rail(r)] });
+      for (const r of minus) pending.push({ id: null, by: 'The battery', color: 'black', ends: [{ pin: bat + '.1' }, rail(r)] });
+      const on = plus.concat(minus).map(r => RAIL_SAID[r]);
+      flag('source', null, `No battery in the photo, so a 9 V battery is assumed on the ${on.join(' and ')} rail${on.length > 1 ? 's' : ''}.`);
     }
 
     // ── 4. Chips (each takes its 8 holes), then the other parts ──
@@ -494,13 +527,13 @@
       }
     }
 
-    // ── 5. Wires: the battery's leads, the bridge jumpers, then the Reading's ──
+    // ── 5. Wires: the power's leads, the bridge jumpers, then the Reading's ──
     for (const w of wires) pending.push({ id: w.id, color: w.color, reading: true, ends: w.ends });
     let wireN = 0;
     for (const w of pending) {
       const holes = w.holes || w.ends.map(e => e.pin || pick(e));   // a jumper's holes are taken already
       if (holes.some(h => !h)) {
-        const why = `${w.id || 'The battery'}: a strip it goes to is full, so it isn't built.`;
+        const why = `${w.id || w.by}: a strip it goes to is full, so it isn't built.`;
         if (w.reading) notBuilt(w.id, 'wire', 'position', why); else flag('position', w.id, why);
         continue;
       }
@@ -513,7 +546,7 @@
       if (w.reading) labels[w.id] = 'W' + wireN;
     }
 
-    return { actions, labels, flags, skipped };
+    return { actions, labels, flags, skipped, power: choice };
   }
 
   return { build };

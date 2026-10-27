@@ -1063,3 +1063,92 @@ test('B3c chip row, label unreadable: Yes/No stay visible with aria-pressed; Yes
   await expect(rowOf(page, 'U1').locator('.photo-chip-no')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+// ── B4: power picker ──────────────────────────────────────────────────────
+// #photo-power (a <select>, beside the parts list): options `supply12` "±12 V
+// bench supply" and `battery9` "9 V battery", preselected from
+// PhotoConfirm.result.power ('supply12' for an op-amp Reading with no power
+// entry, else 'battery9'). Changing it rebuilds PhotoConfirm.result with
+// { power }, and Build it builds what the picker shows.
+
+// A sure TL072 with its supply leads and no battery in the photo.
+function opampReading() {
+  const r = chipReading({ notch: 'left' });
+  r.power = [];
+  r.wires = [
+    { id: 'W1', color: 'red',   ends: [end('rail:aOuter:5'), end('g30')], confidence: 0.9, unsure: [] },
+    { id: 'W2', color: 'black', ends: [end('rail:aInner:5'), end('a33')], confidence: 0.9, unsure: [] },
+  ];
+  r.parts = r.parts.filter(p => p.type === 'ic');
+  return r;
+}
+const actionTools = page => page.evaluate(() => window.PhotoConfirm.result.actions.map(a => a.tool));
+const resultPower = page => page.evaluate(() => window.PhotoConfirm.result.power);
+
+test('B4: power picker, an op-amp Reading: #photo-power offers ±12 V bench supply and 9 V battery, preselected ±12 V; the actions place the supply', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, opampReading());
+
+  const pick = page.locator('#photo-power');
+  await expect(pick, 'the power picker').toHaveCount(1);
+  await expect(pick).toBeVisible();
+  const opts = await pick.locator('option').evaluateAll(os => os.map(o => [o.value, o.textContent.trim()]));
+  expect(opts).toEqual(expect.arrayContaining([['supply12', '±12 V bench supply'], ['battery9', '9 V battery']]));
+  await expect(pick).toHaveValue('supply12');
+  expect(await resultPower(page)).toBe('supply12');
+  const tools = await actionTools(page);
+  expect(tools[0]).toBe('place_bench_supply');
+  expect(tools).not.toContain('place_battery');
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, switching to 9 V battery rebuilds the result (a place_battery, no place_bench_supply, power battery9) and Build it builds what the picker shows', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, opampReading());
+
+  await page.locator('#photo-power').selectOption('battery9');
+  expect(await resultPower(page)).toBe('battery9');
+  const tools = await actionTools(page);
+  expect(tools).toContain('place_battery');
+  expect(tools).not.toContain('place_bench_supply');
+  await page.locator('#photo-power').selectOption('supply12');
+  expect(await resultPower(page)).toBe('supply12');
+  expect(await actionTools(page)).toContain('place_bench_supply');
+
+  await page.locator('#photo-power').selectOption('battery9');
+  const shown = await page.evaluate(() => window.PhotoConfirm.result.actions);
+  await page.locator('#photo-build').click();
+  await expect(page.locator('#photo-modal')).toBeHidden();
+  const built = await page.evaluate(() => window.PhotoConfirm.built);
+  expect(built.power).toBe('battery9');
+  expect(built.actions).toEqual(shown);
+  expect(built.actions.map(a => a.tool)).not.toContain('place_bench_supply');
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, Build it with the default ±12 V builds a bench supply on the board', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, opampReading());
+  await page.locator('#photo-build').click();
+  await expect(page.locator('#photo-modal')).toBeHidden();
+  const built = await page.evaluate(() => window.PhotoConfirm.built);
+  expect(built.power).toBe('supply12');
+  expect(built.actions[0]).toEqual({ tool: 'place_bench_supply', voltage: 12 });
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, a Reading without op-amps preselects 9 V battery', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  const r = stageReading();
+  r.power = [];
+  await openConfirm(page, r);
+  await expect(page.locator('#photo-power')).toHaveCount(1);
+  await expect(page.locator('#photo-power')).toHaveValue('battery9');
+  expect(await resultPower(page)).toBe('battery9');
+  expect(await actionTools(page)).not.toContain('place_bench_supply');
+  expect(errors).toEqual([]);
+});

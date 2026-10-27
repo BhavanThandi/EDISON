@@ -320,14 +320,25 @@
   // photo of my real breadboard. Unsure readings: LED1 direction." `result`
   // is PhotoImport.build's. It goes into the /api/ask message, so it never
   // names a part keyword, a NEW_BUILD word or "fix": the server must treat
-  // question + context exactly as the question alone.
+  // question + context exactly as the question alone. So the ±12 V bench
+  // supply reads "12 V rails assumed (…)", its unpowered bp "the bp rail
+  // left unconnected", an off-board lead "a lead leaves the board at c14",
+  // and a chip asked about "the photo's U1 not added (…)" (photo fix B4).
   const UNSURE = { polarity: 'direction', value: 'value', moved: 'holes', shorted: 'shorted',
                    source: 'kind', position: 'holes', mismatch: 'holes', type: 'kind' };
   function photoContext(result) {
     const labels = (result && result.labels) || {};
+    const supply = !!result && result.power === 'supply12';
     const said = ((result && result.flags) || []).map(f => {
-      if (f.kind === 'rails') return 'rail signs';
-      if (f.id == null)       return f.kind === 'source' ? 'no cell seen, a 9 V one assumed' : f.kind;
+      if (f.kind === 'rails')    return 'rail signs';
+      if (f.kind === 'offboard') return f.hole ? `a lead leaves the board at ${f.hole}` : `the photo's ${f.id} leaves the board`;
+      if (f.id == null && f.kind === 'source') {
+        if (f.rail) return `the ${f.rail} rail left unconnected`;
+        return supply ? '12 V rails assumed (+12 V on tp, ground on tn, −12 V on bn)' : 'no cell seen, a 9 V one assumed';
+      }
+      if (f.id == null)       return f.kind;
+      if (f.kind === 'chip')  return `the photo's ${f.id} not added (its label unread)`;
+      if (f.kind === 'pin1')  return `the photo's ${f.id} not added (which end is pin 1 unsure)`;
       if (!labels[f.id])      return `the photo's ${f.id} not added`;
       return `${labels[f.id]} ${UNSURE[f.kind] || f.kind}`;
     });

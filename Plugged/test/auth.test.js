@@ -44,7 +44,7 @@ async function refused(token, why, opts) {
 
 test('a good token gives { uid: sub, email }', async () => {
   const out = await verify(sign(keys.privateKey));
-  assert.deepStrictEqual(out, { uid: 'user-1', email: 'a@example.com' });
+  assert.deepStrictEqual(out, { uid: 'user-1', email: 'a@example.com', emailVerified: false });
 });
 
 test('a token without an email still verifies (uid only needed)', async () => {
@@ -130,4 +130,13 @@ test('only Google sign-in counts: firebase.sign_in_provider must be google.com (
   await refused(sign(keys.privateKey, { payload: { firebase: { sign_in_provider: 'password' } } }), 'a password sign-in');
   await refused(sign(keys.privateKey, { payload: { firebase: {} } }), 'a firebase claim with no provider');
   await refused(sign(keys.privateKey, { payload: { firebase: undefined } }), 'no firebase claim');
+});
+
+test('emailVerified is true only when the token says email_verified: true (the owner allow-list trusts nothing else)', async () => {
+  const yes = await verify(sign(keys.privateKey, { payload: { email_verified: true } }));
+  assert.equal(yes.emailVerified, true);
+  for (const v of [false, 'true', 1, undefined]) {
+    const out = await verify(sign(keys.privateKey, { payload: { email_verified: v } }));
+    assert.equal(out.emailVerified, false, `email_verified: ${JSON.stringify(v)}`);
+  }
 });

@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 //  backend/auth.js: Firebase ID-token checks for the AI routes (deploy D3).
-//  verifyIdToken(token, { projectId, fetchCerts, now }) → { uid, email },
+//  verifyIdToken(token, { projectId, fetchCerts, now }) → { uid, email, emailVerified },
 //  or throws an AuthError (its `code` says why; never the token itself).
 //  Only Google sign-ins (firebase.sign_in_provider 'google.com') pass.
 //  Node built-ins only: node:crypto for RS256, the global fetch for
@@ -109,7 +109,8 @@ async function verifyIdToken(token, { projectId, fetchCerts, now = Date.now } = 
   } catch { good = false; }
   if (!good) refuse('BAD_SIGNATURE');
 
-  return { uid: sub, email: typeof email === 'string' ? email : null };
+  // emailVerified: only Google's own `email_verified: true` counts (the owner allow-list relies on it).
+  return { uid: sub, email: typeof email === 'string' ? email : null, emailVerified: payload.email_verified === true };
 }
 
 module.exports = { verifyIdToken, resetCache, AuthError, CERTS_URL };

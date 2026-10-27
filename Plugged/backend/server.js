@@ -1812,13 +1812,19 @@ noteMemoryCounters();
 const dayLimit = ([name, dflt]) => { const v = String(process.env[name] || '').trim(); return /^\d+$/.test(v) ? Number(v) : dflt; };
 const limitBody = (code, message, extra) => ({ reply: message, ...extra, code, message });
 
-// The signed-in user's uid, or null once it has answered 401 SIGN_IN.
-// Never logs the token, only why it was refused.
+// UNLIMITED_EMAILS (comma-separated, set on the host, never in the repo): a
+// Google-verified sign-in with one of these emails skips the daily allowances
+// and takes nothing from the global pool (the owner). Read per request.
+const unlimitedEmails = () => String(process.env.UNLIMITED_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+
+// The signed-in user's uid, or null once it has answered 401 SIGN_IN; marks
+// req.unlimited for an UNLIMITED_EMAILS owner. Never logs the token, only why it was refused.
 async function signedInUser(req, res, extra) {
   const m = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(String(req.headers.authorization || ''));
   try {
     if (!m) throw Object.assign(new Error('no bearer token'), { code: 'NO_TOKEN' });
-    const { uid } = await Auth.verifyIdToken(m[1], { projectId: process.env.FIREBASE_PROJECT_ID || 'plugged-hackathon' });
+    const { uid, email, emailVerified } = await Auth.verifyIdToken(m[1], { projectId: process.env.FIREBASE_PROJECT_ID || 'plugged-hackathon' });
+    req.unlimited = emailVerified && !!email && unlimitedEmails().includes(email.toLowerCase());
     return uid;
   } catch (e) {
     console.warn(`[auth] ${req.url} refused: ${e.code || 'ERROR'}`);
@@ -1904,7 +1910,7 @@ async function handlePhoto(req, res) {
   if (!out && gated) {
     const uid = await signedInUser(req, res);
     if (uid === null) return logPhoto({ sample, error: 'SIGN_IN', started, bytes });
-    const over = await overDayLimit(res, uid, 'photo');
+    const over = req.unlimited ? null : await overDayLimit(res, uid, 'photo');
     if (over) return logPhoto({ sample, error: over, started, bytes });
   }
   try {
@@ -2104,7 +2110,7 @@ const server = http.createServer(async (req, res) => {
     if (body === null) return;
     try {
       const { markdown = '', message = '', history = [], board, explain } = JSON.parse(body || '{}');
-      const over = uid ? await overDayLimit(res, uid, 'ask', { actions: [] }) : null;
+      const over = uid && !req.unlimited ? await overDayLimit(res, uid, 'ask', { actions: [] }) : null;
       if (over) return console.log(`[ask] refused: ${over}`);
       const result = await ask(markdown, message, history, isBoard(board) ? board : undefined, { explain: explain === true });
       const { reply, actions } = result;

@@ -52,7 +52,7 @@ beforeAll(() => new Promise(r => Server.server.listen(0, '127.0.0.1', () => { po
 afterAll(() => new Promise(r => Server.server.close(r)));
 
 let deepseekCalls;
-const ENV = ['VOICE_PROVIDER', 'ELEVENLABS_API_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'REQUIRE_AUTH', 'ASK_PER_USER_DAY', 'PHOTO_PER_USER_DAY', 'ASK_GLOBAL_DAY', 'PHOTO_GLOBAL_DAY', 'PHOTO_PROVIDERS'];
+const ENV = ['VOICE_PROVIDER', 'ELEVENLABS_API_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'REQUIRE_AUTH', 'ASK_PER_USER_DAY', 'PHOTO_PER_USER_DAY', 'ASK_GLOBAL_DAY', 'PHOTO_GLOBAL_DAY', 'PHOTO_PROVIDERS', 'UNLIMITED_EMAILS'];
 beforeEach(() => {
   deepseekCalls = 0;
   for (const k of ENV) delete process.env[k];
@@ -77,6 +77,7 @@ afterEach(() => { delete require('../backend/photo-reader.js').PROVIDERS.fakeai;
 
 // A token for `uid`, valid against the real clock (the server uses Date.now()).
 const tokenFor = uid => sign(keys.privateKey, { now: Math.floor(Date.now() / 1000), payload: { sub: uid } });
+const tokenWith = (uid, extra) => sign(keys.privateKey, { now: Math.floor(Date.now() / 1000), payload: { sub: uid, ...extra } });
 
 let ipCount = 0;
 function post(path, body, { token, accept } = {}) {
@@ -348,5 +349,43 @@ describe('REQUIRE_AUTH unset: local dev unchanged', () => {
   test('REQUIRE_AUTH=0 is also off', async () => {
     process.env.REQUIRE_AUTH = '0';
     assert.equal((await ask({})).status, 200);
+  });
+});
+
+describe('UNLIMITED_EMAILS: the owner skips the daily allowances (REQUIRE_AUTH=1)', () => {
+  beforeEach(() => { process.env.REQUIRE_AUTH = '1'; });
+  const owner = extra => tokenWith('owner-uid', { email: 'owner@example.com', email_verified: true, ...extra });
+
+  test('a listed, Google-verified email is never refused and takes nothing from the global pool', async () => {
+    process.env.UNLIMITED_EMAILS = 'owner@example.com';
+    process.env.ASK_PER_USER_DAY = '1';
+    process.env.ASK_GLOBAL_DAY = '1';
+    for (let i = 1; i <= 3; i++) assert.equal((await ask({ token: owner() })).status, 200, `owner ask ${i}`);
+    assert.equal((await ask({ token: tokenFor('someone-else') })).status, 200, 'the public pool is untouched');
+    assert.equal((await ask({ token: tokenFor('someone-else-2') })).status, 429, 'the pool of 1 is now used');
+  });
+
+  test('the same email without email_verified: true is limited like anyone', async () => {
+    process.env.UNLIMITED_EMAILS = 'owner@example.com';
+    process.env.ASK_PER_USER_DAY = '1';
+    assert.equal((await ask({ token: owner({ email_verified: false }) })).status, 200);
+    assert.equal((await ask({ token: owner({ email_verified: false }) })).status, 429);
+  });
+
+  test('the list is comma-separated, trimmed and case-insensitive', async () => {
+    process.env.UNLIMITED_EMAILS = ' x@y.z , Owner@Example.com ';
+    process.env.ASK_PER_USER_DAY = '1';
+    for (let i = 1; i <= 2; i++) assert.equal((await ask({ token: owner({ email: 'OWNER@example.COM' }) })).status, 200, `ask ${i}`);
+  });
+
+  test('unset → the owner is limited like anyone', async () => {
+    process.env.ASK_PER_USER_DAY = '1';
+    assert.equal((await ask({ token: owner() })).status, 200);
+    assert.equal((await ask({ token: owner() })).status, 429);
+  });
+
+  test('photos: the owner gets more than the one daily read', async () => {
+    process.env.UNLIMITED_EMAILS = 'owner@example.com';
+    for (let i = 1; i <= 3; i++) assert.equal((await photo({ token: owner() })).status, 200, `photo ${i}`);
   });
 });

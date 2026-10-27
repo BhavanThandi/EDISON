@@ -72,7 +72,7 @@
 //   mode", and no element outside the <header> whose whole text is "EDISON"
 //   (the header's wordmark reads EDISON since #186).
 // - The footer is one line: "Not an official SFU site." and the "Switch to classic UI" link to
-//   ../landing.html?ui=classic.
+//   ../circuit3d/index.html?ui=classic.
 // - The landing never writes localStorage (no setItem, removeItem or clear),
 //   on load or on Ask.
 // - #164, the sequence:
@@ -352,7 +352,7 @@ test('the first screen: the kept wordmark, headline and Ask box ("Build me a lig
   // The footer: one line, the classic link kept.
   expect.soft(F.footText, 'the footer').toBe('Not an official SFU site. Switch to classic UI');
   expect.soft(F.footSpread, 'the footer is one line (spread of its text runs\' centres, px)').toBeLessThanOrEqual(4);
-  expect.soft(F.classic, 'Switch to classic UI goes to').toBe('/landing.html?ui=classic');
+  expect.soft(F.classic, 'Switch to classic UI goes to').toBe('/circuit3d/index.html?ui=classic');
 
   // The stage (ref 04).
   expect(F.stage, `<section class="ed-stage" aria-label="${STAGE}">`).not.toBeNull();

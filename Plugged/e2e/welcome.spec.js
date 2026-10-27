@@ -4,8 +4,7 @@
 // browser context shows it again. D2 wires the buttons; here they only have to
 // exist and be clickable without errors. /api/* is stubbed so no AI is called.
 //
-// The card has no id in the brief, so the tests find it as the innermost
-// element holding the three demo buttons.
+// The card is #welcome-card.
 const { test, expect } = require('@playwright/test');
 
 const PITCH = 'An AI agent that builds working circuits — and rebuilds a real breadboard from a photo.';
@@ -21,11 +20,10 @@ async function open(page) {
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   await page.route('**/api/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{"reply":"ok","actions":[]}' }));
   await page.goto('/');
+  await page.waitForURL(/circuit3d\/index\.html/);   // / redirects; wait for the editor itself
   return errors;
 }
-const card = page => page.locator('div, section, aside, dialog')
-  .filter({ has: page.locator('[data-demo="build"]') })
-  .filter({ has: page.locator('[data-demo="run"]') }).last();
+const card = page => page.locator('#welcome-card');
 
 test('/ ends in the Edison editor, not the landing page', async ({ page }) => {
   const errors = await open(page);
@@ -67,6 +65,7 @@ test('x hides the card, a reload keeps it hidden, a new session shows it again',
     const fresh = await ctx.newPage();
     await fresh.route('**/api/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
     await fresh.goto('/');
+    await fresh.waitForURL(/circuit3d\/index\.html/);
     await expect(fresh.locator('[data-demo="build"]')).toBeVisible();
   } finally { await ctx.close(); }
   expect(errors).toEqual([]);

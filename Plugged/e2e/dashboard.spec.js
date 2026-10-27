@@ -190,11 +190,10 @@ test('a circuit opened from the dashboard is still open after reloading the edit
 
 test('signing out forgets which circuit this tab had open', async ({ page }) => {
   await setUp(page);
-  await page.route('**/landing.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>landing</title>' }));
   await openDashboard(page);
   await page.evaluate(id => sessionStorage.setItem('sparky_open_circuit', id), TWO_LEDS.id);
 
   await clickOnce(page, page.getByRole('button', { name: 'Log Out' }));
-  await page.waitForURL('**/landing.html');
+  await page.waitForURL(/\/circuit3d\/index\.html\?(.*&)?ui=edison/);   // sign-out goes to /, which opens the editor
   expect(await page.evaluate(() => sessionStorage.getItem('sparky_open_circuit'))).toBeNull();
 });

@@ -2,14 +2,15 @@
 //  photo-confirm.js — the confirm screen (issues #141, #142), inside the
 //  📷 overlay: the flattened photo with a dot on every lead, wire end and
 //  battery lead, the parts list (values, colours, volts, amber flags,
-//  greyed not-built parts), + Add a part, swap + / − per rail side, and
-//  Build it.
+//  greyed not-built parts, a chip's questions), + Add a part, swap + / −
+//  per rail side, and Build it.
 //  DOM only: the geometry is PhotoGrid, the flags and actions are
-//  PhotoImport.build. Each row and canvas label is named by its Reading id
-//  (PhotoImport's key when that is missing or repeated; a battery its app
-//  label, BAT1), never by its built label (#178).
-//  Contract: docs/API-CONTRACT.md → "Reading v1",
-//  "PhotoGrid", "PhotoImport".
+//  PhotoImport.build, a chip's seat PhotoChips and its turn App.BoardMirror.
+//  Each row and canvas label is named by its Reading id (PhotoImport's key
+//  when that is missing or repeated; a battery its app label, BAT1), never
+//  by its built label (#178).
+//  Contract: docs/API-CONTRACT.md → "Reading v1", "PhotoGrid",
+//  "PhotoChips", "PhotoImport", "Page additions (photo)".
 //
 //  FLOW
 //  ────
@@ -17,6 +18,14 @@
 //    → '?' endpoints snapped from their pt → draw
 //    tap a dot (selected) → tap anywhere → it moves to grid.snap(point).hole
 //    ⇄ swaps an LED's legs (or picks its + when unknown) · × deletes
+//    a chip (an `ic` row, "U1 · TL072", "U1 · chip" unread; photo fix B3):
+//      flag chip → Yes / No (isOpAmp true / false)
+//      flag pin1 → "Pin 1 is right" (pin1Confirmed)
+//      flag pin1, or built → ⇄ turns it end for end (Ruling B3a): its seat
+//      (the built place_tl072, else PhotoChips' rule) → named leads 1 and
+//      N at the T_A row of the other's hole (e30 / e33 → f33 / f30), pts
+//      at their hole centres, pin1Confirmed
+//      its dots carry their pin (Ruling B3b): label 'U1.1', drawn by the dot
 //    value / colour dropdowns, battery volts (as typed: PhotoImport flags
 //    and falls back to 9 V outside 1–24 V)
 //    + Add a part → resistor / LED / wire → tap two holes (snapped)
@@ -31,10 +40,10 @@
 //    startPlacing(ids) for the crops it sends: those rows get .photo-placing
 //    and "Placing legs N/M…" shows above the list. Each crop's line →
 //    place(id, entry): the id leaves `placing`; unless she has touched that
-//    item since open() (moved a dot, ⇄, ×, a value, colour or volts), the
-//    entry is merged (PhotoCrops.merge; found false drops the item), its '?'
-//    snapped, rebuilt and redrawn. stopPlacing() clears it all (done, a
-//    timeout, an error, a close).
+//    item since open() (moved a dot, ⇄, ×, a value, colour or volts, a
+//    chip's Yes / No / Pin 1 is right), the entry is merged (PhotoCrops.merge;
+//    found false drops the item), its '?' snapped, rebuilt and redrawn.
+//    stopPlacing() clears it all (done, a timeout, an error, a close).
 //    #177: a landing line never replaces the control she is using: the row
 //    holding the focused input or select stays the same element (its typed
 //    value and open picker kept), the others are rebuilt around it, and every
@@ -46,7 +55,9 @@
 //  Browser: window.PhotoConfirm = { reading, result, selected, dots(), built, placing,
 //                                   open(reading, image, grid, onBuild), cancelMove(),
 //                                   place(id, entry), startPlacing(ids), stopPlacing() }
-//  (placing: a Set of the ids whose crop line hasn't arrived)
+//  (placing: a Set of the ids whose crop line hasn't arrived; dots(): one
+//   { id, end, hole, x, y, label, plus, name, pin } per drawn end, a chip
+//   lead's label '<name>.<pin>')
 // ─────────────────────────────────────────────────────────────
 
 (function () {
@@ -60,6 +71,9 @@
   const BAND = { black: 0, brown: 1, red: 2, orange: 3, yellow: 4, green: 5, blue: 6, violet: 7, purple: 7,
                  grey: 8, gray: 8, white: 9, gold: -1, silver: -2 };
   const NEW_PART = { resistor: { what: 'resistor', value: 470, color: '' }, led: { what: 'LED', value: 0, color: 'red' } };
+  const CHIP     = 'tl072';                  // what PhotoImport builds an `ic` as
+  const TURN     = { right: 0, left: 180 };  // a seat's direction → its rotation
+  const Mirror   = window.App.BoardMirror;   // T_A: a↔j … e↔f
 
   const $ = id => document.getElementById(id);
   const box    = $('photo-confirm'), canvas = $('photo-confirm-canvas'), list = $('photo-parts');
@@ -76,6 +90,8 @@
   };
 
   const isLed   = p => p.type === 'led';
+  const isChip  = p => p.type === 'ic';
+  const pinOf   = l => (l && l.pin != null ? String(l.pin).trim() : '');
   const picked  = p => p.leads.filter(l => l.role === 'anode').length === 1 && p.leads.filter(l => l.role === 'cathode').length === 1;
   const unknown = () => C.reading.parts.some(p => isLed(p) && !picked(p));   // her + not chosen: Build waits
   const where   = e => grid.holeCentre(e.hole) || e.pt;
@@ -164,16 +180,47 @@
   const battery = k => C.result.labels['power:' + k] || 'power:' + k;   // its app label (BAT1)
 
   // What is drawn: a dot per part lead, wire end and battery lead (end 0
-  // its +, end 1 its −), flattened pixels, labelled with its item's name.
+  // its +, end 1 its −), flattened pixels, labelled with its item's name
+  // (name); a chip's lead '<name>.<pin>' when its pin is known (B3b).
   function dots() {
     if (!C.reading) return [];
     const n   = names();
-    const dot = (id, label, e, i, plus) => ({ id, end: i, hole: e.hole, x: where(e)[0], y: where(e)[1], label, plus });
+    const dot = (id, name, e, i, plus, pin) => ({ id, end: i, hole: e.hole, x: where(e)[0], y: where(e)[1],
+                                                  label: pin ? `${name}.${pin}` : name, plus, name, pin: pin || null });
     return [
-      ...C.reading.parts.flatMap((p, k) => p.leads.map((l, i) => dot(p.id, n.parts[k], l, i, isLed(p) && l.role === 'anode'))),
+      ...C.reading.parts.flatMap((p, k) => {
+        const pins = isChip(p) ? chipPins(p) : [];
+        return p.leads.map((l, i) => dot(p.id, n.parts[k], l, i, isLed(p) && l.role === 'anode', pins[i]));
+      }),
       ...C.reading.wires.flatMap((w, k) => w.ends.map((e, i) => dot(w.id, n.wires[k], e, i, false))),
       ...C.reading.power.flatMap((s, k) => [s.plus, s.minus].map((e, i) => dot('power:' + k, battery(k), e, i, false))),
     ];
+  }
+
+  // A chip's seat as the build has it (Ruling B3a): its place_tl072 when
+  // built (the k-th chip built is the k-th place_tl072), PhotoChips' rule
+  // while the build asks which end is pin 1 (leads named 1 and N → seat,
+  // two unnamed → seatFromColumns), else null: nothing to turn. With the
+  // holes of its pin 1 and pin N (N = pins / 2).
+  function seatOf(p) {
+    const n = names().parts, key = n[C.reading.parts.indexOf(p)], pins = Number(p.pins) || 8, N = String(pins / 2);
+    const k = C.reading.parts.filter((q, j) => isChip(q) && C.result.labels[n[j]]).indexOf(p);
+    let s = k >= 0 ? C.result.actions.filter(a => a.tool === 'place_' + CHIP)[k] : null;
+    if (!s && C.result.flags.some(f => f.id === key && f.kind === 'pin1')) {
+      const named = x => p.leads.find(l => pinOf(l) === x);
+      s = named('1') && named(N) ? PhotoChips.seat({ pin1: named('1').hole, pinN: named(N).hole, pins, notch: p.notch })
+                                 : PhotoChips.seatFromColumns({ ends: p.leads.map(l => l.hole), notch: p.notch });
+    }
+    const legs = s && !s.why ? Parts.footprintLegs(CHIP, s.hole, TURN[s.direction]) : null;
+    return legs ? { N, pin1: legs[0].hole, pinN: legs[pins / 2 - 1].hole } : null;
+  }
+
+  // Each chip lead's pin name: its own pin, else (the reader's box-end
+  // placeholders) the seat's pin in its column; '' when not known.
+  function chipPins(p) {
+    const s = seatOf(p), col = h => (/^[a-j](\d+)$/.exec(h) || [])[1];
+    const at = s ? { [col(s.pin1)]: '1', [col(s.pinN)]: s.N } : {};
+    return p.leads.map(l => pinOf(l) || at[col(l.hole)] || '');
   }
 
   function endOf(sel) {
@@ -218,7 +265,7 @@
     drawBoard(ctx, at, d);
 
     const all = dots(), n = names();
-    const ends = (id, name) => all.filter(q => q.id === id && q.label === name);   // one item's: ids may repeat, names don't (#178)
+    const ends = (id, name) => all.filter(q => q.id === id && q.name === name);   // one item's: ids may repeat, names don't (#178)
     C.reading.parts.forEach((p, k) => link(ctx, ends(p.id, n.parts[k]), at, d, isLed(p) ? INK[p.color] || INK.red : '#d6a85c'));
     C.reading.wires.forEach((w, k) => link(ctx, ends(w.id, n.wires[k]), at, d, INK[w.color] || '#a3a3a3'));
     for (const q of all) {
@@ -234,9 +281,9 @@
       ctx.strokeStyle = '#fff';
       ctx.stroke();
       ctx.globalAlpha = 1;
-      if (glyph) {
-        ctx.font = `800 ${15 * d}px sans-serif`;
-        text(ctx, glyph, x + r + 5 * d, y - r - 4 * d, d);
+      if (glyph || q.pin) {                                        // an LED's +, a battery's ±, a chip's pin
+        ctx.font = glyph ? `800 ${15 * d}px sans-serif` : `700 ${12 * d}px sans-serif`;
+        text(ctx, glyph || q.pin, x + r + 5 * d, y - r - 4 * d, d);
       }
     }
     if (adding && adding.pts.length) {                            // + Add: its first tap
@@ -250,11 +297,11 @@
     ctx.font = `600 ${11 * d}px sans-serif`;
     const named = new Set();
     for (const q of all) {                                         // one label per item, by its name
-      if (named.has(q.id + '\n' + q.label)) continue;
-      named.add(q.id + '\n' + q.label);
-      const e = ends(q.id, q.label);
+      if (named.has(q.id + '\n' + q.name)) continue;
+      named.add(q.id + '\n' + q.name);
+      const e = ends(q.id, q.name);
       const [x, y] = at([(e[0].x + e[e.length - 1].x) / 2, (e[0].y + e[e.length - 1].y) / 2]);
-      text(ctx, q.label, x, y - 12 * d, d);
+      text(ctx, q.name, x, y - 12 * d, d);
     }
   }
 
@@ -347,13 +394,14 @@
     const holes = ends => ends.map(e => e.hole).join(' → ');
     const n = names();
     C.reading.parts.forEach((p, k) => {
+      if (isChip(p)) return rows.push(chipRow(p, n.parts[k]));
       let note = p.type === 'resistor' || isLed(p) ? holes(p.leads) : p.what || p.type;
       if (isLed(p)) {
         const a = p.leads.find(l => l.role === 'anode');
         note += picked(p) ? ` · + in ${a.hole}` : ' · which leg is +? Press ⇄';
       }
       const pick = p.type === 'resistor' ? valueSelect(p) : isLed(p) ? colorSelect(p, Object.keys(Parts.get('led').values.color.choices)) : null;
-      rows.push(row(p.id, n.parts[k], note, isLed(p) && (() => swapLegs(p.id)), pick));
+      rows.push(row(p.id, n.parts[k], note, isLed(p) && button('photo-swap', '⇄', 'Swap the + and − legs', () => swapLegs(p.id)), pick));
     });
     C.reading.wires.forEach((w, k) => rows.push(row(w.id, n.wires[k], holes(w.ends), null, colorSelect(w, WIRE_COLORS))));
     C.reading.power.forEach((s, i) => rows.push(row('power:' + i, battery(i), s.kind === 'bench_supply' ? 'bench supply' : 'battery', null, voltsInput(s, 'power:' + i))));
@@ -390,8 +438,9 @@
     note.textContent = C.placing.size ? `Placing legs ${sent - C.placing.size}/${sent}…` : '';
   }
 
-  // A row: data-id its Reading id ('power:N' a battery), named by its name.
-  function row(id, label, note, swap, pick) {
+  // A row: data-id its Reading id ('power:N' a battery), named by its name;
+  // swap its ⇄ button, pick its dropdowns, ask the answers under its why.
+  function row(id, label, note, swap, pick, ask) {
     const li = document.createElement('li');
     li.dataset.id = id;
     const name = document.createElement('b');
@@ -402,9 +451,23 @@
     why.className = 'photo-why';
     li.append(name, what);
     if (pick) li.append(...[].concat(pick));
-    if (swap) li.appendChild(button('photo-swap', '⇄', 'Swap the + and − legs', swap));
+    if (swap) li.appendChild(swap);
     li.append(button('photo-del', '×', 'Remove', () => remove(id)), why);
+    if (ask) li.append(...ask);
     return li;
+  }
+
+  // A chip's row (B3): "U1 · TL072". While the build asks (its flags):
+  // chip → Yes / No, it is (isn't) a dual op-amp; pin1 → "Pin 1 is right".
+  // ⇄ while it has a seat to turn (asked, or built).
+  function chipRow(p, name) {
+    const kinds = C.result.flags.filter(f => f.id === name).map(f => f.kind);
+    const answer = (key, v) => () => { set(p.id, key, v); edited(); };
+    const ask = kinds.includes('chip') ? [button('photo-chip-yes', 'Yes', 'Yes: a dual op-amp like a TL072', answer('isOpAmp', true)),
+                                          button('photo-chip-no', 'No', 'No: another chip', answer('isOpAmp', false))] : [];
+    if (kinds.includes('pin1')) ask.push(button('photo-pin1-ok', 'Pin 1 is right', 'The 1 dot is on pin 1', answer('pin1Confirmed', true)));
+    const turn = seatOf(p) && button('photo-swap', '⇄', 'Turn the chip round: pin 1 to the other end', () => turnChip(p.id));
+    return row(p.id, name, `· ${String(p.label == null ? '' : p.label).trim() || 'chip'}`, turn, null, ask);
   }
 
   function select(cls, title, options, value, fn) {
@@ -491,6 +554,20 @@
     const plus = known ? c : a >= 0 ? a : c >= 0 ? 1 - c : 0;
     p.leads.forEach((l, i) => { l.role = i === plus ? 'anode' : 'cathode'; });
     touched.add(p.id);
+    edited();
+  }
+
+  // ⇄ on a chip (Ruling B3a): turned end for end, its leads become pin 1
+  // and pin N, named, each at the T_A row of the other's hole (e30 / e33
+  // → f33 / f30), at its hole's centre. pin1Confirmed: she has looked.
+  function turnChip(id) {
+    const p = current(id), s = p && seatOf(p);
+    const to = s ? [Mirror.mirrorHoleName(s.pinN), Mirror.mirrorHoleName(s.pin1)] : [];
+    if (!s || !to.every(h => grid.holeCentre(h))) return;
+    p.leads = [['1', to[0]], [s.N, to[1]]].map(([pin, hole]) => ({ hole, pt: grid.holeCentre(hole), role: 'none', pin }));
+    p.pin1Confirmed = true;
+    touched.add(id);
+    if (C.selected && C.selected.id === id) C.selected = null;   // its leads are new
     edited();
   }
 

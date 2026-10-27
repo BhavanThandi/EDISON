@@ -864,3 +864,153 @@ test('#178 a repeated or missing wire id: the rows and canvas labels take PhotoI
   expect.soft((await canvasLabels(page)).sort(), 'one canvas label per part and wire, by the same names').toEqual(keys.slice().sort());
   expect(errors).toEqual([]);
 });
+
+// ── B3: the chip row ──────────────────────────────────────────────────────
+// A dual op-amp (an `ic` part) on the confirm screen. In its row (selectors
+// chosen here, the builder matches them): .photo-chip-yes / .photo-chip-no
+// answer "is it a dual op-amp?" (set the Reading's U1.isOpAmp), .photo-swap
+// (⇄) turns the chip and .photo-pin1-ok ("Pin 1 is right") confirms it
+// (set U1.pin1Confirmed). ⇄ always writes NAMED leads '1' and '4' at the
+// turned seat's pin-1 / pin-4 holes (Ruling B3a): e30/e33 turn to f33/f30.
+// The chip's two dots carry their pin name in dots() `label`.
+
+function chipReading({ label = 'TL072', notch = 'unsure', named = true, holes = ['e30', 'e33'] } = {}) {
+  const r = stageReading();
+  r.parts.push({ id: 'U1', type: 'ic', what: 'TL072 dual op-amp', value: 0, bands: [], color: '',
+    label, pins: 8, notch,
+    leads: named ? [{ hole: holes[0], pt: [0, 0], role: 'none', pin: '1' }, { hole: holes[1], pt: [0, 0], role: 'none', pin: '4' }]
+                 : [lead(holes[0]), lead(holes[1])],
+    box: [0, 0, 0, 0], confidence: 0.8, unsure: [] });
+  return r;
+}
+
+const u1 = page => page.evaluate(() => window.PhotoConfirm.reading.parts.find(p => p.id === 'U1'));
+const tl072 = page => page.evaluate(() => window.PhotoConfirm.result.actions.filter(a => a.tool === 'place_tl072'));
+const flagsOf = (page, id) => page.evaluate(id => window.PhotoConfirm.result.flags.filter(f => f.id === id), id);
+const skippedOf = (page, id) => page.evaluate(id => window.PhotoConfirm.result.skipped.filter(x => x.id === id), id);
+const leadHoles = u => Object.fromEntries(u.leads.map(l => [l.pin, l.hole]));
+
+test('B3 chip row, notch unsure: ⇄ and "Pin 1 is right" are offered and nothing is built; "Pin 1 is right" builds e30 right and sets pin1Confirmed', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+
+  const row = rowOf(page, 'U1');
+  await expect(row.locator('.photo-swap'), 'the chip has ⇄').toHaveCount(1);
+  await expect(row.locator('.photo-pin1-ok'), 'and "Pin 1 is right"').toHaveCount(1);
+  await expect(row.locator('.photo-pin1-ok')).toContainText('Pin 1 is right');
+  await expect(row.locator('.photo-chip-yes'), 'the identity is known: no op-amp question').toHaveCount(0);
+  expect(await tl072(page), 'asked, not built').toEqual([]);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('pin1');
+  await expect(row).toHaveClass(/\bphoto-flagged\b/);
+
+  await row.locator('.photo-pin1-ok').click();
+  const acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ tool: 'place_tl072', hole: 'e30', direction: 'right' });
+  expect((await u1(page)).pin1Confirmed).toBe(true);
+  expect(await flagsOf(page, 'U1'), 'no flag once confirmed').toEqual([]);
+  await expect(row).not.toHaveClass(/\bphoto-flagged\b/);
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row: ⇄ turns the chip (named leads 1 at f33, 4 at f30, f33 left); ⇄ twice puts pin 1 back; a later crop line never undoes her answer', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+
+  const swap = rowOf(page, 'U1').locator('.photo-swap');
+  await swap.click();
+  let u = await u1(page);
+  expect(leadHoles(u), 'Ruling B3a: pin 1 across the gap at pin 4\'s column, pin 4 at pin 1\'s').toEqual({ 1: 'f33', 4: 'f30' });
+  expect(u.pin1Confirmed).toBe(true);
+  const c = await sampleCentres(page, ['f33', 'f30']);
+  expect(u.leads.find(l => l.pin === '1').pt, 'pts from grid.holeCentre').toEqual(c.f33.map(v => expect.closeTo(v, 3)));
+  expect(u.leads.find(l => l.pin === '4').pt).toEqual(c.f30.map(v => expect.closeTo(v, 3)));
+  let acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'f33', direction: 'left' });
+
+  await swap.click();
+  u = await u1(page);
+  expect(leadHoles(u)).toEqual({ 1: 'e30', 4: 'e33' });
+  acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+
+  // A crop line landing afterwards changes nothing: she touched the chip.
+  const before = await page.evaluate(() => JSON.stringify({ r: window.PhotoConfirm.reading.parts.find(p => p.id === 'U1'), a: window.PhotoConfirm.result.actions }));
+  await page.evaluate(() => window.PhotoConfirm.place('U1', { found: true, leads: [{ pt: [900, 100] }, { pt: [900, 300] }] }));
+  const after = await page.evaluate(() => JSON.stringify({ r: window.PhotoConfirm.reading.parts.find(p => p.id === 'U1'), a: window.PhotoConfirm.result.actions }));
+  expect(after, 'the chip and her answer are unchanged').toBe(before);
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row, ⇄ once on a reopened Reading: f33 left', async ({ page }) => {
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+  await rowOf(page, 'U1').locator('.photo-swap').click();
+  const acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ tool: 'place_tl072', hole: 'f33', direction: 'left' });
+});
+
+test('B3 chip row, placeholder chip (two unnamed leads, notch left): asked; "Pin 1 is right" builds e30 right; reopened, ⇄ writes named leads at f33/f30 and builds f33 left', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ named: false, notch: 'left' }));
+
+  expect(await tl072(page), 'placeholders are never sure: asked').toEqual([]);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('pin1');
+  await rowOf(page, 'U1').locator('.photo-pin1-ok').click();
+  let acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+  expect((await u1(page)).pin1Confirmed).toBe(true);
+
+  await openEditor(page);
+  await openConfirm(page, chipReading({ named: false, notch: 'left' }));
+  await rowOf(page, 'U1').locator('.photo-swap').click();
+  const u = await u1(page);
+  expect(leadHoles(u), 'named leads now (Ruling B3a)').toEqual({ 1: 'f33', 4: 'f30' });
+  expect(u.pin1Confirmed).toBe(true);
+  acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ hole: 'f33', direction: 'left' });
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row, label unreadable: "Yes" sets isOpAmp and builds the chip; "No" leaves it skipped with a type flag', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: null, notch: 'left' }));
+
+  const row = rowOf(page, 'U1');
+  expect((await flagsOf(page, 'U1')).map(f => f.kind), 'identity asked').toContain('chip');
+  expect(await tl072(page)).toEqual([]);
+  await row.locator('.photo-chip-yes').click();
+  expect((await u1(page)).isOpAmp).toBe(true);
+  const acts = await tl072(page);
+  expect(acts, 'sure pair + agreeing notch: built').toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: null, notch: 'left' }));
+  await rowOf(page, 'U1').locator('.photo-chip-no').click();
+  expect((await u1(page)).isOpAmp).toBe(false);
+  expect(await tl072(page)).toEqual([]);
+  expect((await skippedOf(page, 'U1')).length, 'skipped').toBe(1);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('type');
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row: the chip\'s two dots are labelled with their pin names (1 and 4), before and after ⇄', async ({ page }) => {
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+  const pins = async () => (await page.evaluate(() => window.PhotoConfirm.dots().filter(d => d.id === 'U1'))).map(d => ({ end: d.end, hole: d.hole, label: d.label }));
+  let d = await pins();
+  expect(d).toHaveLength(2);
+  expect(d[0].label, 'pin 1\'s dot').toMatch(/(^|[^A-Za-z0-9])1$/);
+  expect(d[1].label, 'pin 4\'s dot').toMatch(/(^|[^A-Za-z0-9])4$/);
+  await rowOf(page, 'U1').locator('.photo-swap').click();
+  d = await pins();
+  expect(d.map(x => x.hole)).toEqual(['f33', 'f30']);
+  expect(d[0].label).toMatch(/(^|[^A-Za-z0-9])1$/);
+  expect(d[1].label).toMatch(/(^|[^A-Za-z0-9])4$/);
+});

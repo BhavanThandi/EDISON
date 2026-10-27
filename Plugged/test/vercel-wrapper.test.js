@@ -92,7 +92,7 @@ test('an NDJSON route streams its lines in order through the wrapper (/api/photo
   assert.deepStrictEqual(fetched, [], 'no outside call was made');
 });
 
-test('vercel.json: redirect from /, 60 s function, no-cache on /api/(.*), cleanUrls off, and its paths exist', () => {
+test('vercel.json: redirect from /, 300 s function, no-cache on /api/(.*), cleanUrls off, and its paths exist', () => {
   const file = path.join(ROOT, 'vercel.json');
   assert.ok(fs.existsSync(file), 'Plugged/vercel.json exists');
   const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -105,7 +105,7 @@ test('vercel.json: redirect from /, 60 s function, no-cache on /api/(.*), cleanU
 
   const fn = cfg.functions && cfg.functions['api/[...path].js'];
   assert.ok(fn, 'functions["api/[...path].js"] is set');
-  assert.equal(fn.maxDuration, 60);
+  assert.equal(fn.maxDuration, 300);   // ≥ the DeepSeek ask deadline (240 s) and the 45 s photo deadline
   assert.ok(fs.existsSync(WRAPPER), 'the function file named in vercel.json exists');
 
   const rule = (cfg.headers || []).find(h => h.source === '/api/(.*)');

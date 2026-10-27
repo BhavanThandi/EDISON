@@ -4,7 +4,7 @@
     { "source": "/", "destination": "/circuit3d/index.html?ui=edison", "permanent": false }
   ],
   "functions": {
-    "api/[...path].js": { "maxDuration": 60 }
+    "api/[...path].js": { "maxDuration": 300 }
   },
   "headers": [
     {

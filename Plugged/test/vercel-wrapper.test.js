@@ -126,3 +126,14 @@ test('.vercelignore keeps tests, sources, build output, modules and the local .e
     assert.ok(entries.includes(want), `.vercelignore lists ${want}; has ${JSON.stringify(entries)}`);
   }
 });
+
+test("the wrapper restores the URL Vercel's catch-all rewrites (path query / [...path] file name)", () => {
+  const { originalUrl } = require('../api/[...path].js');
+  assert.equal(originalUrl('/api/health'), '/api/health');
+  assert.equal(originalUrl('/api/health?path=health'), '/api/health');
+  assert.equal(originalUrl('/api/photo/leads?path=photo&path=leads'), '/api/photo/leads');
+  assert.equal(originalUrl('/api/[...path]?path=photo&path=leads'), '/api/photo/leads');
+  assert.equal(originalUrl('/api/%5B...path%5D?path=photo%2Fleads'), '/api/photo/leads');
+  assert.equal(originalUrl('/api/[...path]?...path=ask'), '/api/ask');
+  assert.equal(originalUrl('/api/x?foo=1&path=x'), '/api/x?foo=1');
+});

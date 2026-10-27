@@ -13,6 +13,9 @@
  * GET  /api/health                                         →  { status, model, voice }
  * POST /api/course/canvas/sync                             →  { ok, demo, syncedAt }  (Edison demo, no real Canvas)
  * GET  anything else       the app's static files
+ *
+ * REQUIRE_AUTH=1 (deploy): /api/ask, /api/photo and /api/photo/leads need a Firebase
+ * ID token (auth.js), and /api/ask and /api/photo keep daily limits (quota.js).
  */
 
 const http = require('http');
@@ -23,6 +26,8 @@ const { makeAsk, isFixRequest } = require('./ai-providers');
 const { readPhoto, isSafeId, usageOf, thinkingLevel } = require('./photo-reader');
 const { readLeads } = require('./photo-leads');
 const Voice = require('./voice');
+const Auth  = require('./auth');
+const Quota = require('./quota');
 // The board's size: the same file the 3D editor builds the board from.
 const { COLS, TOTAL_HOLES, BODY_ROWS } = require('../circuit3d/js/board-geometry.js');
 // The parts registry: every part's tool, prompt lines and circuit behaviour.
@@ -1771,6 +1776,60 @@ function readBody(req, res, max, tooLarge) {
   });
 }
 
+// ── Sign-in and daily allowances (deploy D3) ─────────────────
+// Only with REQUIRE_AUTH=1 (read per request; unset or anything else is
+// off, and nothing below runs). /api/ask and /api/photo then need a
+// Firebase ID token (`Authorization: Bearer …`) and take one from the user's
+// day and one from the day's global pool, in that order; /api/photo/leads
+// needs the token only (it belongs to its photo). The texts are the
+// contract's, word for word (docs/API-CONTRACT.md).
+const LIMIT_REPLY = {
+  SIGN_IN:      'Sign in with Google to ask your own questions (5 a day).',
+  ASK_USER:     "You've used today's 5 questions. The demos still work — come back tomorrow.",
+  ASK_GLOBAL:   "Edison's free AI questions are used up for today. The demos still work — come back tomorrow.",
+  PHOTO_USER:   "You've used today's photo read. Try a sample photo — they always work.",
+  PHOTO_GLOBAL: "Today's free photo reads are used up. Try a sample photo — they always work.",
+};
+const DAY_LIMITS = {
+  ask:   { user: ['ASK_PER_USER_DAY', 5],   global: ['ASK_GLOBAL_DAY', 100],  userReply: LIMIT_REPLY.ASK_USER,   globalReply: LIMIT_REPLY.ASK_GLOBAL },
+  photo: { user: ['PHOTO_PER_USER_DAY', 1], global: ['PHOTO_GLOBAL_DAY', 15], userReply: LIMIT_REPLY.PHOTO_USER, globalReply: LIMIT_REPLY.PHOTO_GLOBAL },
+};
+const authRequired = () => process.env.REQUIRE_AUTH === '1';
+// A whole number ≥ 0 from env, else the default (never unlimited).
+const dayLimit = ([name, dflt]) => { const v = String(process.env[name] || '').trim(); return /^\d+$/.test(v) ? Number(v) : dflt; };
+const limitBody = (code, message, extra) => ({ reply: message, ...extra, code, message });
+
+// The signed-in user's uid, or null once it has answered 401 SIGN_IN.
+// Never logs the token, only why it was refused.
+async function signedInUser(req, res, extra) {
+  const m = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(String(req.headers.authorization || ''));
+  try {
+    if (!m) throw Object.assign(new Error('no bearer token'), { code: 'NO_TOKEN' });
+    const { uid } = await Auth.verifyIdToken(m[1], { projectId: process.env.FIREBASE_PROJECT_ID || 'plugged-hackathon' });
+    return uid;
+  } catch (e) {
+    console.warn(`[auth] ${req.url} refused: ${e.code || 'ERROR'}`);
+    sendJSON(res, 401, limitBody('SIGN_IN', LIMIT_REPLY.SIGN_IN, extra));
+    return null;
+  }
+}
+
+// Takes one of `uid`'s `route` allowance, then (only if that was allowed) one
+// of the day's global pool. Answers 429 and returns its code on the first
+// refusal; null when the request may go on.
+async function overDayLimit(res, uid, route, extra) {
+  const L = DAY_LIMITS[route];
+  if (!(await Quota.take(`u:${uid}:${route}`, dayLimit(L.user))).ok) {
+    sendJSON(res, 429, limitBody('DAILY_LIMIT', L.userReply, extra));
+    return 'DAILY_LIMIT';
+  }
+  if (!(await Quota.take(`g:${route}`, dayLimit(L.global))).ok) {
+    sendJSON(res, 429, limitBody('DAILY_LIMIT_GLOBAL', L.globalReply, extra));
+    return 'DAILY_LIMIT_GLOBAL';
+  }
+  return null;
+}
+
 // ── /api/photo ───────────────────────────────────────────────
 // The contract's replies, word for word (docs/API-CONTRACT.md).
 const PHOTO_REPLY = {
@@ -1810,6 +1869,8 @@ async function handlePhoto(req, res) {
     logPhoto({ error: 'RATE', started, bytes: 0 });
     return sendJSON(res, 429, { reply: PHOTO_REPLY.RATE });
   }
+  const uid = authRequired() ? await signedInUser(req, res) : '';
+  if (uid === null) return logPhoto({ error: 'SIGN_IN', started, bytes: 0 });
   const body = await readBody(req, res, MAX_PHOTO_BYTES, { reply: PHOTO_REPLY.TOO_LARGE, code: 'TOO_LARGE' });
   if (body === null) return logPhoto({ error: 'TOO_LARGE', started, bytes: MAX_PHOTO_BYTES });
   const bytes = Buffer.byteLength(body);
@@ -1819,6 +1880,9 @@ async function handlePhoto(req, res) {
   const fail = (code, out, retries, usage) => { logPhoto({ sample, out, error: code, started, bytes, retries, usage }); return photoError(res, code); };
   if (!isPhotoDataUrl(image)) return fail('BAD_IMAGE');
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
+  // A valid photo takes the allowance; a refused one never reaches a reader.
+  const over = uid ? await overDayLimit(res, uid, 'photo') : null;
+  if (over) return logPhoto({ sample, error: over, started, bytes });
 
   let out;
   try {
@@ -1864,6 +1928,10 @@ async function handleLeads(req, res) {
   if (rateLimited(req, leadsHits, LEADS_MAX_PER_WINDOW)) {
     logLeads({ count: 0, error: 'RATE', started, bytes: 0 });
     return sendJSON(res, 429, { reply: LEADS_REPLY.RATE });
+  }
+  // A token, but no allowance: the crop round is part of its photo's read.
+  if (authRequired() && (await signedInUser(req, res)) === null) {
+    return logLeads({ count: 0, error: 'SIGN_IN', started, bytes: 0 });
   }
   const body = await readBody(req, res, MAX_LEADS_BYTES, { reply: LEADS_REPLY.TOO_LARGE, code: 'TOO_LARGE' });
   if (body === null) return logLeads({ count: 0, error: 'TOO_LARGE', started, bytes: MAX_LEADS_BYTES });
@@ -2005,10 +2073,14 @@ const server = http.createServer(async (req, res) => {
     if (rateLimited(req, askHits, ASK_MAX_PER_WINDOW)) {
       return sendJSON(res, 429, { reply: 'Too many requests. Give Edison a moment and try again.', actions: [] });
     }
+    const uid = authRequired() ? await signedInUser(req, res, { actions: [] }) : '';
+    if (uid === null) return;
     const body = await readBody(req, res, MAX_BODY_BYTES, { reply: 'That request is too large.', actions: [] });
     if (body === null) return;
     try {
       const { markdown = '', message = '', history = [], board, explain } = JSON.parse(body || '{}');
+      const over = uid ? await overDayLimit(res, uid, 'ask', { actions: [] }) : null;
+      if (over) return console.log(`[ask] refused: ${over}`);
       const result = await ask(markdown, message, history, isBoard(board) ? board : undefined, { explain: explain === true });
       const { reply, actions } = result;
       console.log(`[ask] "${message.slice(0,60)}" → ${actions.length} action(s)${result.fallbackModel ? ` (fallback ${result.fallbackModel})` : ''}`);

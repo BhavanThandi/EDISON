@@ -461,7 +461,7 @@
   // A chip's row (B3): "U1 · TL072". An unreadable label (an 8-pin chip
   // PhotoChips can't name) always has Yes / No, it is (isn't) a dual
   // op-amp, her answer pressed so she can change it (Ruling B3c); flag
-  // pin1 → "Pin 1 is right". ⇄ while it has a seat to turn (asked, or built).
+  // pin1 → "Pin 1 is right". ⇄ while it has a seat to turn (asked, or built) that can be derived.
   function chipRow(p, name) {
     const kinds = C.result.flags.filter(f => f.id === name).map(f => f.kind);
     const answer = (key, v) => () => {   // her answer again changes nothing

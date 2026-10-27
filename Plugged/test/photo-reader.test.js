@@ -114,9 +114,11 @@ beforeEach(() => {
   delete process.env.PHOTO_RECORD;
   delete process.env.PHOTO_PROVIDERS;
   delete process.env.PHOTO_TIMEOUT_MS;
-  delete process.env.PHOTO_HEDGE_MS;
+  // A7 moved the defaults (fallback 25 s -> 35 s, survey hedge 12 s -> 25 s). The #172/#176 tests below were
+  // written against the old numbers, so they pin them by env; the A7 tests at the end of the file unset both.
+  process.env.PHOTO_HEDGE_MS = '12000';
   delete process.env.PHOTO_FALLBACK_MODEL;   // #176: unset is the default fallback model
-  delete process.env.PHOTO_FALLBACK_AT_MS;
+  process.env.PHOTO_FALLBACK_AT_MS = '25000';
   Object.assign(process.env, ASK_ENV);
   for (const m of ['log', 'info', 'warn', 'error']) vi.spyOn(console, m).mockImplementation(() => {});
 });
@@ -1223,4 +1225,111 @@ test('pin (#176): the crop round (readLeads) never asks the fallback model, even
   assert.ok(fake.er().length >= 1, models(fake));
   assert.deepStrictEqual(fake.calls.gemini.filter(c => c.url !== urlFor(DEFAULT_MODEL)).map(c => c.url), [],
     `the crop round asked another model (${models(fake)}); the fallback is for boxes only`);
+});
+
+// ── 11. A7: the backup model only when ER stalls, one resend per survey, wires with one end seen ──────────────
+// Defaults now: PHOTO_FALLBACK_AT_MS 35000 (was 25000); the survey's hedge 25000 (was 12000; PHOTO_HEDGE_MS
+// still overrides it). The crop round keeps its own 12 s resend (pinned in photo-leads.test.js).
+
+const A7_NEW_DEFAULTS = () => { delete process.env.PHOTO_HEDGE_MS; delete process.env.PHOTO_FALLBACK_AT_MS; };
+
+test('A7: the fallback default is 35 s: Robotics-ER answering at 30 s wins and the fallback model is never asked', async () => {
+  A7_NEW_DEFAULTS();
+  const fake = twoModels(n => (n === 1 ? later(30000, geminiOK(ONE_LED)) : HANG), () => geminiOK(RESISTOR));
+  const s = startRead(fake);
+  await flush();
+  await until(30000);
+  assert.ok(s.done && s.value, `Robotics-ER answered at 30 s: ${state(s)} (${models(fake)})`);
+  assert.equal(s.value.model, DEFAULT_MODEL, `the answer at 30 s is Robotics-ER's: ${state(s)}`);
+  assert.deepStrictEqual(kinds(s.value), ['led'], 'Robotics-ER\'s answer');
+  assert.equal(fake.fb().length, 0, `${FALLBACK_MODEL} was asked before 35 s (${models(fake)})`);
+  await advance(46000);
+  assert.equal(fake.fb().length + fake.stray().length, 0, `nothing else is asked after Robotics-ER won (${models(fake)})`);
+});
+
+test('A7: with no Robotics-ER answer the fallback goes out at 35 s, not before', async () => {
+  A7_NEW_DEFAULTS();
+  const fake = twoModels(() => HANG, () => geminiOK(RESISTOR));
+  const s = startRead(fake);
+  await flush();
+  await until(34999);
+  assert.equal(fake.fb().length, 0, `${FALLBACK_MODEL} was asked before 35 s (${models(fake)})`);
+  await until(36000);
+  assert.equal(fake.fb().length, 1, `no fallback call by 36 s (${models(fake)}; ${state(s)})`);
+  assert.equal(fake.fb()[0].at, 35000, `the fallback went out at ${fake.fb()[0].at} ms, not at 35000`);
+  assert.ok(s.done && s.value && s.value.model === FALLBACK_MODEL, state(s));
+});
+
+test('A7: PHOTO_FALLBACK_AT_MS still overrides the 35 s default', async () => {
+  A7_NEW_DEFAULTS();
+  process.env.PHOTO_FALLBACK_AT_MS = '8000';
+  const fake = twoModels(() => HANG, () => geminiOK(RESISTOR));
+  const s = startRead(fake);
+  await flush();
+  await until(7999);
+  assert.equal(fake.fb().length, 0, models(fake));
+  await advance(1);
+  assert.equal(fake.fb().length, 1, `no fallback call at 8 s (${models(fake)}; ${state(s)})`);
+  assert.equal(fake.fb()[0].at, 8000);
+});
+
+test('A7: the survey\'s hedge default is 25 s: a survey answered at 20 s sends exactly 1 request; a silent one is resent at 25 s, not 12 s', async () => {
+  A7_NEW_DEFAULTS();
+  process.env.PHOTO_FALLBACK_MODEL = '';   // keep the backup model out of it
+  const quick = clockFetch({ gemini: () => later(20000, geminiOK(ONE_LED)) });
+  const s1 = startRead(quick, { providers: ['gemini'] });
+  await flush();
+  await advance(30000);
+  assert.ok(s1.done && s1.value, state(s1));
+  assert.equal(quick.calls.gemini.length, 1, `a survey answered at 20 s sent ${quick.calls.gemini.length} requests (${quick.calls.gemini.map(c => c.at).join(', ')} ms)`);
+  vi.useRealTimers();
+
+  const stalled = clockFetch({ gemini: c => (c.n === 1 ? HANG : geminiOK(RESISTOR)) });
+  const s2 = startRead(stalled, { providers: ['gemini'] });
+  await flush();
+  await advance(24999);
+  assert.equal(stalled.calls.gemini.length, 1, `the survey was resent before 25 s (at ${stalled.calls.gemini.map(c => c.at).join(', ')} ms)`);
+  await advance(1);
+  assert.equal(stalled.calls.gemini.length, 2, `no resend at 25 s (${state(s2)})`);
+});
+
+test('A7: the crop round\'s hedge is not the survey\'s 25 s', async () => {
+  A7_NEW_DEFAULTS();
+  const { readLeads } = require('../backend/photo-leads.js');
+  const fake = clockFetch({ gemini: () => HANG });
+  vi.useFakeTimers(FAKE);
+  const crop = { id: 'R1', kind: 'part', type: 'resistor', value: 470, image: IMG,
+    window: { x: 0, y: 0, scale: 3, padLeft: 27, padTop: 27, width: 600, height: 400 } };
+  readLeads({ key: IMG_SHA, items: [crop] }, { fetch: fake.fetch, fixturesDir: emptyDir }).catch(() => {});
+  await flush();
+  await advance(24999);
+  const times = fake.calls.gemini.map(c => c.at);
+  assert.ok(times.length >= 2 && times[1] < 25000, `the crop call was resent at ${times.join(', ')} ms; its own resend must come before 25 s`);
+  await advance(30000);
+});
+
+test('A7: the survey prompt asks for every wire, even one whose other end leaves the photo, and the schema lets a wire carry 1 lead', async () => {
+  const fake = fakeFetch({ gemini: () => geminiSays({ rails: RAILS, items: [] }) });
+  await read(['gemini'], fake);
+  const body = fake.calls.gemini[0].body;
+  const prompt = body.contents[0].parts.map(p => p.text || '').join('\n');
+  assert.ok(prompt.includes('List every jumper wire, even one whose other end leaves the photo or is hidden; give only the end(s) you can see.'),
+    `the survey prompt lacks the off-photo wire sentence: ${prompt.slice(0, 200)}`);
+  const leads = body.generationConfig.responseSchema.properties.items.items.properties.leads;
+  assert.equal(leads.type, 'ARRAY');
+  assert.ok(!(leads.minItems > 1), `leads.minItems is ${leads.minItems}; a wire with one visible end must be allowed`);
+  assert.ok(leads.maxItems === undefined || leads.maxItems >= 2, `leads.maxItems is ${leads.maxItems}`);
+});
+
+test('A7: a wire with ONE lead point is kept: two box-end placeholder ends (hole ?), leads unsure (none dropped)', async () => {
+  // 2040 x 710: box [600,800,700,900] is 204 x 71 px, horizontal: ends are the left/right edge midpoints.
+  const items = [
+    { type: 'wire', value: null, conf: 0.7, box_2d: [600, 800, 700, 900], leads: [{ pin: '1', point: [650, 810] }] },
+    { type: 'wire', value: null, conf: 0.7, box_2d: [100, 100, 200, 300], leads: [] },
+  ];
+  const fake = fakeFetch({ gemini: () => geminiSays({ rails: RAILS, items }) });
+  const { reading } = await read(['gemini'], fake);
+  assert.equal(reading.wires.length, 2, `wires: ${JSON.stringify(reading.wires)}`);
+  assertEnds(reading.wires[0].ends, [[1632, 461.5], [1836, 461.5]], 'one-point wire');
+  assert.ok(reading.wires[0].unsure.includes('leads'), JSON.stringify(reading.wires[0].unsure));
 });

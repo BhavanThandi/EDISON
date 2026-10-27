@@ -328,6 +328,9 @@ html, body {
   cursor: pointer;
 }
 #photo-parts button:hover { border-color: var(--accent); }
+/* A chip's answers (photo fix B3): ⇄'s look, sized to their words. */
+#photo-parts .photo-chip-yes, #photo-parts .photo-chip-no, #photo-parts .photo-pin1-ok { width: auto; padding: 0 8px; font-size: 11px; }
+#photo-parts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }   /* her answer (B3c), as .comp-item.active */
 #photo-parts li { flex-wrap: wrap; }
 #photo-parts select, .photo-volts { max-width: 82px; font-family: inherit; font-size: 11px; }
 .photo-volts { width: 48px; }
@@ -397,6 +400,15 @@ html, body {
   background: rgba(255,255,255,0.06);
   border-color: #888;
   color: var(--text-primary);
+}
+
+#auth-chip { display: inline-flex; align-items: center; gap: 8px; }
+#auth-chip[hidden] { display: none; }
+#auth-chip .auth-initial {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-dark); color: var(--text-primary);
+  font-size: 12px; font-weight: 600;
 }
 
 .btn-danger {

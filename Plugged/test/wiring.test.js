@@ -638,16 +638,18 @@ function elementHtml(html, id) {
   return null;
 }
 
-test('the editor loads photo-grid.js and photo-import.js between ids.js and app.js, and samples/samples.js then photo.js after chat.js', () => {
+test('the editor loads photo-grid.js, photo-chips.js and photo-import.js between ids.js and app.js, and samples/samples.js then photo.js after chat.js', () => {
   const order = scriptOrder(read('circuit3d/index.html'));
   const at = f => order.indexOf(f);
   const list = order.join(', ');
-  for (const f of ['js/parts/registry.js', 'js/board-geometry.js', 'js/ids.js', 'js/photo-grid.js', 'js/photo-import.js',
+  for (const f of ['js/parts/registry.js', 'js/board-geometry.js', 'js/ids.js', 'js/photo-grid.js', 'js/photo-chips.js', 'js/photo-import.js',
                    'js/app.js', 'js/chat.js', 'samples/samples.js', 'js/photo.js']) {
     assert.ok(at(f) >= 0, `circuit3d/index.html loads ${f}: ${list}`);
   }
   assert.ok(at('js/ids.js') < at('js/photo-grid.js') && at('js/photo-grid.js') < at('js/app.js'),
     `photo-grid.js loads after ids.js and before app.js: ${list}`);
+  assert.ok(at('js/photo-grid.js') < at('js/photo-chips.js') && at('js/photo-chips.js') < at('js/photo-import.js'),
+    `photo-chips.js loads after photo-grid.js and before photo-import.js: ${list}`);
   assert.ok(at('js/ids.js') < at('js/photo-import.js') && at('js/photo-import.js') < at('js/app.js'),
     `photo-import.js loads after ids.js and before app.js: ${list}`);
   const lastPart = Math.max(...order.map((x, i) => (x.startsWith('js/parts/') ? i : -1)));
@@ -680,4 +682,15 @@ test('the 📷 button sits in the chat input row', () => {
   assert.ok(row, 'circuit3d/index.html has #sparky-input-row');
   assert.match(row, /<button\b[^>]*\bid="photo-btn"[^>]*>[\s\S]*?📷[\s\S]*?<\/button>/,
     '#sparky-input-row holds <button id="photo-btn">📷</button>');
+});
+
+// Order picked from the brief ("a small circuit3d/js/welcome.js" beside chat.js):
+// the card is a DOM layer that may use the chat, so it loads after chat.js and
+// stays inside the body's script run (before </body>).
+test('the editor loads js/welcome.js after js/chat.js, before the end of body', () => {
+  const html = read('circuit3d/index.html');
+  const order = scriptOrder(html);
+  assert.ok(order.includes('js/welcome.js'), 'circuit3d/index.html must load js/welcome.js');
+  assert.ok(order.indexOf('js/welcome.js') > order.indexOf('js/chat.js'), 'welcome.js must load after chat.js: ' + order.join(', '));
+  assert.ok(html.indexOf('js/welcome.js') < html.lastIndexOf('</body>'), 'welcome.js must be inside <body>');
 });

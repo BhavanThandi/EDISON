@@ -320,14 +320,29 @@
   // photo of my real breadboard. Unsure readings: LED1 direction." `result`
   // is PhotoImport.build's. It goes into the /api/ask message, so it never
   // names a part keyword, a NEW_BUILD word or "fix": the server must treat
-  // question + context exactly as the question alone.
+  // question + context exactly as the question alone. So the ±12 V bench
+  // supply reads "12 V rails assumed (…)", its unpowered bp "the bp rail
+  // left unconnected", an off-board lead "c14 is not open (…off the
+  // board)", and a chip asked about "the photo's U1 not added (…)" (photo fix B4);
+  // an a-on-top board "rows flipped (my board's row letters …)" (photo fix B5).
   const UNSURE = { polarity: 'direction', value: 'value', moved: 'holes', shorted: 'shorted',
                    source: 'kind', position: 'holes', mismatch: 'holes', type: 'kind' };
   function photoContext(result) {
     const labels = (result && result.labels) || {};
+    const supply = !!result && result.power === 'supply12';
     const said = ((result && result.flags) || []).map(f => {
-      if (f.kind === 'rails') return 'rail signs';
-      if (f.id == null)       return f.kind === 'source' ? 'no cell seen, a 9 V one assumed' : f.kind;
+      if (f.kind === 'rails')    return 'rail signs';
+      if (f.kind === 'offboard') {
+        return f.hole ? `${f.hole} is not open (a lead from it goes to something off the board)` : `the photo's ${f.id} goes to something off the board`;
+      }
+      if (f.id == null && f.kind === 'source') {
+        if (f.rail) return `the ${f.rail} rail left unconnected`;
+        return supply ? '12 V rails assumed (+12 V on tp, ground on tn, −12 V on bn)' : 'no cell seen, a 9 V one assumed';
+      }
+      if (f.kind === 'flipped') return "rows flipped (my board's row letters are printed a on top: my a is row j here)";
+      if (f.id == null)       return f.kind;
+      if (f.kind === 'chip')  return `the photo's ${f.id} not added (its label unread)`;
+      if (f.kind === 'pin1')  return `the photo's ${f.id} not added (which end is pin 1 unsure)`;
       if (!labels[f.id])      return `the photo's ${f.id} not added`;
       return `${labels[f.id]} ${UNSURE[f.kind] || f.kind}`;
     });
@@ -394,7 +409,10 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
   // each once, after CANNED_MS of typing. Anything else: null, the real AI.
   const CANNED_MS = 1200;
   const FIX_ASK   = /fix|correct|repair|solve/i;
+  // window.DemoCanned (welcome.js): the welcome card's LED demo, { reply, actions }, once.
   function cannedAnswer(msg) {
+    const d = window.DemoCanned;
+    if (d) { window.DemoCanned = null; return { reply: d.reply, actions: JSON.parse(JSON.stringify(d.actions)) }; }
     const c = window.PhotoCanned;
     if (!c) return null;
     if (c.explain != null) { const reply = c.explain; c.explain = null; return { reply, actions: [] }; }
@@ -404,18 +422,29 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
     return { reply: fix.reply, actions: JSON.parse(JSON.stringify(fix.actions || [])) };
   }
 
+  // The Firebase ID token when signed in (auth-ui.js), else null: the editor works signed out.
+  // Waits at most TOKEN_WAIT_MS: a slow token never delays a question.
+  const TOKEN_WAIT_MS = 2000;
+  async function authToken() {
+    try {
+      if (!window.EdisonAuth) return null;
+      return await Promise.race([window.EdisonAuth.token(), new Promise(r => setTimeout(() => r(null), TOKEN_WAIT_MS))]);
+    } catch { return null; }
+  }
+
   // explain (issue #169): an answer only, so the server offers the AI no tools.
   async function askSparky(markdown, userMsg, history, board, explain) {
     const canned = cannedAnswer(userMsg);
     if (canned) { await new Promise(r => setTimeout(r, CANNED_MS)); return canned; }
     // A stalled AI ends in a clear message, not a minutes-long spinner (#129).
+    const token = await authToken();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Chat.ASK_TIMEOUT_MS);
     let res, data = null;
     try {
       res = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
         body: JSON.stringify({ markdown, message: userMsg, history, board, ...(explain ? { explain: true } : {}) }),
         signal: controller.signal,
       });
@@ -425,6 +454,9 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
       throw e;
     } finally {
       clearTimeout(timer);
+    }
+    if (data && (res.status === 401 || res.status === 429) && /^(SIGN_IN|DAILY_LIMIT)/.test(data.code || '')) {
+      throw Object.assign(new Error(data.message || 'Please try again later.'), { code: data.code });
     }
     if (!res.ok || !data) {
       console.error('/api/ask failed:', res.status, data);
@@ -674,7 +706,7 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
   // { context }: a line added to the message sent (and kept in the history),
   // never shown in her bubble (the photo build's, issue #143).
   // { explain }: this one ask wants an answer, not an edit (issue #169).
-  async function sparkyAsk(overrideMsg, { context, explain } = {}) {
+  async function sparkyAsk(overrideMsg, { context, explain, retried, resend } = {}) {
     const input = document.getElementById('sparky-input');
     const msg   = (overrideMsg !== undefined) ? overrideMsg : input.value.trim();
     if (!msg) return;
@@ -683,9 +715,11 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
     // If there's an open preview, dismiss it before sending a new message.
     dropPreview();
 
-    sparkyAddMsg(msg, 'user');
-    input.value = '';
-    input.style.height = 'auto';
+    if (!resend) {   // the automatic re-send after sign-in: the question is already shown
+      sparkyAddMsg(msg, 'user');
+      input.value = '';
+      input.style.height = 'auto';
+    }
 
     const typingEl = sparkyTyping();
 
@@ -706,7 +740,18 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
       }
     } catch (err) {
       typingEl.remove();
-      sparkyAddMsg('⚠️ ' + err.message, 'system');
+      const el = sparkyAddMsg('⚠️ ' + err.message, 'system');
+      if (err.code === 'SIGN_IN' && !retried) {
+        // D4: offer Google sign-in, then re-send this question once.
+        el.insertAdjacentHTML('beforeend', '<br><button class="btn-simulate chat-signin">Sign in with Google</button>');
+        const btn = el.querySelector('.chat-signin');
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try { await window.EdisonAuth.signIn(); } catch (e) { btn.disabled = false; sparkyAddMsg('⚠️ ' + (e && e.message || 'Sign-in did not finish.'), 'system'); return; }
+          btn.remove();
+          sparkyAsk(msg, { context, explain, retried: true, resend: true });
+        });
+      }
     }
   }
 

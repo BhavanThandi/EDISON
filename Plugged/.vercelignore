@@ -1,0 +1,16 @@
+# Tests stay out, except the photo samples' recordings, which the server
+# replays for "try a sample photo" with no AI call (Ruling D3c).
+/test/*
+!/test/fixtures
+/test/fixtures/*
+!/test/fixtures/photo
+/test/fixtures/photo/*
+!/test/fixtures/photo/*.json
+!/test/fixtures/photo/leads
+/e2e/
+/src/
+/out/
+node_modules/
+backend/.env
+.env*.local
+.vercel/

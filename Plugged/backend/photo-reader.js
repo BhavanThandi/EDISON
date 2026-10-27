@@ -32,7 +32,8 @@
 //  and start each one's 2 legs at the ends of its box, hole '?', for the
 //  page to snap. gemini: PHOTO_GEMINI_MODEL, the whole deadline, up to 4
 //  calls under raceGemini's retry rule (#172), and PHOTO_FALLBACK_MODEL
-//  asked too when it is silent at PHOTO_FALLBACK_AT_MS (#176). deepseek:
+//  asked too when it is silent at PHOTO_FALLBACK_AT_MS (#176; 35 s,
+//  A7: the survey takes 15-30 s, so 25 s handed busy boards to the backup). deepseek:
 //  deepseek-flash only, never deepseek-v4-pro: it has no vision.
 // ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,10 @@ const FIXTURES_DIR = path.join(__dirname, '..', 'test', 'fixtures', 'photo');
 const photoProviders = () => (process.env.PHOTO_PROVIDERS || 'gemini').split(',').map(s => s.trim()).filter(Boolean);
 const photoTimeoutMs = () => Number(process.env.PHOTO_TIMEOUT_MS) || 45000;
 const photoHedgeMs   = () => (Number(process.env.PHOTO_HEDGE_MS) > 0 ? Number(process.env.PHOTO_HEDGE_MS) : 12000);
+// The survey (/api/photo) takes 15-30 s, so a 12 s hedge resent most of them
+// (billed twice). PHOTO_HEDGE_MS, when set, still sets it; the crop round
+// keeps photoHedgeMs() (12 s).
+const surveyHedgeMs  = () => (Number(process.env.PHOTO_HEDGE_MS) > 0 ? Number(process.env.PHOTO_HEDGE_MS) : 25000);
 
 const failed = msg => Object.assign(new Error(msg), { code: 'AI_FAILED' });
 
@@ -375,7 +380,7 @@ function photoFallbackModel() {
   const v = process.env.PHOTO_FALLBACK_MODEL;
   return v === undefined ? 'gemini-3.1-flash-lite' : v.trim();
 }
-const photoFallbackAtMs = () => (Number(process.env.PHOTO_FALLBACK_AT_MS) > 0 ? Number(process.env.PHOTO_FALLBACK_AT_MS) : 25000);
+const photoFallbackAtMs = () => (Number(process.env.PHOTO_FALLBACK_AT_MS) > 0 ? Number(process.env.PHOTO_FALLBACK_AT_MS) : 35000);
 
 // er: Robotics-ER's started race; startFallback() starts the fallback's.
 // Resolves the first answer (the fallback's marked fallback: true). With
@@ -447,13 +452,13 @@ const geminiProvider = {
       return { reading: boxesToReading(parseLooseJSON(geminiText(data, who)), input.grid, input.window), model: m };
     };
     // No per-call cap: Gemini gets the whole deadline (#172).
-    const er     = raceGemini(once(model), { maxCalls: BOX_MAX_CALLS, signal: ctx.signal, deadlineAt: ctx.deadlineAt, stats: ctx.tally });
+    const er     = raceGemini(once(model), { maxCalls: BOX_MAX_CALLS, hedgeMs: surveyHedgeMs(), signal: ctx.signal, deadlineAt: ctx.deadlineAt, stats: ctx.tally });
     const backup = photoFallbackModel();
     if (!backup || backup === model) return er.result;
     // The fallback's retries count in the [photo] line's retries too.
     const counted = (run, kind) => { const p = run(); if (p && kind === 'retry') ctx.tally.retries++; return p; };
     return withFallback(er, () => raceGemini(once(backup),
-      { maxCalls: FALLBACK_MAX_CALLS, signal: ctx.signal, deadlineAt: ctx.deadlineAt, slot: counted }), ctx.signal);
+      { maxCalls: FALLBACK_MAX_CALLS, hedgeMs: surveyHedgeMs(), signal: ctx.signal, deadlineAt: ctx.deadlineAt, slot: counted }), ctx.signal);
   },
 };
 

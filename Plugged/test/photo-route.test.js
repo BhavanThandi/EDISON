@@ -644,6 +644,9 @@ async function withPhotoDefaults(run) {
   const restore = withAiKeys();
   const saved = Object.fromEntries(FB_ENV.map(k => [k, process.env[k]]));
   for (const k of FB_ENV) delete process.env[k];
+  // A7 moved the fallback default to 35 s and the survey hedge to 25 s; these tests are written around 25 s / 12 s, so pin them.
+  process.env.PHOTO_FALLBACK_AT_MS = '25000';
+  process.env.PHOTO_HEDGE_MS = '12000';
   try {
     return await run();
   } finally {

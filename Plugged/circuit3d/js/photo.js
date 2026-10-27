@@ -15,7 +15,8 @@
 //         then Looks right builds that sample's board as its tile does, and
 //         window.PhotoCanned = its canned answers for chat.js (no /api/photo).
 //         With a recorded `reading` (#20), READING then the confirm screen on
-//         it (flattened with her grid, no crop round); Build it → the board
+//         it (flattened with her grid, no crop round, no power picker:
+//         open's { ownBoard: true }); Build it → the board
 //    📷 → Use sample photo (or the error card's) → the sample picker
 //         (#photo-samples, #182): a tile per offered window.PhotoSamples
 //         entry (all but offered: false, #200), its photo, title and credit
@@ -116,6 +117,37 @@
   function showStatus(text, failed) {
     status.textContent = text;
     errBtn.hidden = !failed;
+    const old = modal.querySelector('.chat-signin');
+    if (old) old.remove();
+  }
+
+  // The Firebase ID token when signed in (auth-ui.js), else null.
+  async function authHeader() {
+    try {
+      const t = window.EdisonAuth && await Promise.race([window.EdisonAuth.token(), new Promise(r => setTimeout(() => r(null), 2000))]);
+      return t ? { Authorization: 'Bearer ' + t } : {};
+    } catch { return {}; }
+  }
+
+  // D4: a 401 SIGN_IN / 429 DAILY_LIMIT* reply's message (else null). 401 adds a
+  // sign-in button that retries; 429 leaves the sample offer.
+  function limitMessage(res, data, retry) {
+    if (!res || !data || !(res.status === 401 || res.status === 429) || !/^(SIGN_IN|DAILY_LIMIT)/.test(data.code || '')) return null;
+    showStatus(data.message || AI_FAILED, true);
+    if (data.code === 'SIGN_IN' && window.EdisonAuth) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-simulate chat-signin';
+      btn.textContent = 'Sign in with Google';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try { await window.EdisonAuth.signIn(); } catch (e) { btn.disabled = false; status.textContent = (e && e.message) || 'Sign-in did not finish.'; return; }
+        btn.remove();
+        retry();
+      });
+      status.after(btn);
+    }
+    return true;
   }
 
   function loadImage(src) {
@@ -286,11 +318,12 @@
   // POST JSON as the request in flight (the next job or close() aborts it),
   // given up after ms. res is null on a network error, abort or timeout.
   async function post(url, body, ms) {
+    const headers = { 'Content-Type': 'application/json', ...await authHeader() };
     const ac = ctrl = new AbortController();
     let timedOut = false, res = null, data = null;
     const timer = setTimeout(() => { timedOut = true; ac.abort(); }, ms);
     try {
-      res  = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      res  = await fetch(url, { method: 'POST', headers,
                                 body: JSON.stringify(body), signal: ac.signal });
       data = await res.json().catch(() => null);
     } catch { /* network error or abort: the caller decides */ }
@@ -303,10 +336,11 @@
   // { done: true }, the body's end, a non-200, a network error, an abort
   // (the next job or close()) or after ms, whichever comes first.
   async function postLines(url, body, ms, onLine) {
+    const headers = { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...await authHeader() };
     const ac = ctrl = new AbortController();
     const timer = setTimeout(() => ac.abort(), ms);
     try {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+      const res = await fetch(url, { method: 'POST', headers,
                                      body: JSON.stringify(body), signal: ac.signal });
       if (!res.ok || !res.body) return;
       const reader = res.body.getReader(), text = new TextDecoder();
@@ -356,6 +390,7 @@
     corners.hidden = true;                                 // in the same task as the request
     const { res, data, timedOut } = await post('/api/photo', body, Capture.timeoutMs);
     if (my !== job) return;                                // closed or replaced meanwhile
+    if (limitMessage(res, data, () => send(im, grid, sample))) return;
     if (!(res && res.ok && data && data.reading)) return showStatus(timedOut ? AI_TIMEOUT : (data && data.reply) || AI_FAILED, true);
 
     Capture.lastReading = data.reading;
@@ -426,6 +461,9 @@
   // The samples the picker offers (#200): every one but offered: false.
   const offered = () => Object.entries(window.PhotoSamples).filter(([, s]) => s.offered !== false);
 
+  // The welcome card's photo demo (D2): the sample's board straight, no corner taps, no /api/photo.
+  window.PhotoDemo = id => sendSample(id, true);
+
   // The sample picker (#182): a tile per offered sample, built the first time
   // it opens. With one sample there is nothing to pick: it goes straight to it.
   function showSamples() {
@@ -455,12 +493,13 @@
 
   // A sample with a `board` and a recorded `reading` (#22): the corner step on
   // its photo, then Looks right as for a rehearsed upload of it.
-  async function sendSample(id) {
+  async function sendSample(id, direct) {
     const my = nextJob();
     open();
     const s   = window.PhotoSamples[id];
-    const tap = Boolean(s.board && s.reading);
+    const tap = !direct && Boolean(s.board && s.reading);
     if (!tap) showStatus(READING, false);
+    if (direct) credit.textContent = s.credit || '';
     const im = await loadImage(s.file).catch(() => null);
     if (my !== job) return;
     if (!im) return showStatus(AI_FAILED, true);
@@ -486,7 +525,7 @@
     corners.hidden = true;
     showStatus('', false);
     credit.textContent = s.credit || '';
-    PhotoConfirm.open(structuredClone(s.reading), flat, grid, board);
+    PhotoConfirm.open(structuredClone(s.reading), flat, grid, board, { ownBoard: true });   // no power picker: Build it builds s.board
   }
 
   // The corner step's canvas alone, showing the photo: no prompt, no

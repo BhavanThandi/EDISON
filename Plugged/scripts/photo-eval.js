@@ -30,7 +30,8 @@ const net  = require('node:net');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const PhotoGrid = require('../circuit3d/js/photo-grid.js');
+const PhotoGrid  = require('../circuit3d/js/photo-grid.js');
+const PhotoChips = require('../circuit3d/js/photo-chips.js');
 
 const ROOT     = path.join(__dirname, '..');
 const FIXTURES = path.join(ROOT, 'test/fixtures/photo');
@@ -164,7 +165,7 @@ function score(truth, got) {
   // is "unlocated": counted, never right or wrong. A chip's orientation is right when the truth
   // names pin 1 and the paired reading's pin 1 is on that node. A chip the truth flags (one the
   // app can't build, e.g. a SOIC adapter or an NE555) is right when ITS paired reading part, if
-  // any, is not a TL072-family build.
+  // any, is not named a dual op-amp (PhotoChips.identify).
   const xTruth = truth.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
     type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
   const xRead  = got.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
@@ -187,7 +188,7 @@ function score(truth, got) {
     if (!t.flagged) continue;
     flagged.total++;
     const p = mate(t);
-    if (!p || !/^TL0[78]\d/i.test(String(p.value || '').trim())) flagged.right++;
+    if (!p || PhotoChips.identify(p.value) !== 'opamp') flagged.right++;
   }
   let pin1Right = 0, pin1Known = 0;
   for (const t of located) {
@@ -364,11 +365,14 @@ function usageSum(net) {
   return t;
 }
 
+// The survey's model (backend/photo-reader.js photoGeminiModel's default).
+const ER_MODEL = process.env.PHOTO_GEMINI_MODEL || 'gemini-robotics-er-2-preview';
+
 function row(r) {
   const us = usageSum(r.net);
   const s = r.score, p = r.net['/api/photo'] || {}, l = r.net['/api/photo/leads'] || {};
   const leads = l.items ? `${(l.s || 0).toFixed(1)}s ${l.items.n - l.items.timeout - l.items.failed}/${l.items.n}${l.items.timeout ? ` t${l.items.timeout}` : ''}${l.items.failed ? ` f${l.items.failed}` : ''}` : (l.status ? String(l.status) : '-');
-  return [r.id + (r.run > 1 ? `#${r.run}` : ''), secs(r.ms), secs(r.placedMs), p.status ? `${p.status} ${p.provider || p.code || ''} ${(p.s || 0).toFixed(1)}s` : '-', leads,
+  return [r.id + (r.run > 1 ? `#${r.run}` : ''), secs(r.ms), secs(r.placedMs), p.status ? `${p.status} ${p.provider || p.code || ''} ${(p.s || 0).toFixed(1)}s` : '-', p.model ? (p.model === ER_MODEL ? 'er' : 'fallback') : '-', leads,
           s ? frac(s.parts.found, s.parts.truth) : '-', s ? frac(s.legs.right, s.legs.total) : '-',
           s ? frac(s.wires.found, s.wires.truth) : '-', s ? frac(s.ends.right, s.ends.total) : '-',
           s ? String(s.parts.invented + s.wires.invented) : '-',
@@ -379,7 +383,7 @@ function row(r) {
 }
 
 function table(rows) {
-  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'chips', 'chip pin-1', 'caps', 'pots', 'diodes', 'flagged', 'unlocated', 'calls', '429', 'tok in', 'tok out', 'failure'];
+  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'model', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'chips', 'chip pin-1', 'caps', 'pots', 'diodes', 'flagged', 'unlocated', 'calls', '429', 'tok in', 'tok out', 'failure'];
   const all = [head, ...rows];
   const w = head.map((_, i) => Math.max(...all.map(r => String(r[i]).length)));
   return all.map(r => r.map((c, i) => String(c).padEnd(w[i])).join('  ').trimEnd()).join('\n');
@@ -399,6 +403,8 @@ function totals(results) {
   return {
     calls: usum('calls'), http429: usum('http429'), tokensIn, tokensOut,
     costUsd: tokensIn / 1e6 * 1 + tokensOut / 1e6 * 5,   // $1/M in, $5/M out (thinking included)
+    fallbacks: results.filter(r => { const m = (r.net['/api/photo'] || {}).model; return m && m !== ER_MODEL; }).length,
+    costText: `≥ $${(tokensIn / 1e6 * 1 + tokensOut / 1e6 * 5).toFixed(4)} (resent and aborted calls are billed but not counted)`,
     photos: results.length, failures: results.length - ok.length,
     placedTimeouts: results.filter(r => r.outcome.startsWith('PLACED_TIMEOUT')).length,
     medianS, maxS, placedMedianS, placedMaxS,
@@ -468,7 +474,7 @@ async function main() {
     `parts ${t.parts.found}/${t.parts.truth} · legs ${t.legs.right}/${t.legs.total} · wires ${t.wires.found}/${t.wires.truth} · ` +
     `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known} · ` +
     `chips ${t.chips.right}/${t.chips.total} · chip pin-1 ${t.chipPin1.right}/${t.chipPin1.known} · caps ${t.caps.right}/${t.caps.total} · pots ${t.pots.right}/${t.pots.total} · diodes ${t.diodes.right}/${t.diodes.total} · flagged ${t.flagged.right}/${t.flagged.total} · unlocated ${t.unlocated} · ` +
-    `${t.calls} Gemini calls, ${t.http429} 429s, ${t.tokensIn} tokens in, ${t.tokensOut} out · est. $${t.costUsd.toFixed(4)}`);
+    `${t.calls} Gemini calls, ${t.http429} 429s, ${t.tokensIn} tokens in, ${t.tokensOut} out · ${t.fallbacks} backup-model answers · ${t.costText}`);
   if (args.out) {
     fs.writeFileSync(args.out, JSON.stringify({ at: new Date().toISOString(), args, totals: t, results }, null, 1));
     console.log(`wrote ${args.out}`);

@@ -864,3 +864,433 @@ test('#178 a repeated or missing wire id: the rows and canvas labels take PhotoI
   expect.soft((await canvasLabels(page)).sort(), 'one canvas label per part and wire, by the same names').toEqual(keys.slice().sort());
   expect(errors).toEqual([]);
 });
+
+// ── B3: the chip row ──────────────────────────────────────────────────────
+// A dual op-amp (an `ic` part) on the confirm screen. In its row (selectors
+// chosen here, the builder matches them): .photo-chip-yes / .photo-chip-no
+// answer "is it a dual op-amp?" (set the Reading's U1.isOpAmp), .photo-swap
+// (⇄) turns the chip and .photo-pin1-ok ("Pin 1 is right") confirms it
+// (set U1.pin1Confirmed). ⇄ always writes NAMED leads '1' and '4' at the
+// turned seat's pin-1 / pin-4 holes (Ruling B3a): e30/e33 turn to f33/f30.
+// The chip's two dots carry their pin name in dots() `label`.
+
+function chipReading({ label = 'TL072', notch = 'unsure', named = true, holes = ['e30', 'e33'] } = {}) {
+  const r = stageReading();
+  r.parts.push({ id: 'U1', type: 'ic', what: 'TL072 dual op-amp', value: 0, bands: [], color: '',
+    label, pins: 8, notch,
+    leads: named ? [{ hole: holes[0], pt: [0, 0], role: 'none', pin: '1' }, { hole: holes[1], pt: [0, 0], role: 'none', pin: '4' }]
+                 : [lead(holes[0]), lead(holes[1])],
+    box: [0, 0, 0, 0], confidence: 0.8, unsure: [] });
+  return r;
+}
+
+const u1 = page => page.evaluate(() => window.PhotoConfirm.reading.parts.find(p => p.id === 'U1'));
+const tl072 = page => page.evaluate(() => window.PhotoConfirm.result.actions.filter(a => a.tool === 'place_tl072'));
+const flagsOf = (page, id) => page.evaluate(id => window.PhotoConfirm.result.flags.filter(f => f.id === id), id);
+const skippedOf = (page, id) => page.evaluate(id => window.PhotoConfirm.result.skipped.filter(x => x.id === id), id);
+const leadHoles = u => Object.fromEntries(u.leads.map(l => [l.pin, l.hole]));
+
+test('B3 chip row, notch unsure: ⇄ and "Pin 1 is right" are offered and nothing is built; "Pin 1 is right" builds e30 right and sets pin1Confirmed', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+
+  const row = rowOf(page, 'U1');
+  await expect(row.locator('.photo-swap'), 'the chip has ⇄').toHaveCount(1);
+  await expect(row.locator('.photo-pin1-ok'), 'and "Pin 1 is right"').toHaveCount(1);
+  await expect(row.locator('.photo-pin1-ok')).toContainText('Pin 1 is right');
+  await expect(row.locator('.photo-chip-yes'), 'the identity is known: no op-amp question').toHaveCount(0);
+  expect(await tl072(page), 'asked, not built').toEqual([]);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('pin1');
+  await expect(row).toHaveClass(/\bphoto-flagged\b/);
+
+  await row.locator('.photo-pin1-ok').click();
+  const acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ tool: 'place_tl072', hole: 'e30', direction: 'right' });
+  expect((await u1(page)).pin1Confirmed).toBe(true);
+  expect(await flagsOf(page, 'U1'), 'no flag once confirmed').toEqual([]);
+  await expect(row).not.toHaveClass(/\bphoto-flagged\b/);
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row: ⇄ turns the chip (named leads 1 at f33, 4 at f30, f33 left); ⇄ twice puts pin 1 back; a later crop line never undoes her answer', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+
+  const swap = rowOf(page, 'U1').locator('.photo-swap');
+  await swap.click();
+  let u = await u1(page);
+  expect(leadHoles(u), 'Ruling B3a: pin 1 across the gap at pin 4\'s column, pin 4 at pin 1\'s').toEqual({ 1: 'f33', 4: 'f30' });
+  expect(u.pin1Confirmed).toBe(true);
+  const c = await sampleCentres(page, ['f33', 'f30']);
+  expect(u.leads.find(l => l.pin === '1').pt, 'pts from grid.holeCentre').toEqual(c.f33.map(v => expect.closeTo(v, 3)));
+  expect(u.leads.find(l => l.pin === '4').pt).toEqual(c.f30.map(v => expect.closeTo(v, 3)));
+  let acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'f33', direction: 'left' });
+
+  await swap.click();
+  u = await u1(page);
+  expect(leadHoles(u)).toEqual({ 1: 'e30', 4: 'e33' });
+  acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+
+  // A crop line landing afterwards changes nothing: she touched the chip.
+  const before = await page.evaluate(() => JSON.stringify({ r: window.PhotoConfirm.reading.parts.find(p => p.id === 'U1'), a: window.PhotoConfirm.result.actions }));
+  await page.evaluate(() => window.PhotoConfirm.place('U1', { found: true, leads: [{ pt: [900, 100] }, { pt: [900, 300] }] }));
+  const after = await page.evaluate(() => JSON.stringify({ r: window.PhotoConfirm.reading.parts.find(p => p.id === 'U1'), a: window.PhotoConfirm.result.actions }));
+  expect(after, 'the chip and her answer are unchanged').toBe(before);
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row, ⇄ once on a reopened Reading: f33 left', async ({ page }) => {
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+  await rowOf(page, 'U1').locator('.photo-swap').click();
+  const acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ tool: 'place_tl072', hole: 'f33', direction: 'left' });
+});
+
+test('B3 chip row, placeholder chip (two unnamed leads, notch left): asked; "Pin 1 is right" builds e30 right; reopened, ⇄ writes named leads at f33/f30 and builds f33 left', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ named: false, notch: 'left' }));
+
+  expect(await tl072(page), 'placeholders are never sure: asked').toEqual([]);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('pin1');
+  await rowOf(page, 'U1').locator('.photo-pin1-ok').click();
+  let acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+  expect((await u1(page)).pin1Confirmed).toBe(true);
+
+  await openEditor(page);
+  await openConfirm(page, chipReading({ named: false, notch: 'left' }));
+  await rowOf(page, 'U1').locator('.photo-swap').click();
+  const u = await u1(page);
+  expect(leadHoles(u), 'named leads now (Ruling B3a)').toEqual({ 1: 'f33', 4: 'f30' });
+  expect(u.pin1Confirmed).toBe(true);
+  acts = await tl072(page);
+  expect(acts[0]).toMatchObject({ hole: 'f33', direction: 'left' });
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row, label unreadable: "Yes" sets isOpAmp and builds the chip; "No" leaves it skipped with a type flag', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: null, notch: 'left' }));
+
+  const row = rowOf(page, 'U1');
+  expect((await flagsOf(page, 'U1')).map(f => f.kind), 'identity asked').toContain('chip');
+  expect(await tl072(page)).toEqual([]);
+  await row.locator('.photo-chip-yes').click();
+  expect((await u1(page)).isOpAmp).toBe(true);
+  const acts = await tl072(page);
+  expect(acts, 'sure pair + agreeing notch: built').toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: null, notch: 'left' }));
+  await rowOf(page, 'U1').locator('.photo-chip-no').click();
+  expect((await u1(page)).isOpAmp).toBe(false);
+  expect(await tl072(page)).toEqual([]);
+  expect((await skippedOf(page, 'U1')).length, 'skipped').toBe(1);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('type');
+  expect(errors).toEqual([]);
+});
+
+test('B3 chip row: the chip\'s two dots are labelled with their pin names (1 and 4), before and after ⇄', async ({ page }) => {
+  await openEditor(page);
+  await openConfirm(page, chipReading());
+  const pins = async () => (await page.evaluate(() => window.PhotoConfirm.dots().filter(d => d.id === 'U1'))).map(d => ({ end: d.end, hole: d.hole, label: d.label }));
+  let d = await pins();
+  expect(d).toHaveLength(2);
+  expect(d[0].label, 'pin 1\'s dot').toMatch(/(^|[^A-Za-z0-9])1$/);
+  expect(d[1].label, 'pin 4\'s dot').toMatch(/(^|[^A-Za-z0-9])4$/);
+  await rowOf(page, 'U1').locator('.photo-swap').click();
+  d = await pins();
+  expect(d.map(x => x.hole)).toEqual(['f33', 'f30']);
+  expect(d[0].label).toMatch(/(^|[^A-Za-z0-9])1$/);
+  expect(d[1].label).toMatch(/(^|[^A-Za-z0-9])4$/);
+});
+
+// Ruling B3c: an unreadable-label chip always shows Yes / No, the current
+// answer marked aria-pressed="true"; she can change her answer; clicking the
+// pressed one changes nothing. A readable op-amp label shows neither.
+test('B3c chip row, label unreadable: Yes/No stay visible with aria-pressed; Yes builds, No skips with a type flag, Yes again builds; a readable TL072 label shows neither', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: null, notch: 'left' }));
+
+  const row = rowOf(page, 'U1'), yes = row.locator('.photo-chip-yes'), no = row.locator('.photo-chip-no');
+  await expect(yes).toHaveAttribute('aria-pressed', 'false');
+  await expect(no).toHaveAttribute('aria-pressed', 'false');
+
+  await yes.click();
+  let acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+  await expect(yes).toBeVisible();
+  await expect(no).toBeVisible();
+  await expect(yes).toHaveAttribute('aria-pressed', 'true');
+  await expect(no).toHaveAttribute('aria-pressed', 'false');
+
+  await yes.click();   // already pressed: nothing changes
+  expect((await u1(page)).isOpAmp).toBe(true);
+  expect(await tl072(page)).toHaveLength(1);
+  await expect(yes).toHaveAttribute('aria-pressed', 'true');
+
+  await no.click();
+  expect((await u1(page)).isOpAmp).toBe(false);
+  expect(await tl072(page)).toEqual([]);
+  expect((await skippedOf(page, 'U1')).length).toBe(1);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('type');
+  await expect(no).toHaveAttribute('aria-pressed', 'true');
+  await expect(yes).toHaveAttribute('aria-pressed', 'false');
+
+  await yes.click();
+  expect((await u1(page)).isOpAmp).toBe(true);
+  acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+  await expect(yes).toHaveAttribute('aria-pressed', 'true');
+
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: 'TL072', notch: 'left' }));
+  await expect(rowOf(page, 'U1')).toHaveCount(1);
+  await expect(rowOf(page, 'U1').locator('.photo-chip-yes')).toHaveCount(0);
+  await expect(rowOf(page, 'U1').locator('.photo-chip-no')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+// ── B4: power picker ──────────────────────────────────────────────────────
+// #photo-power (a <select>, beside the parts list): options `supply12` "±12 V
+// bench supply" and `battery9` "9 V battery", preselected from
+// PhotoConfirm.result.power ('supply12' for an op-amp Reading with no power
+// entry, else 'battery9'). Changing it rebuilds PhotoConfirm.result with
+// { power }, and Build it builds what the picker shows.
+
+// A sure TL072 with its supply leads and no battery in the photo.
+function opampReading() {
+  const r = chipReading({ notch: 'left' });
+  r.power = [];
+  r.wires = [
+    { id: 'W1', color: 'red',   ends: [end('rail:aOuter:5'), end('g30')], confidence: 0.9, unsure: [] },
+    { id: 'W2', color: 'black', ends: [end('rail:aInner:5'), end('a33')], confidence: 0.9, unsure: [] },
+  ];
+  r.parts = r.parts.filter(p => p.type === 'ic');
+  return r;
+}
+const actionTools = page => page.evaluate(() => window.PhotoConfirm.result.actions.map(a => a.tool));
+const resultPower = page => page.evaluate(() => window.PhotoConfirm.result.power);
+
+test('B4: power picker, an op-amp Reading: #photo-power offers ±12 V bench supply and 9 V battery, preselected ±12 V; the actions place the supply', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, opampReading());
+
+  const pick = page.locator('#photo-power');
+  await expect(pick, 'the power picker').toHaveCount(1);
+  await expect(pick).toBeVisible();
+  const opts = await pick.locator('option').evaluateAll(os => os.map(o => [o.value, o.textContent.trim()]));
+  expect(opts).toEqual(expect.arrayContaining([['supply12', '±12 V bench supply'], ['battery9', '9 V battery']]));
+  await expect(pick).toHaveValue('supply12');
+  expect(await resultPower(page)).toBe('supply12');
+  const tools = await actionTools(page);
+  expect(tools[0]).toBe('place_bench_supply');
+  expect(tools).not.toContain('place_battery');
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, switching to 9 V battery rebuilds the result (a place_battery, no place_bench_supply, power battery9) and Build it builds what the picker shows', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, opampReading());
+
+  await page.locator('#photo-power').selectOption('battery9');
+  expect(await resultPower(page)).toBe('battery9');
+  const tools = await actionTools(page);
+  expect(tools).toContain('place_battery');
+  expect(tools).not.toContain('place_bench_supply');
+  await page.locator('#photo-power').selectOption('supply12');
+  expect(await resultPower(page)).toBe('supply12');
+  expect(await actionTools(page)).toContain('place_bench_supply');
+
+  await page.locator('#photo-power').selectOption('battery9');
+  const shown = await page.evaluate(() => window.PhotoConfirm.result.actions);
+  await page.locator('#photo-build').click();
+  await expect(page.locator('#photo-modal')).toBeHidden();
+  const built = await page.evaluate(() => window.PhotoConfirm.built);
+  expect(built.power).toBe('battery9');
+  expect(built.actions).toEqual(shown);
+  expect(built.actions.map(a => a.tool)).not.toContain('place_bench_supply');
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, Build it with the default ±12 V builds a bench supply on the board', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, opampReading());
+  await page.locator('#photo-build').click();
+  await expect(page.locator('#photo-modal')).toBeHidden();
+  const built = await page.evaluate(() => window.PhotoConfirm.built);
+  expect(built.power).toBe('supply12');
+  expect(built.actions[0]).toEqual({ tool: 'place_bench_supply', voltage: 12 });
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, a Reading without op-amps preselects 9 V battery', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  const r = stageReading();
+  r.power = [];
+  await openConfirm(page, r);
+  await expect(page.locator('#photo-power')).toHaveCount(1);
+  await expect(page.locator('#photo-power')).toHaveValue('battery9');
+  expect(await resultPower(page)).toBe('battery9');
+  expect(await actionTools(page)).not.toContain('place_bench_supply');
+  expect(errors).toEqual([]);
+});
+
+// ── B4 fix round 1: when the picker shows ─────────────────────────────────
+
+test('B4: power picker, a Reading with a battery entry hides #photo-power; removing the battery with its × shows it, preselected by result.power', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  const r = opampReading();
+  r.power = [{ kind: 'battery_9v', volts: 9, plus: end('rail:aOuter:3'), minus: end('rail:aInner:3'), unsure: [] }];
+  await openConfirm(page, r);
+  expect(await resultPower(page)).toBe('reading');
+  await expect(page.locator('#photo-power'), 'the photo\'s own battery is built: nothing to pick').toBeHidden();
+
+  await rowOf(page, 'power:0').locator('.photo-del').click();
+  expect(await resultPower(page)).toBe('supply12');
+  await expect(page.locator('#photo-power')).toBeVisible();
+  await expect(page.locator('#photo-power')).toHaveValue('supply12');
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, the rehearsed ensc-lab sample (it has its own board) hides #photo-power', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await page.locator('#photo-btn').click();
+  await page.locator('#photo-sample').click();
+  await expect(page.locator('#photo-samples')).toBeVisible();
+  await page.locator('#photo-samples [data-sample="ensc-lab"]').click();
+  await expect(page.locator('#photo-ok')).toBeDisabled();
+  const size = { width: 1030, height: 500 };
+  for (const [px, py] of [[887, 227], [103, 210], [98, 347], [887, 367]]) {
+    const box = await page.locator('#photo-canvas').boundingBox();
+    await page.mouse.click(box.x + px * box.width / size.width, box.y + py * box.height / size.height);
+  }
+  await page.locator('#photo-ok').click();
+  await expect(page.locator('#photo-confirm')).toBeVisible({ timeout: 25_000 });
+  await expect(page.locator('#photo-power'), 'Build it builds the sample\'s board, so a power choice would mislead').toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+// ── B5: boards printed the other way (a on top) ──────────────────────────
+// PhotoGrid.homography returns aTop: true when a1 is the photo's top-left and
+// j1 its bottom-left (like eval photo e07). The confirm screen then builds
+// with { aTop: grid.aTop }: PhotoImport flips the Reading through T_A, adds the
+// board flag `flipped`, and ⇄ maps the built seat back through T_A so the
+// Reading's named leads stay in the PRINTED names (f30/f33 notch left turns to
+// e33/e30, the T_A image of Edison's f33/f30).
+
+const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit. This screen uses your board's letters; the built board uses Edison's.";
+
+// The demo sample's four corners, re-tapped as a1 top-left … j1 bottom-left.
+async function useATopTaps(page) {
+  await page.evaluate(() => {
+    window.PhotoSamples['demo-board'].taps = { a1: [264.2, 189.8], a63: [949, 189], j63: [949, 513.3], j1: [264.2, 513.3] };
+  });
+}
+
+function aTopChipReading() {
+  const r = stageReading();
+  r.parts.push({ id: 'U1', type: 'ic', what: 'TL072 dual op-amp', value: 0, bands: [], color: '',
+    label: 'TL072', pins: 8, notch: 'left',
+    leads: [{ hole: 'f30', pt: [0, 0], role: 'none', pin: '1' }, { hole: 'f33', pt: [0, 0], role: 'none', pin: '4' }],
+    box: [0, 0, 0, 0], confidence: 0.8, unsure: [] });
+  return r;
+}
+
+test('B5: an a-on-top photo shows the board-level flipped warning and builds the notch-left chip at e30 right; ⇄ writes printed e33 / e30 and builds f33 left; ⇄ again returns to e30 right', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await useATopTaps(page);
+  await openConfirm(page, aTopChipReading());
+
+  expect(await page.evaluate(() => window.PhotoCapture.grid.aTop), 'the taps make an a-on-top grid').toBe(true);
+  const board = page.locator('#photo-parts li.photo-board');
+  await expect(board.filter({ hasText: FLIPPED_WHY }), 'the board-level flipped warning').toHaveCount(1);
+  expect(await page.evaluate(() => window.PhotoConfirm.result.flags.filter(f => f.kind === 'flipped')))
+    .toEqual([{ kind: 'flipped', id: null, why: FLIPPED_WHY }]);
+
+  expect(await tl072(page), 'printed f30 / f33 notch left is e30 right on Edison\'s board').toEqual([{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  expect(leadHoles(await u1(page)), 'the Reading keeps the printed names').toEqual({ 1: 'f30', 4: 'f33' });
+  const fixed = await page.evaluate(() => JSON.stringify(window.PhotoImport.build(window.PhotoConfirm.reading, { components: [], aTop: true })));
+  expect(await page.evaluate(() => JSON.stringify(window.PhotoConfirm.result)), 'the screen builds with aTop').toBe(fixed);
+
+  const swap = rowOf(page, 'U1').locator('.photo-swap');
+  await swap.click();
+  let u = await u1(page);
+  expect(leadHoles(u), 'printed: the T_A image of Edison\'s f33 / f30').toEqual({ 1: 'e33', 4: 'e30' });
+  const c = await centre(page, 'e33');
+  expect(u.leads.find(l => l.pin === '1').pt, 'pts from the grid').toEqual(c.map(v => expect.closeTo(v, 3)));
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'f33', direction: 'left' }]);
+  expect(u.pin1Confirmed).toBe(true);
+
+  await swap.click();
+  u = await u1(page);
+  expect(leadHoles(u)).toEqual({ 1: 'f30', 4: 'f33' });
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  await expect(board.filter({ hasText: FLIPPED_WHY }), 'the warning stays').toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test('B5: a j-on-top photo has no flipped warning (the sample\'s own grid)', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ notch: 'left' }));
+  expect(await page.evaluate(() => window.PhotoCapture.grid.aTop)).toBe(false);
+  expect(await page.evaluate(() => window.PhotoConfirm.result.flags.filter(f => f.kind === 'flipped'))).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('B5a: ⇄ on an ASKED a-on-top chip (printed f30 / f33, notch unsure): e33 / e30 and f33 left; ⇄ again f30 / f33 and e30 right', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await useATopTaps(page);
+  const r = aTopChipReading();
+  r.parts.find(p => p.id === 'U1').notch = 'unsure';
+  await openConfirm(page, r);
+
+  expect(await tl072(page), 'asked, not built').toEqual([]);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('pin1');
+  const swap = rowOf(page, 'U1').locator('.photo-swap');
+  await expect(swap).toHaveCount(1);
+  await swap.click();
+  expect(leadHoles(await u1(page))).toEqual({ 1: 'e33', 4: 'e30' });
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'f33', direction: 'left' }]);
+  await swap.click();
+  expect(leadHoles(await u1(page))).toEqual({ 1: 'f30', 4: 'f33' });
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  expect(errors).toEqual([]);
+});
+
+test('B5a: an a-on-top chip with upper-case / padded lead holes (" F30", "F33") still offers ⇄', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await useATopTaps(page);
+  const r = aTopChipReading();
+  const u = r.parts.find(p => p.id === 'U1');
+  u.notch = 'unsure';
+  u.leads[0].hole = ' F30';
+  u.leads[1].hole = 'F33';
+  await openConfirm(page, r);
+  await expect(rowOf(page, 'U1').locator('.photo-swap'), 'a seat can be derived, so ⇄ is offered').toHaveCount(1);
+  expect(errors).toEqual([]);
+});

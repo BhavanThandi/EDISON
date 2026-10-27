@@ -30,7 +30,8 @@ const PHOTO_PROMPT = [
     '(leads may span many columns). Ignore hands, probes and tools.',
   'Also give leads: where each metal lead (or wire tip) disappears into the plastic of the board, not where the body is, ' +
     'as {"pin":"1","point":[y,x]} with point normalized to 0-1000 over this whole image. ' +
-    'Lead counts: resistor, led, capacitor, diode and button 2 (both ends); wire 2 (both ends); potentiometer 3; ' +
+    'List every jumper wire, even one whose other end leaves the photo or is hidden; give only the end(s) you can see. ' +
+    'Lead counts: resistor, led, capacitor, diode and button 2 (both ends); wire 2 (both ends you can see; 1 if the other end leaves the photo); potentiometer 3; ' +
     'ic: point only at pin 1 (pin "1") and at the last pin on pin 1\'s side of the chip (pin "4" of 8, "7" of 14, "8" of 16). ' +
     'For an ic also give pins (8, 14 or 16), notch (which side of the image the notch or dot is on: left, right, or unsure) and label (the printed text, or null).',
   'Also read the power rails: the long strips along the board\'s two long edges, each marked with a printed + or - ' +

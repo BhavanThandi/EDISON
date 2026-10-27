@@ -46,7 +46,7 @@ const fs     = require('node:fs');
 const path   = require('node:path');
 
 const {
-  Board, build, BB830, lead, end, resistor, ledOf, led, wire, battery, reading,
+  Parts, Board, build, BB830, lead, end, ic, resistor, ledOf, led, wire, battery, reading,
   ref, wiresOf, placesOf, kinds, skippedIds, hasFlag, jumpersOf,
   checkInvariants, builtNets, assertSameNets, simulate, backwardsFor,
 } = require('./fixtures/photo-import-helpers.js');
@@ -90,6 +90,7 @@ test('the stage board builds exact actions and labels, with no flags and nothing
     labels: { 'power:0': 'BAT1', R1: 'R1', LED1: 'LED1', W1: 'W3', W2: 'W4' },
     flags: [],
     skipped: [],
+    power: 'reading',
   });
 });
 
@@ -641,7 +642,7 @@ test.each([
   { name: 'null lists and rails', rd: { board: { visible: true, cols: 63, rails: null, split: false }, parts: null, wires: null, power: null } },
 ])('build never throws on a Reading that is $name, and builds nothing', ({ rd }) => {
   const out = build(rd);
-  assert.deepStrictEqual(out, { actions: [], labels: {}, flags: [], skipped: [] });
+  assert.deepStrictEqual(out, { actions: [], labels: {}, flags: [], skipped: [], power: 'battery9' });
 });
 
 test('build never throws on junk entries: each bad one is listed in skipped, the good ones still build legally', () => {
@@ -658,12 +659,14 @@ test('build never throws on junk entries: each bad one is listed in skipped, the
     wires: [
       { id: 'WX1', color: 'red', ends: [end('a50')], confidence: 0.9, unsure: [] },                  // one end
       { id: 'WX2', color: 'red', ends: [{ hole: null }, { hole: 7 }], confidence: 0.9, unsure: [] },  // not strings
+      null,                                                                                          // not a wire (key wire3)
+      {},                                                                                            // no id, no ends (key wire4)
       wire('W1', 'red', 'rail:aOuter:10', 'b10'),
     ],
     power: [battery('rail:aOuter:3', 'rail:aInner:3')],
   };
   const out = build(rd);
-  assert.deepStrictEqual(skippedIds(out).slice().sort(), ['WX1', 'WX2', 'X1', 'X2', 'X3', 'part4']);
+  assert.deepStrictEqual(skippedIds(out).slice().sort(), ['WX1', 'WX2', 'X1', 'X2', 'X3', 'part4', 'wire3', 'wire4']);
   assert.deepStrictEqual(placesOf(out), [{ tool: 'place_resistor', holeA: 'a10', holeB: 'a14', resistance: 470 }]);
   assert.strictEqual(out.labels.R1, 'R1');
   assert.strictEqual(out.labels.W1, 'W3');
@@ -686,6 +689,7 @@ test.each([
     labels: { 'power:0': 'BAT1', part1: 'R1', part2: 'LED1', wire1: 'W3', wire2: 'W4' },
     flags: [],
     skipped: [],
+    power: 'reading',
   });
 });
 
@@ -714,4 +718,659 @@ test('different parts and wires that reuse an id are all built, keyed <id>#2, <i
   assert.deepStrictEqual(out.labels, { 'power:0': 'BAT1', R1: 'R1', LED1: 'LED1', 'R1#2': 'R2', 'R1#3': 'R3', W1: 'W3', W2: 'W4', 'W1#2': 'W5' });
   assert.deepStrictEqual(out.skipped, []);
   checkInvariants(out);
+});
+
+// ── Chips (Part B, task B2): a dual op-amp ic part is built as a TL072 ───
+// An `ic` part whose label names a dual op-amp (or that the user answered
+// is one: isOpAmp true) and whose pin 1 / pin 4 leads give a sure seat
+// (PhotoChips.seat; the notch agrees, or pin1Confirmed) becomes
+// { tool: 'place_tl072', hole, direction }, placed after the power actions and
+// BEFORE every other place_*, labelled U1. One it can't build safely is in
+// `skipped` and flagged: `type` (another chip, or isOpAmp false), `chip`
+// (identity unknown: asked), `pin1` (orientation unsure: asked), `position`
+// (no seat). Reading ids are U1 below unless a test says otherwise.
+
+const chipHoles = (...holes) => holes.map((h, k) => [String(k ? 4 : 1), h]);
+const tl072 = (id = 'U1', opts = {}, pair = ['e30', 'e33']) =>
+  ic(id, chipHoles(...pair), Object.assign({ pins: 8, notch: 'left', label: 'TL072CP' }, opts));
+
+// A battery, a resistor and the chip: the board the chip rules work on.
+const chipBoard = (chip, extra = []) => reading({
+  parts: [resistor('R1', 'a10', 'a14'), chip].concat(extra),
+  wires: [wire('W1', 'red', 'rail:aOuter:10', 'b10')],
+  power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+});
+
+const chipsOf = out => out.actions.filter(a => a.tool === 'place_tl072');
+
+test('a sure TL072 (pin 1 e30, pin 4 e33, notch left) is placed first among the parts: after the battery, before the resistor; labelled U1; zero refusals', () => {
+  const rd = chipBoard(tl072('IC1'));
+  const out = build(rd);
+  const tools = out.actions.map(a => a.tool);
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  assert.strictEqual(tools.indexOf('place_tl072'), tools.lastIndexOf('place_battery') + 1, `the chip follows the power actions: ${tools}`);
+  for (const [i, a] of out.actions.entries()) {
+    if (a.tool.startsWith('place_') && a.tool !== 'place_battery' && a.tool !== 'place_tl072') {
+      assert.ok(i > tools.indexOf('place_tl072'), `${a.tool} at ${i} must come after the chip`);
+    }
+  }
+  assert.strictEqual(out.labels.IC1, 'U1');
+  assert.ok(!skippedIds(out).includes('IC1'));
+  const board = Board.apply(Board.empty(), out.actions);
+  assert.deepStrictEqual(board.errors, [], 'zero refusals');
+  assert.ok(board.board.parts.some(p => p.type === 'tl072' && p.label === 'U1'), 'U1 is a tl072 on the board');
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('the chip is placed before every other part even when it is last in the Reading, and a chip in f–j (pin 1 f33, pin 4 f30) sits f33 left', () => {
+  const rd = reading({
+    parts: [resistor('R1', 'a10', 'a14'), led('LED1', 'c20', 'c23'), tl072('U1', { notch: 'right' }, ['f33', 'f30'])],
+    wires: [], power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const out = build(rd);
+  assert.deepStrictEqual(out.actions.slice(0, 2).map(a => a.tool), ['place_battery', 'place_tl072']);
+  assert.deepStrictEqual(out.actions[1], { tool: 'place_tl072', hole: 'f33', direction: 'left' });
+  assert.strictEqual(out.labels.U1, 'U1');
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('a chip that is not built leaves the other parts unchanged: a NE555 board builds the resistor and no place_tl072', () => {
+  const out = build(chipBoard(tl072('U1', { label: 'NE555' })));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.actions.filter(a => a.tool === 'place_resistor').map(a => a.holeA), ['a10']);
+  assert.strictEqual(out.labels.R1, 'R1');
+});
+
+// Chips that are not built: in skipped (type ic), flagged, never a place_tl072,
+// the rest of the board still builds legally.
+test.each([
+  { name: 'a NE555 (another chip)',                          opts: { label: 'NE555' },                          pair: ['e30', 'e33'], kind: 'type' },
+  { name: 'a chip with no label',                            opts: { label: null },                             pair: ['e30', 'e33'], kind: 'chip' },
+  { name: 'a blank label',                                   opts: { label: '' },                               pair: ['e30', 'e33'], kind: 'chip' },
+  { name: 'a label that is only a maker\'s mark (ST)',       opts: { label: 'ST' },                             pair: ['e30', 'e33'], kind: 'chip' },
+  { name: 'isOpAmp false with a TL072 label (she said no)',  opts: { isOpAmp: false },                          pair: ['e30', 'e33'], kind: 'type' },
+  { name: 'isOpAmp false with no label',                     opts: { label: null, isOpAmp: false },             pair: ['e30', 'e33'], kind: 'type' },
+  { name: 'notch unsure',                                    opts: { notch: 'unsure' },                         pair: ['e30', 'e33'], kind: 'pin1' },
+  { name: 'notch missing',                                   opts: { notch: undefined },                        pair: ['e30', 'e33'], kind: 'pin1' },
+  { name: 'a notch that disagrees with the seat',            opts: { notch: 'right' },                          pair: ['e30', 'e33'], kind: 'pin1' },
+  { name: 'a clockwise pair (pin 1 e33, pin 4 e30)',         opts: { notch: 'right' },                          pair: ['e33', 'e30'], kind: 'position' },
+  { name: 'pin 4 five columns from pin 1',   opts: {},                                          pair: ['e30', 'e35'], kind: 'position' },
+  { name: 'pin 1 and pin 4 in different halves',             opts: {},                                          pair: ['e30', 'f33'], kind: 'position' },
+])('a chip is not built: $name -> skipped, flagged $kind', ({ opts, pair, kind }) => {
+  const rd = chipBoard(tl072('U1', opts, pair));
+  const out = build(rd);
+  assert.strictEqual(chipsOf(out).length, 0, 'no place_tl072');
+  assert.ok(!('U1' in out.labels), 'no label for a chip that is not built');
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+  const f = out.flags.filter(x => x.id === 'U1');
+  assert.deepStrictEqual(f.map(x => x.kind), [kind]);
+  assert.match(String(f[0].why), /U1/, 'why names the Reading id');
+  assert.ok(String(f[0].why).length > 10, 'why is a sentence');
+  assert.strictEqual(out.labels.R1, 'R1', 'the resistor still builds');
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('the pinned messages: a NE555 says it is not a dual op-amp, an unknown chip asks, an unsure pin 1 asks', () => {
+  const why = o => build(chipBoard(tl072('U1', o))).flags.find(f => f.id === 'U1').why;
+  assert.strictEqual(why({ label: 'NE555' }), "U1 (NE555) isn't a dual op-amp with the TL072's pins, so it can't be built from a photo yet. Add it by hand.");
+  assert.strictEqual(why({ label: null }), 'Is U1 a dual op-amp like a TL072? Its label couldn\'t be read.');
+  assert.strictEqual(why({ notch: 'unsure' }), 'U1: which end is pin 1 isn\'t certain. Check the 1 dot (⇄ turns the chip), then confirm.');
+});
+
+// Her answers, kept on the ic part, turn an asked chip into a built one.
+test.each([
+  { name: 'label null + isOpAmp true',                 opts: { label: null, isOpAmp: true } },
+  { name: 'label NE555 + isOpAmp true (she says yes)', opts: { label: 'NE555', isOpAmp: true } },
+  { name: 'notch unsure + pin1Confirmed true',         opts: { notch: 'unsure', pin1Confirmed: true } },
+  { name: 'a disagreeing notch + pin1Confirmed true',  opts: { notch: 'right', pin1Confirmed: true } },
+  { name: 'both answers at once',                      opts: { label: null, notch: 'unsure', isOpAmp: true, pin1Confirmed: true } },
+])('her answer builds the chip: $name', ({ opts }) => {
+  const rd = chipBoard(tl072('U1', opts));
+  const out = build(rd);
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  assert.strictEqual(out.labels.U1, 'U1');
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1'), []);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1'), []);
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('pin1Confirmed never builds a chip that has no seat: a clockwise pair stays skipped, flagged position', () => {
+  const out = build(chipBoard(tl072('U1', { pin1Confirmed: true, notch: 'right' }, ['e33', 'e30'])));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1').map(f => f.kind), ['position']);
+});
+
+test('a lead in a chip\'s column-half keeps its node: R1 photographed in e31 moves to another row of column 31 (a–e), U1 keeps e30–e33 and f30–f33', () => {
+  const rd = reading({
+    parts: [tl072('U1'), resistor('R1', 'e31', 'e36')],
+    wires: [wire('W1', 'red', 'rail:aOuter:10', 'a36')],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const out = build(rd);
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  const r1 = out.actions.find(a => a.tool === 'place_resistor');
+  assert.ok(r1, 'R1 is built');
+  const chipHolesOn = new Set(Parts.footprintLegs('tl072', 'e30', 0).map(l => l.hole));
+  assert.strictEqual(chipHolesOn.size, 8);
+  assert.ok(!chipHolesOn.has(r1.holeA) && !chipHolesOn.has(r1.holeB), `R1 sits on the chip: ${r1.holeA} ${r1.holeB}`);
+  assert.match(r1.holeA, /^[a-d]31$/, 'R1\'s lead stays in column 31, a–e half, another row');
+  assert.match(r1.holeB, /^[a-e]36$/);
+  assert.ok(out.flags.some(f => f.kind === 'moved' && f.id === 'R1'), 'R1 is flagged moved');
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('a wire end and an LED lead photographed on the chip\'s holes (f32, f30) also keep their nodes', () => {
+  const rd = reading({
+    parts: [tl072('U1'), led('LED1', 'f30', 'f26')],
+    wires: [wire('W1', 'red', 'rail:jInner:9', 'f32')],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const out = build(rd);
+  assert.strictEqual(chipsOf(out).length, 1);
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test.each([
+  { name: '8 leads named 1…8 (a truth-style chip): the leads named 1 and 4 are used',
+    leads: Parts.footprintLegs('tl072', 'e30', 0).map((l, k) => [String(k + 1), l.hole]), at: 'e30' },
+  { name: '8 leads named 1…8 listed in a shuffled order',
+    leads: Parts.footprintLegs('tl072', 'e30', 0).map((l, k) => [String(k + 1), l.hole]).reverse(), at: 'e30' },
+  { name: '8 leads named 1…8 on a f–j chip (pin 1 f33)',
+    leads: Parts.footprintLegs('tl072', 'f33', 180).map((l, k) => [String(k + 1), l.hole]), at: 'f33', notch: 'right' },
+])('chip leads: $name', ({ leads, at, notch = 'left' }) => {
+  const chip = ic('U1', leads, { pins: 8, notch, label: 'TL072' });
+  chip.leads.forEach((l, k) => { if (leads[k][0] === undefined) delete l.pin; });
+  const rd = chipBoard(chip);
+  const out = build(rd);
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: at, direction: at[0] === 'e' ? 'right' : 'left' }]);
+  assert.strictEqual(out.labels.U1, 'U1');
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('a chip with no usable pin 1 / pin 4 leads (3 unnamed leads, or a lead in the gap) is not built, flagged position', () => {
+  const three = ic('U1', [[undefined, 'e30'], [undefined, 'e32'], [undefined, 'e33']], { pins: 8, notch: 'left', label: 'TL072' });
+  const gap   = ic('U1', [['1', 'gap'], ['4', 'e33']], { pins: 8, notch: 'left', label: 'TL072' });
+  for (const chip of [three, gap]) {
+    const out = build(chipBoard(chip));
+    assert.strictEqual(chipsOf(out).length, 0);
+    assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+    assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1').map(f => f.kind), ['position']);
+  }
+});
+
+test('a 14-pin chip is not built (Ruling B2a): skipped, flagged type, and why says 14 pins', () => {
+  const chip = ic('U1', [['1', 'e30'], ['7', 'e36']], { pins: 14, notch: 'left', label: 'TL074' });
+  const out = build(chipBoard(chip));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+  const f = out.flags.filter(x => x.id === 'U1');
+  assert.deepStrictEqual(f.map(x => x.kind), ['type']);
+  assert.match(String(f[0].why), /14/);
+  assert.match(String(f[0].why), /pins?/);
+});
+
+// Ruling B2b: unnamed ic leads are the reader's box-end placeholders, never a
+// pin cue. Only their columns count (3 apart, on the board, else position);
+// the seat comes from the notch (left: e{min} right; right: f{min+3} left;
+// unsure/missing: e{min} right) and is never sure: pin1 unless pin1Confirmed.
+const unnamedChip = (pair, opts = {}) =>
+  ic('U1', pair.map(h => [undefined, h]), Object.assign({ pins: 8, label: 'TL072' }, opts));
+
+test.each([
+  { name: 'e30/e33, notch left',                 pair: ['e30', 'e33'], opts: { notch: 'left' } },
+  { name: 'f30/f33, notch right',                pair: ['f30', 'f33'], opts: { notch: 'right' } },
+  { name: 'c30/h33 (rows are free), notch left', pair: ['c30', 'h33'], opts: { notch: 'left' } },
+  { name: 'e30/e33, notch unsure',               pair: ['e30', 'e33'], opts: { notch: 'unsure' } },
+  { name: 'e30/e33, no notch',                   pair: ['e30', 'e33'], opts: {} },
+])('placeholders are never sure: unnamed leads $name -> not built, flagged pin1', ({ pair, opts }) => {
+  const out = build(chipBoard(unnamedChip(pair, opts)));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1').map(f => f.kind), ['pin1']);
+  assert.match(String(out.flags.find(f => f.id === 'U1').why), /U1/);
+});
+
+test.each([
+  { name: 'e30/e33 + notch left',                         pair: ['e30', 'e33'], opts: { notch: 'left' },    at: 'e30', dir: 'right' },
+  { name: 'f30/f33 + notch right',                        pair: ['f30', 'f33'], opts: { notch: 'right' },   at: 'f33', dir: 'left' },
+  { name: 'e30/e33 + notch unsure',                       pair: ['e30', 'e33'], opts: { notch: 'unsure' },  at: 'e30', dir: 'right' },
+  { name: 'e30/e33 + no notch',                           pair: ['e30', 'e33'], opts: {},                   at: 'e30', dir: 'right' },
+  { name: 'c33/h30 (either order, any row) + notch left', pair: ['c33', 'h30'], opts: { notch: 'left' },    at: 'e30', dir: 'right' },
+])('placeholders + pin1Confirmed: unnamed leads $name -> $at $dir', ({ pair, opts, at, dir }) => {
+  const rd = chipBoard(unnamedChip(pair, Object.assign({ pin1Confirmed: true }, opts)));
+  const out = build(rd);
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: at, direction: dir }]);
+  assert.strictEqual(out.labels.U1, 'U1');
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1'), []);
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test.each([
+  { name: 'columns 30 and 32 (2 apart)', pair: ['e30', 'e32'] },
+  { name: 'columns 30 and 34 (4 apart)', pair: ['e30', 'e34'] },
+  { name: 'the same column',             pair: ['e30', 'f30'] },
+])('placeholders in the wrong columns: unnamed leads $name -> not built, flagged position (even with pin1Confirmed)', ({ pair }) => {
+  const out = build(chipBoard(unnamedChip(pair, { notch: 'left', pin1Confirmed: true })));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.deepStrictEqual(out.skipped.filter(s => s.id === 'U1').map(s => s.type), ['ic']);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1').map(f => f.kind), ['position']);
+});
+
+test('a named pin 1 / pin 4 pair still builds sure: no pin1 flag, no confirmation needed', () => {
+  const out = build(chipBoard(tl072('U1', { notch: 'left' })));
+  assert.strictEqual(chipsOf(out).length, 1);
+  assert.deepStrictEqual(out.flags.filter(f => f.id === 'U1'), []);
+});
+
+test('two chips are labelled U1 and U2 in Reading order, both placed before the resistor', () => {
+  const rd = reading({
+    parts: [resistor('R1', 'a10', 'a14'), tl072('A'), tl072('B', {}, ['e40', 'e43'])],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const out = build(rd);
+  assert.deepStrictEqual(chipsOf(out), [
+    { tool: 'place_tl072', hole: 'e30', direction: 'right' },
+    { tool: 'place_tl072', hole: 'e40', direction: 'right' },
+  ]);
+  assert.deepStrictEqual([out.labels.A, out.labels.B], ['U1', 'U2']);
+  assert.ok(out.actions.findIndex(a => a.tool === 'place_resistor') > 2);
+  assertSameNets(rd, out, checkInvariants(out));
+});
+
+test('property: 150 random boards with a chip and parts near it build with zero refusals and the Reading\'s nets (each chip pin on its seat\'s node)', () => {
+  const next = mulberry32(2026);
+  const rnd  = n => Math.floor(next() * n);
+  const STRIPS = ['aOuter', 'aInner', 'jInner', 'jOuter'], ROWS = 'abcdefghij';
+  const fails = [];
+  for (let k = 0; k < 150; k++) {
+    const c1 = 2 + rnd(50), topHalf = rnd(2) === 0;
+    const pair = topHalf ? ['e' + c1, 'e' + (c1 + 3)] : ['f' + (c1 + 3), 'f' + c1];
+    const chip = tl072('U1', { notch: topHalf ? 'left' : 'right' }, pair);
+    const near = () => ROWS[rnd(10)] + Math.max(1, Math.min(63, c1 - 3 + rnd(10)));
+    const ps = [chip], ws = [];
+    for (let i = 0, n = 1 + rnd(5); i < n; i++) {
+      const a = near(), b = near();
+      ps.push(rnd(2) ? resistor('R' + i, a, b) : led('L' + i, a, b));
+    }
+    for (let i = 0, n = rnd(4); i < n; i++) ws.push(wire('W' + i, 'yellow', near(), near()));
+    const rd = reading({ parts: ps, wires: ws, power: [battery(`rail:${STRIPS[rnd(4)]}:3`, `rail:${STRIPS[rnd(4)]}:4`)] });
+    try {
+      const out = build(rd);
+      if (chipsOf(out).length !== 1) throw new Error('the chip was not built');
+      assertSameNets(rd, out, checkInvariants(out));
+    } catch (e) {
+      fails.push(`#${k}: ${String(e.message).split('\n')[0]} ${JSON.stringify(rd.parts.map(p => [p.id, p.leads.map(l => l.hole)]))}`);
+    }
+  }
+  assert.deepStrictEqual(fails, [], fails.slice(0, 5).join('\n'));
+});
+
+// ── B4: power ────────────────────────────────────────────────────────────
+// build(reading, { components, power }), power 'auto' (default) | 'supply12' |
+// 'battery9'. result.power: 'supply12' | 'battery9' | 'reading'. `auto` picks
+// supply12 when an ic part is an op-amp by IDENTITY (label, or isOpAmp true),
+// built or not, and the Reading has no power entries (decision 5). supply12:
+// place_bench_supply { voltage: 12 } first, then add_wire PS1.0 → tp (red),
+// PS1.1 → tn (black), PS1.2 → bn (blue) for the rails in use, before the
+// Reading's wires. Off-board leads (decision 7): see the end of this section.
+const PhotoImportMod = require('../circuit3d/js/photo-import.js');
+const buildWith = (rd, power) => PhotoImportMod.build(rd, power === undefined ? { components: [] } : { components: [], power });
+const SUPPLY_FLAG = 'The board is powered by a ±12 V bench supply (+12 V on tp, ground on tn, −12 V on bn), as in the ENSC 220 lab. Change it above.';
+const BP_FLAG     = "The j-side + rail (bp) isn't connected: the ±12 V supply powers tp, tn and bn.";
+
+// A TL072 (e30 right: vpos at f30, vneg at e33) with a lead from each of tp, tn, bn.
+const opampBoard = (chip = tl072('U1'), extraWires = []) => reading({
+  parts: [chip],
+  wires: [
+    wire('W1', 'red',    'rail:aOuter:5', 'g30'),    // tp → vpos
+    wire('W2', 'black',  'rail:aInner:5', 'a33'),    // tn → vneg
+    wire('W3', 'yellow', 'rail:jOuter:6', 'c31'),    // bn
+  ].concat(extraWires),
+});
+
+test('B4 auto + a buildable TL072: place_bench_supply 12 first, then the chip; PS1.0 → tp red, PS1.1 → tn black, PS1.2 → bn blue; result.power supply12', () => {
+  const rd = opampBoard();
+  const out = buildWith(rd);
+  assert.strictEqual(out.power, 'supply12');
+  assert.deepStrictEqual(out.actions[0], { tool: 'place_bench_supply', voltage: 12 });
+  assert.strictEqual(out.actions[1].tool, 'place_tl072', 'the board\'s own parts follow the supply');
+  assert.ok(!out.actions.some(a => a.tool === 'place_battery'), 'no battery');
+  const ps = wiresOf(out).filter(w => /^PS1\./.test(w.from));
+  assert.deepStrictEqual(ps.map(w => [w.from, w.color]), [['PS1.0', 'red'], ['PS1.1', 'black'], ['PS1.2', 'blue']]);
+  assert.deepStrictEqual(ps.map(w => w.to.replace(/\d+$/, '')), ['tp_', 'tn_', 'bn_']);
+  assert.ok(ps.every(w => /^(tp|tn|bn)_\d+$/.test(w.to)));
+  assert.deepStrictEqual(wiresOf(out).slice(0, 3), ps, 'the supply\'s leads come before the Reading\'s wires');
+  const f = out.flags.filter(x => x.kind === 'source' && x.id == null);
+  assert.deepStrictEqual(f.map(x => x.why), [SUPPLY_FLAG]);
+  assert.strictEqual(out.labels['U1'], 'U1');
+  assert.deepStrictEqual(out.skipped, []);
+  const board = checkInvariants(out);   // zero refusals, Board.apply errors none
+  assertSameNets(rd, out, board);
+});
+
+test('B4 the supply\'s pins sit on their rails in the built board (tp, tn, bn are not joined to each other)', () => {
+  const out = build_ok(opampBoard());
+  const { board } = Board.apply(Board.empty(), out.actions);
+  const ps = board.parts.find(p => p.type === 'bench_supply');
+  assert.ok(ps, 'a bench supply is on the board');
+  assert.strictEqual(ps.label, 'PS1');
+  const on = pin => board.wires.filter(w => w.from === 'PS1.' + pin || w.to === 'PS1.' + pin).map(w => w.from === 'PS1.' + pin ? w.to : w.from);
+  assert.ok(/^tp_/.test(on(0)[0]) && /^tn_/.test(on(1)[0]) && /^bn_/.test(on(2)[0]), `pins on ${[on(0), on(1), on(2)]}`);
+  assert.deepStrictEqual(on(3), [], 'com2 is left alone');
+});
+function build_ok(rd) { const o = buildWith(rd); checkInvariants(o); return o; }
+
+test('B4 only the rails in use are wired: a board using tp and tn only gets PS1.0 and PS1.1', () => {
+  const rd = reading({
+    parts: [tl072('U1')],
+    wires: [wire('W1', 'red', 'rail:aOuter:5', 'g30'), wire('W2', 'black', 'rail:aInner:5', 'a33')],
+  });
+  const out = buildWith(rd);
+  assert.strictEqual(out.power, 'supply12');
+  assert.deepStrictEqual(wiresOf(out).filter(w => /^PS1\./.test(w.from)).map(w => w.from), ['PS1.0', 'PS1.1']);
+  assert.deepStrictEqual(out.actions[0], { tool: 'place_bench_supply', voltage: 12 });
+  const f = out.flags.find(x => x.kind === 'source');
+  assert.ok(f, 'a source flag');
+  assert.strictEqual(f.why, SUPPLY_FLAG);
+  checkInvariants(out);
+});
+
+test('B4 an op-amp chip identified but NOT built (pin 1 unsure) still selects supply12: identity decides power', () => {
+  const rd = opampBoard(tl072('U1', { notch: 'unsure' }));
+  const out = buildWith(rd);
+  assert.strictEqual(chipsOf(out).length, 0, 'the chip is asked, not built');
+  assert.ok(hasFlag(out, 'pin1', 'U1'));
+  assert.strictEqual(out.power, 'supply12');
+  assert.deepStrictEqual(out.actions[0], { tool: 'place_bench_supply', voltage: 12 });
+  assert.ok(!out.actions.some(a => a.tool === 'place_battery'));
+  checkInvariants(out);
+});
+
+test('B4 an answered isOpAmp true (label unread) selects supply12; isOpAmp false and a NE555 do not', () => {
+  assert.strictEqual(buildWith(opampBoard(tl072('U1', { label: null, isOpAmp: true }))).power, 'supply12');
+  assert.strictEqual(buildWith(opampBoard(tl072('U1', { label: null, isOpAmp: false }))).power, 'battery9');
+  assert.strictEqual(buildWith(opampBoard(tl072('U1', { label: 'NE555' }))).power, 'battery9');
+});
+
+test('B4 auto with no op-amp: a Reading with a battery entry is today\'s per-entry build exactly, power "reading"; with no power entry it is the assumed 9 V battery, power "battery9"', () => {
+  const out = buildWith(stage());
+  assert.strictEqual(out.power, 'reading');
+  assert.deepStrictEqual(out, build(stage()), 'same as build() without the option');
+  assert.deepStrictEqual(out.actions[0], { tool: 'place_battery', voltage: 9 });
+  assert.ok(!out.actions.some(a => a.tool === 'place_bench_supply'));
+  const bare = buildWith(reading({ parts: [resistor('R1', 'a10', 'a14')], wires: [wire('W1', 'red', 'rail:aOuter:10', 'b10'), wire('W2', 'black', 'a14', 'rail:aInner:12')] }));
+  assert.strictEqual(bare.power, 'battery9');
+  assert.deepStrictEqual(bare.actions[0], { tool: 'place_battery', voltage: 9 });
+  assert.ok(bare.flags.some(f => f.kind === 'source'), 'the assumed battery is flagged as today');
+});
+
+test('B4 power: "battery9" with a TL072 keeps the 9 V battery (no supply)', () => {
+  const rd = opampBoard();
+  const out = buildWith(rd, 'battery9');
+  assert.strictEqual(out.power, 'battery9');
+  assert.deepStrictEqual(out.actions[0], { tool: 'place_battery', voltage: 9 });
+  assert.ok(!out.actions.some(a => a.tool === 'place_bench_supply'));
+  assert.ok(!out.flags.some(f => f.why === SUPPLY_FLAG));
+  assert.strictEqual(chipsOf(out).length, 1);
+  checkInvariants(out);
+});
+
+test('B4 power: "supply12" forces the supply on a board with no op-amp', () => {
+  const rd = stage();
+  rd.power = [];
+  const out = buildWith(rd, 'supply12');
+  assert.strictEqual(out.power, 'supply12');
+  assert.deepStrictEqual(out.actions[0], { tool: 'place_bench_supply', voltage: 12 });
+});
+
+test('B4 a Reading with a power entry keeps its per-entry battery whatever the option says; result.power is "reading"', () => {
+  const mk = () => chipBoard(tl072('U1'));
+  for (const p of [undefined, 'auto', 'supply12', 'battery9']) {
+    const out = buildWith(mk(), p);
+    assert.strictEqual(out.power, 'reading', `power ${p}`);
+    assert.deepStrictEqual(out.actions[0], { tool: 'place_battery', voltage: 9 });
+    assert.ok(!out.actions.some(a => a.tool === 'place_bench_supply'));
+    assert.ok(!out.flags.some(f => f.why === SUPPLY_FLAG));
+    assertSameNets(mk(), out, checkInvariants(out));
+  }
+});
+
+test('B4 bp in use with the ±12 V supply is flagged: never silently floating', () => {
+  const rd = opampBoard(tl072('U1'), [wire('W4', 'red', 'rail:jInner:9', 'h31')]);
+  const out = buildWith(rd);
+  assert.strictEqual(out.power, 'supply12');
+  const whys = out.flags.filter(f => f.kind === 'source').map(f => f.why);
+  assert.ok(whys.includes(SUPPLY_FLAG), 'the supply flag');
+  assert.ok(whys.includes(BP_FLAG), `the bp flag: ${JSON.stringify(whys)}`);
+  assert.ok(!wiresOf(out).some(w => /^PS1\./.test(w.from) && /^bp_/.test(w.to)), 'bp gets no supply lead');
+  checkInvariants(out);
+  // not in use → no bp flag
+  assert.ok(!buildWith(opampBoard()).flags.some(f => f.why === BP_FLAG));
+});
+
+test('B4 property: 60 random op-amp boards on the ±12 V supply build with zero refusals, no Board.apply errors and the Reading\'s nets', () => {
+  const next = mulberry32(412);
+  const rnd  = n => Math.floor(next() * n);
+  const STRIPS = ['aOuter', 'aInner', 'jOuter'];
+  const fails = [];
+  for (let k = 0; k < 60; k++) {
+    const c1 = 2 + rnd(40);
+    const ws = [];
+    for (let i = 0, n = 1 + rnd(5); i < n; i++) ws.push(wire('W' + i, 'yellow', `rail:${STRIPS[rnd(3)]}:${1 + rnd(60)}`, 'abcdeghij'[rnd(9)] + (c1 + rnd(4))));
+    const rd = reading({ parts: [tl072('U1', { notch: 'left' }, ['e' + c1, 'e' + (c1 + 3)])], wires: ws });
+    try {
+      const out = buildWith(rd);
+      if (out.power !== 'supply12') throw new Error('not supply12');
+      assertSameNets(rd, out, checkInvariants(out));
+    } catch (e) { fails.push(`#${k}: ${String(e.message).split('\n')[0]}`); }
+  }
+  assert.deepStrictEqual(fails, [], fails.slice(0, 5).join('\n'));
+});
+
+// ── B4: off-board leads ──────────────────────────────────────────────────
+// A wire with one end `off` and the other on a hole is not built (skipped), and
+// gets its own flag `offboard` naming the wire id and the hole's column and
+// half: "W3 leaves the board at column 14 (a–e): connect your signal source or
+// meter there." Both ends off → today's position flag, no offboard.
+test('B4 off-board: a wire with one end off and the other at c14 is not built and flagged offboard, naming W3, column 14 and (a–e)', () => {
+  const rd = stage();
+  rd.wires.push(wire('W3', 'yellow', 'off', 'c14'));
+  const out = buildWith(rd);
+  assert.ok(skippedIds(out).includes('W3'), 'W3 is in skipped');
+  const f = out.flags.filter(x => x.id === 'W3');
+  assert.deepStrictEqual(f.map(x => x.kind), ['offboard']);
+  assert.strictEqual(f[0].why, 'W3 leaves the board at column 14 (a–e): connect your signal source or meter there.');
+  assert.ok(!wiresOf(out).some(w => w.from === 'c14' || w.to === 'c14'), 'no wire is built to c14');
+  checkInvariants(out);
+});
+
+test('B4 off-board: the end order and the f–j half are read too (hole first, off second → "column 22 (f–j)")', () => {
+  const rd = stage();
+  rd.wires.push(wire('W3', 'yellow', 'h22', 'off'));
+  const f = buildWith(rd).flags.find(x => x.id === 'W3');
+  assert.strictEqual(f.kind, 'offboard');
+  assert.match(f.why, /^W3 leaves the board at column 22 \(f–j\)/);
+});
+
+test('B4 off-board: both ends off is today\'s behaviour (position, skipped), not offboard', () => {
+  const rd = stage();
+  rd.wires.push(wire('W3', 'yellow', 'off', 'off'));
+  const out = buildWith(rd);
+  assert.ok(skippedIds(out).includes('W3'));
+  assert.deepStrictEqual(out.flags.filter(x => x.id === 'W3').map(x => x.kind), ['position']);
+  assert.ok(!out.flags.some(x => x.kind === 'offboard'));
+});
+
+// ── B5: a-on-top boards ──────────────────────────────────────────────────
+// build(reading, { aTop: true }) flips the Reading through T_A first (body
+// rows a↔j … e↔f; rail strips aOuter↔jOuter and aInner↔jInner keeping their
+// printed signs), builds, and adds a board flag `flipped`. Same circuit; the
+// built hole names are Edison's, not the printed ones.
+const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit. This screen uses your board's letters; the built board uses Edison's.";
+const T_A  = { a: 'j', b: 'i', c: 'h', d: 'g', e: 'f', f: 'e', g: 'd', h: 'c', i: 'b', j: 'a' };
+const STRIP = { aOuter: 'jOuter', jOuter: 'aOuter', aInner: 'jInner', jInner: 'aInner' };
+const flipHole = h => {
+  let m = /^([a-j])(\d+)$/.exec(h);
+  if (m) return T_A[m[1]] + m[2];
+  m = /^rail:(\w+):(\d+)$/.exec(h);
+  return m ? `rail:${STRIP[m[1]]}:${m[2]}` : h;
+};
+// The Reading as T_A leaves it (the test's own copy of the rule; the nets are
+// checked by the real helpers on this image).
+function flippedImage(rd) {
+  const back = JSON.parse(JSON.stringify(rd));
+  const r = rd.board.rails;
+  back.board.rails = { aOuter: r.jOuter, aInner: r.jInner, jInner: r.aInner, jOuter: r.aOuter };
+  for (const p of back.parts) for (const l of p.leads) l.hole = flipHole(l.hole);
+  for (const w of back.wires) for (const e of w.ends) e.hole = flipHole(e.hole);
+  for (const s of back.power) { s.plus.hole = flipHole(s.plus.hole); s.minus.hole = flipHole(s.minus.hole); }
+  return back;
+}
+const buildTop = (rd, extra = {}) => PhotoImportMod.build(rd, Object.assign({ components: [], aTop: true }, extra));
+const flipFlags = out => out.flags.filter(f => f.kind === 'flipped');
+
+// Printed a-on-top: a TL072 notch left with pin 1 at f30, pin 4 at f33 (named
+// leads), a resistor and wires on the printed a-side and the printed rails.
+const topBoard = (chip = ic('U1', [['1', 'f30'], ['4', 'f33']], { pins: 8, notch: 'left', label: 'TL072CP' })) => reading({
+  parts: [chip, resistor('R1', 'a10', 'a14')],
+  wires: [
+    wire('W1', 'red',   'rail:aOuter:5', 'g30'),   // printed + rail → pin 1's column-half
+    wire('W2', 'black', 'rail:aInner:6', 'a33'),   // printed − rail → pin 4's column-half
+    wire('W3', 'blue',  'b10', 'j20'),
+  ],
+  power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+});
+
+test('B5 an a-on-top notch-left chip at printed f30 / f33 builds e30 right and a flipped board flag with the exact text', () => {
+  const out = buildTop(topBoard());
+  assert.deepStrictEqual(chipsOf(out), [{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  assert.deepStrictEqual(flipFlags(out), [{ kind: 'flipped', id: null, why: FLIPPED_WHY }]);
+  assert.deepStrictEqual(out.skipped, []);
+  assert.ok(!out.flags.some(f => f.kind === 'pin1' || f.kind === 'position'), kinds(out).join());
+  assert.strictEqual(out.labels.U1, 'U1');
+});
+
+test('B5 an a-on-top board has the T_A image of the Reading\'s nets: every part and wire at its mirrored hole, zero refusals', () => {
+  const rd = topBoard();
+  const out = buildTop(rd);
+  const board = checkInvariants(out);
+  assertSameNets(flippedImage(rd), out, board);
+  // The resistor's printed a10 / a14 sit at Edison's j10 / j14.
+  const r = out.actions.find(a => a.tool === 'place_resistor');
+  assert.deepStrictEqual([r.holeA, r.holeB], ['j10', 'j14']);
+  // Wires: printed b10 / j20 are Edison's i10 / a20.
+  const w3 = wiresOf(out).find(w => w.color === 'blue');
+  assert.deepStrictEqual([w3.from, w3.to], ['i10', 'a20']);
+  // W1 / W2 end in the chip's column-halves (printed g30 → d30, a33 → j33).
+  const ends = wiresOf(out).filter(w => ['red', 'black'].includes(w.color) && !/^BAT/.test(w.from)).map(w => [w.from, w.to]);
+  assert.deepStrictEqual(ends.flat().filter(h => /^[a-j]\d+$/.test(h)).sort(), ['d30', 'j33']);
+});
+
+test('B5 on an a-on-top board the printed a-side + rail lands on bp and the printed a-side − rail on bn', () => {
+  const rd = topBoard();
+  const out = buildTop(rd);
+  const to = id => out.labels[id] && wiresOf(out)[+out.labels[id].slice(1) - 1];
+  assert.match(to('W1').from, /^bp_\d+$/, 'aOuter + → bp');
+  assert.match(to('W2').from, /^bn_\d+$/, 'aInner − → bn');
+  const bat = wiresOf(out).filter(w => /^BAT1\./.test(w.from));
+  assert.deepStrictEqual(bat.map(w => [w.from, w.to.replace(/\d+$/, '')]), [['BAT1.0', 'bp_'], ['BAT1.1', 'bn_']]);
+  assert.ok(!out.flags.some(f => f.kind === 'rails'), 'both signs were read: no rails flag');
+});
+
+test('B5 a placeholder (unnamed) chip on an a-on-top board seats from its columns the same way after the flip', () => {
+  for (const [notch, seat] of [['left', { hole: 'e30', direction: 'right' }], ['right', { hole: 'f33', direction: 'left' }]]) {
+    const chip = ic('U1', [[undefined, 'f30'], [undefined, 'f33']], { pins: 8, notch, label: 'TL072', pin1Confirmed: true });
+    const out = buildTop(topBoard(chip));
+    assert.deepStrictEqual(chipsOf(out), [Object.assign({ tool: 'place_tl072' }, seat)], `notch ${notch}`);
+    assert.strictEqual(flipFlags(out).length, 1);
+    const plain = PhotoImportMod.build(topBoard(chip), { components: [] });
+    assert.deepStrictEqual(chipsOf(plain), chipsOf(out), 'the same seat as without the flip');
+  }
+});
+
+test('B5 an unsure a-on-top chip is still asked (flip does not make a seat sure); and an a-on-top board without a chip still carries the flag', () => {
+  const unsure = ic('U1', [['1', 'f30'], ['4', 'f33']], { pins: 8, notch: 'unsure', label: 'TL072' });
+  const out = buildTop(topBoard(unsure));
+  assert.strictEqual(chipsOf(out).length, 0);
+  assert.ok(hasFlag(out, 'pin1', 'U1'));
+  assert.strictEqual(flipFlags(buildTop(stage())).length, 1);
+});
+
+test('B5 aTop false and absent are today\'s result exactly: no flipped flag, the same actions and flags as without the option', () => {
+  for (const rd of [stage(), topBoard()]) {
+    const base = PhotoImportMod.build(rd, { components: [] });
+    assert.deepStrictEqual(PhotoImportMod.build(rd, { components: [], aTop: false }), base);
+    assert.deepStrictEqual(PhotoImportMod.build(rd), PhotoImportMod.build(rd, {}));
+    assert.strictEqual(flipFlags(base).length, 0);
+  }
+  // The stage board flipped is not the stage board: rows change.
+  assert.notDeepStrictEqual(buildTop(stage()).actions, build(stage()).actions);
+});
+
+test('B5 the flip never mutates the Reading it is given', () => {
+  const rd = topBoard();
+  const copy = JSON.parse(JSON.stringify(rd));
+  buildTop(rd);
+  assert.deepStrictEqual(rd, copy);
+});
+
+// ── B5a: on an a-on-top board every user-facing why speaks the PRINTED frame ─
+// Actions, flag.hole and labels stay in Edison's frame.
+
+test('B5a offboard: a wire from printed c14 to off says "column 14 (a–e)" while flag.hole is Edison\'s h14', () => {
+  const rd = topBoard();
+  rd.wires.push(wire('W4', 'yellow', 'off', 'c14'));
+  const f = buildTop(rd).flags.find(x => x.kind === 'offboard');
+  assert.ok(f, 'an offboard flag');
+  assert.match(f.why, /column 14 \(a–e\)/, f.why);
+  assert.doesNotMatch(f.why, /f–j/);
+  assert.strictEqual(f.hole, 'h14');
+});
+
+test('B5a moved: a wire end that moves within its strip names printed holes (a–e), not Edison\'s (f–j)', () => {
+  const rd = reading({
+    parts: [resistor('R1', 'a10', 'a14')],
+    wires: [wire('W1', 'black', 'a14', 'rail:aInner:14')],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const out = buildTop(rd);
+  const f = out.flags.find(x => x.kind === 'moved' && x.id === 'W1');
+  assert.ok(f, JSON.stringify(kinds(out)));
+  assert.match(f.why, /\b[a-e]14\b/, f.why);
+  assert.doesNotMatch(f.why, /\b[f-j]\d+\b/, f.why);
+});
+
+test('B5a moved: a bridged / displaced part names printed holes', () => {
+  const rd = reading({
+    parts: [resistor('R1', 'a10', 'a14'), led('LED1', 'a14', 'a17')],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const f = buildTop(rd).flags.find(x => x.kind === 'moved' && x.id === 'LED1');
+  assert.ok(f, 'a moved flag for LED1');
+  assert.doesNotMatch(f.why, /\b[f-j]\d+\b/, f.why);
+  assert.match(f.why, /\b[a-e]\d+\b/, f.why);
+});
+
+test('B5a rails: printed j-side signs unread -> the rails flag names the j-side, not the a-side', () => {
+  const rd = reading({
+    rails: { aOuter: '+', aInner: '-', jInner: '?', jOuter: '?' },
+    parts: [resistor('R1', 'a10', 'a14')],
+    wires: [wire('W1', 'red', 'a5', 'rail:jInner:5')],
+  });
+  const f = buildTop(rd).flags.find(x => x.kind === 'rails');
+  assert.ok(f, 'a rails flag');
+  assert.match(f.why, /j-side/, f.why);
+  assert.doesNotMatch(f.why, /a-side/, f.why);
+});
+
+test('B5a the bp flag (supply12, printed a-side + rail in use) is in printed terms: no "j-side", no "bp"; the flag keeps rail bp', () => {
+  const rd = reading({
+    parts: [ic('U1', [['1', 'f30'], ['4', 'f33']], { pins: 8, notch: 'left', label: 'TL072CP' })],
+    wires: [wire('W1', 'red', 'rail:aOuter:9', 'h31')],
+  });
+  const out = buildTop(rd);
+  assert.strictEqual(out.power, 'supply12');
+  const f = out.flags.find(x => x.kind === 'source' && x.rail === 'bp');
+  assert.ok(f, JSON.stringify(out.flags));
+  assert.doesNotMatch(f.why, /j-side|\(bp\)/, f.why);
 });

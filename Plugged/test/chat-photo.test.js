@@ -36,8 +36,9 @@ const { isFixRequest } = require('../backend/ai-providers.js');
 const Chat   = require('../circuit3d/js/chat.js');
 const Parts  = require('../circuit3d/js/parts');
 const {
-  build, reading, resistor, ledOf, led, wire, battery, lead,
+  build, reading, resistor, ledOf, led, wire, battery, lead, ic,
 } = require('./fixtures/photo-import-helpers.js');
+const PhotoImport = require('../circuit3d/js/photo-import.js');
 
 const PREFIX    = 'Built from a photo of my real breadboard.';
 const QUESTIONS = ["My LED won't light, why?", "What's wrong with my circuit?"];
@@ -92,6 +93,21 @@ const BUILDS = [
   ['both resistor leads in one strip (shorted)', stage({ parts: [resistor('R1', 'a10', 'b10'), led('LED1', 'c14', 'c17')] })],
 ];
 
+// B4: the new flag kinds, from real builds. A TL072 board on the ±12 V supply
+// (the `source` flag), an off-board lead at c14 (`offboard`), an unlabelled chip
+// (`chip`) and a chip whose pin 1 is unsure (`pin1`).
+const chipPair = ['e30', 'e33'].map((h, k) => [String(k ? 4 : 1), h]);
+const opamp = (opts = {}) => ic('U1', chipPair, Object.assign({ pins: 8, notch: 'left', label: 'TL072CP' }, opts));
+const withChip = (chip, extra = []) => reading({
+  parts: [chip], wires: [wire('W1', 'red', 'rail:aOuter:5', 'g30'), wire('W2', 'black', 'rail:aInner:5', 'a33')].concat(extra),
+});
+const B4_BUILDS = [
+  ['B4 a ±12 V supply board (source flag, whole board)', withChip(opamp())],
+  ['B4 a lead leaving the board at c14 (offboard)',      withChip(opamp(), [wire('W3', 'yellow', 'off', 'c14')])],
+  ['B4 a chip with no label (chip)',                     withChip(opamp({ label: null }))],
+  ['B4 a chip whose pin 1 is unsure (pin1)',             withChip(opamp({ notch: 'unsure' }))],
+];
+
 // ── The contract's wording ─────────────────────────────────────────────────
 
 test('the contract\'s example: a polarity flag on LED1 → "Built from a photo of my real breadboard. Unsure readings: LED1 direction."', () => {
@@ -108,8 +124,8 @@ test('no flags (the stage board): the context is only "Built from a photo of my 
 
 // ── The context never changes what the server does with the message ───────
 
-describe.each(BUILDS)('%s', (_name, r) => {
-  const result = build(r);
+describe.each(BUILDS.concat(B4_BUILDS))('%s', (_name, r) => {
+  const result = PhotoImport.build(r, { components: [] });
 
   test('the context names every flagged part by its app label and has no part keyword, NEW_BUILD word or "fix"', () => {
     assert.ok(result.flags.length, 'the fixture raises a flag');
@@ -134,4 +150,49 @@ describe.each(BUILDS)('%s', (_name, r) => {
     assert.strictEqual(Server.NEW_BUILD.test(msg), Server.NEW_BUILD.test(q), `the NEW_BUILD match changed for ${JSON.stringify(msg)}`);
     assert.strictEqual(isFixRequest(msg), isFixRequest(q), `the Fix-it check changed for ${JSON.stringify(msg)}`);
   });
+});
+
+// ── B4: the new kinds read in plain words ─────────────────────────────────
+
+test('B4 the context for an off-board lead names the hole (c14) and says it leaves the board, with no part keyword', () => {
+  const result = PhotoImport.build(withChip(opamp(), [wire('W3', 'yellow', 'off', 'c14')]), { components: [] });
+  assert.ok(result.flags.some(f => f.kind === 'offboard'), 'the fixture raises offboard');
+  const ctx = context(result);
+  assert.match(ctx, /c14/, ctx);
+  assert.match(ctx, /off the board/i, 'says the hole is wired to something off the board: ' + ctx);
+  assert.match(ctx, /not open|isn'?t open/i, 'and that it is not left open: ' + ctx);
+  assert.deepStrictEqual(keywordsIn(ctx), []);
+});
+
+test('B4 the context for the ±12 V supply, an unlabelled chip and an unsure pin 1 says so in words, not a bare kind', () => {
+  const supply = context(PhotoImport.build(withChip(opamp()), { components: [] }));
+  assert.match(supply, /12 ?V/, supply);
+  assert.doesNotMatch(supply, /\bsource\b/, 'the flag kind is not shown raw: ' + supply);
+  const chip = context(PhotoImport.build(withChip(opamp({ label: null })), { components: [] }));
+  assert.match(chip, /U1/);
+  const pin1 = context(PhotoImport.build(withChip(opamp({ notch: 'unsure' })), { components: [] }));
+  assert.match(pin1, /U1/);
+  assert.match(pin1, /pin 1/i, 'pin1 reads as "pin 1": ' + pin1);
+  for (const c of [supply, chip, pin1]) assert.deepStrictEqual(keywordsIn(c), [], c);
+});
+
+// ── B5: an a-on-top board reads in plain words ────────────────────────────
+
+test('B5 the context for a flipped (a-on-top) board says the row letters were flipped, with no part keyword, NEW_BUILD word or "fix"', () => {
+  const r = withChip(opamp({ pins: 8 }));
+  const result = PhotoImport.build(r, { components: [], aTop: true });
+  assert.ok(result.flags.some(f => f.kind === 'flipped'), 'the fixture raises flipped');
+  const ctx = context(result);
+  assert.ok(ctx.startsWith(PREFIX), ctx);
+  assert.match(ctx, /row letters/i, ctx);
+  assert.match(ctx, /flipped/i, ctx);
+  assert.deepStrictEqual(keywordsIn(ctx), [], ctx);
+  assert.strictEqual(Server.NEW_BUILD.test(ctx), false, ctx);
+  assert.strictEqual(isFixRequest(ctx), false, ctx);
+  for (const q of QUESTIONS) {
+    const msg = q + '\n\n' + ctx;
+    for (const types of BOARDS) assert.deepStrictEqual(toolNames(msg, types), toolNames(q, types));
+    assert.strictEqual(Server.NEW_BUILD.test(msg), Server.NEW_BUILD.test(q));
+    assert.strictEqual(isFixRequest(msg), isFixRequest(q));
+  }
 });

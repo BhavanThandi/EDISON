@@ -4,18 +4,53 @@
 //
 //  CONTRACT (docs/API-CONTRACT.md → "Reading v1", "PhotoImport")
 //  ────────
-//    build(reading, { components }) → { actions, labels, flags, skipped }
+//    build(reading, { components, power, aTop }) → { actions, labels, flags, skipped, power }
 //  Never throws: what it can't build lands in flags and skipped.
 //
 //  RULES
 //  ─────
+//  - aTop (photo fix B5; PhotoGrid's grid.aTop: the board's letters printed
+//    a on top): first, a copy of the Reading through T_A (flipHole: body
+//    holes by BoardMirror.mirrorHoleName, a↔j … e↔f; the strips
+//    aOuter↔jOuter and aInner↔jInner, each keeping its printed sign; an
+//    ic's pin1), flagged flipped (id null); '?', gap, off and pts as they
+//    are. Everything below builds that copy; the Reading given is never
+//    changed. Every why speaks her board's printed letters (Ruling B5a:
+//    holes, halves, sides and rails through T_A again, by `shown`), while
+//    actions, labels and an offboard flag's hole stay Edison's.
 //  - A lead's node is its column + half (a–e / f–j) or a rail. Every lead
 //    keeps its node; rows inside a half and a rail's column are free.
 //  - Rails by side and printed sign: a-side + → tp, − → tn; j-side + → bp,
 //    − → bn. A side whose signs are `?` or equal: outer +, inner −, flagged.
-//  - Actions: every battery, then every part, then every wire (battery
-//    leads, bridge jumpers, the Reading's), because wire ends take holes.
-//    No delete_all.
+//  - Actions: the power, then every chip, then every other part, then
+//    every wire (the power's leads, bridge jumpers, the Reading's), because
+//    wire ends take holes. No delete_all.
+//  - Power (photo fix B4): a Reading with power entries → a battery per
+//    entry (result.power 'reading'), whatever options.power says. Else, for
+//    the rails in use, options.power: 'supply12' → a ±12 V bench supply
+//    (PS1.0 → tp, PS1.1 → tn, PS1.2 → bn; bp in use is flagged, unpowered),
+//    'battery9' → the assumed 9 V battery; 'auto' (the default) → supply12
+//    when an `ic` is an op-amp by identity (isOpAmp, else
+//    PhotoChips.identify), built or not, else battery9. The leads take rail
+//    column 1, else the nearest free hole.
+//  - A wire with one end `off` and the other on a hole: not built, flagged
+//    offboard (with that hole).
+//  - An `ic` is built as a TL072 (place_tl072 { hole, direction }), U1…, only
+//    when sure; checked in this order, the first that fails decides:
+//      pins (p.pins or 8) ≠ 8                       → type
+//      isOpAmp false, or PhotoChips.identify other  → type
+//      identify unknown and isOpAmp not true        → chip (asked)
+//      no leads named 1 and 4, and not exactly 2
+//      unnamed leads                                → position
+//      the seat gives a why                         → position
+//      seat not sure and not pin1Confirmed          → pin1 (asked)
+//    Leads named 1 and 4 seat it (PhotoChips.seat; other named leads are
+//    ignored). Exactly 2 unnamed leads are the reader's box-end placeholders
+//    (Ruling B2b), never a pin cue: PhotoChips.seatFromColumns, from their
+//    columns and the notch, never sure, so always asked.
+//    A built chip's 8 holes are claimed and taken before any other part, so
+//    other leads move to another row of their column-half. One on an
+//    earlier chip's holes → mismatch.
 //  - A part sits on its own two nodes when both leads are body holes in one
 //    half with the span in range (on one row, the photo's if free), or
 //    straight across the gap in one column (vertical). Both leads in one
@@ -35,6 +70,7 @@
 //  ───────
 //  Browser: window.PhotoImport
 //  Node:    module.exports
+//    build(reading, options), flipHole(hole)
 // ─────────────────────────────────────────────────────────────
 
 (function (root, factory) {
@@ -43,18 +79,23 @@
   if (root) root.PhotoImport = PhotoImport;
 })(typeof window !== 'undefined' ? window : null, function () {
 
-  const inNode   = typeof module === 'object' && module.exports;
-  const Parts    = inNode ? require('./parts') : window.Parts;
-  const Ids      = inNode ? require('./ids.js') : window.App;
-  const GEOMETRY = inNode ? require('./board-geometry.js') : window.App.BOARD_GEOMETRY;
+  const inNode     = typeof module === 'object' && module.exports;
+  const Parts      = inNode ? require('./parts') : window.Parts;
+  const Ids        = inNode ? require('./ids.js') : window.App;
+  const GEOMETRY   = inNode ? require('./board-geometry.js') : window.App.BOARD_GEOMETRY;
+  const PhotoChips = inNode ? require('./photo-chips.js') : window.PhotoChips;
+  const Mirror     = inNode ? require('./board-mirror.js') : window.App.BoardMirror;
 
   const COLS  = GEOMETRY.COLS;
   const TOP   = GEOMETRY.BODY_ROWS.slice(0, 5);
   const BOT   = GEOMETRY.BODY_ROWS.slice(5);
   const BOARD = { cols: COLS, bodyRows: GEOMETRY.BODY_ROWS };
 
-  // Reading part types → the registry types built (Tier 1).
+  // Reading part types → the registry types built (Tier 1). An `ic` is a
+  // TL072 when PhotoChips seats it (see build).
   const BUILT = { resistor: 'resistor', led: 'led' };
+  const CHIP  = 'tl072';
+  const TURN  = { right: 0, left: 180 };   // a seat's direction → the rotation (Board's ROTATION)
 
   const WIRE_COLORS = ['red', 'yellow', 'green', 'blue', 'black', 'white'];
   const WIRE_ALIAS  = { orange: 'yellow', gray: 'black', grey: 'black', brown: 'black', purple: 'blue', violet: 'blue' };
@@ -66,9 +107,23 @@
   const STRIPS    = ['aOuter', 'aInner', 'jInner', 'jOuter'];
   const RAIL_SAID = { tp: 'a-side +', tn: 'a-side −', bp: 'j-side +', bn: 'j-side −' };
 
+  // The power options, and the ±12 V bench supply's leads (ENSC 220): rail,
+  // pin (PS1.0 +, PS1.1 COM, PS1.2 −), colour.
+  const POWERS     = ['auto', 'supply12', 'battery9'];
+  const SUPPLY     = [['tp', 0, 'red'], ['tn', 1, 'black'], ['bn', 2, 'blue']];
+  // The supply's whys name the rails as `r` shows them (Ruling B5a).
+  const SUPPLY_WHY = r => `The board is powered by a ±12 V bench supply (+12 V on ${r('tp')}, ground on ${r('tn')}, −12 V on ${r('bn')}), as in the ENSC 220 lab. Change it above.`;
+  const BP_WHY     = r => `The ${RAIL_SAID[r('bp')]} rail (${r('bp')}) isn't connected: the ±12 V supply powers ${r('tp')}, ${r('tn')} and ${r('bn')}.`;
+
+  // aTop (photo fix B5): T_A's strip map, and the board flag's why.
+  const FLIP_STRIP  = { aOuter: 'jOuter', jOuter: 'aOuter', aInner: 'jInner', jInner: 'aInner' };
+  const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit. This screen uses your board's letters; the built board uses Edison's.";
+
   const list   = v => (Array.isArray(v) ? v : []);
   const sign   = s => (s === '+' ? '+' : s === '-' || s === '−' ? '-' : '?');
   const toolOf = def => (def.ai && def.ai.tool) || 'place_' + def.type;
+  // An ic's identity: her answer (isOpAmp) first, else its label's.
+  const identity = p => (p.isOpAmp === true ? 'opamp' : p.isOpAmp === false ? 'no' : PhotoChips.identify(p.label));
 
   // Each Reading strip → its app rail, and the sides whose signs were guessed.
   function railsBySign(signs) {
@@ -103,6 +158,45 @@
     return { kind: 'rail', strip, rail, col, node: 'rail:' + rail, hole: rail + '_' + col };
   }
 
+  // A Reading endpoint through T_A: "f30" (or " F30") → "e30",
+  // "rail:aOuter:5" → "rail:jOuter:5"; '?', 'gap', 'off' or anything else
+  // as it is. Exported: the confirm screen's ⇄ reads holes the same way.
+  function flipHole(hole) {
+    const s = typeof hole === 'string' ? hole.trim() : '';
+    if (/^[a-j]\d+$/i.test(s)) return Mirror.mirrorHoleName(s.toLowerCase());
+    const m = /^rail:(\w+):(\d+)$/i.exec(s);
+    const strip = m && Object.keys(FLIP_STRIP).find(n => n.toLowerCase() === m[1].toLowerCase());
+    return strip ? `rail:${FLIP_STRIP[strip]}:${m[2]}` : hole;
+  }
+
+  // The Reading in Edison's frame (aTop): every endpoint flipped, each strip's
+  // printed sign moved with it, an ic's pin1. A copy, field by field: the
+  // Reading given is never changed, and whatever isn't an object stays as it is.
+  function flipped(rd) {
+    const obj  = v => v && typeof v === 'object';
+    const end  = e => (obj(e) ? Object.assign({}, e, { hole: flipHole(e.hole) }) : e);
+    const ends = v => (Array.isArray(v) ? v.map(end) : v);
+    const out  = Object.assign({}, rd);
+    if (obj(rd.board)) {
+      out.board = Object.assign({}, rd.board);
+      if (obj(rd.board.rails)) {
+        out.board.rails = {};
+        for (const [k, v] of Object.entries(rd.board.rails)) out.board.rails[FLIP_STRIP[k] || k] = v;
+      }
+    }
+    if (Array.isArray(rd.parts)) {
+      out.parts = rd.parts.map(p => {
+        if (!obj(p)) return p;
+        const q = Object.assign({}, p, { leads: ends(p.leads) });
+        if (p.type === 'ic' && p.pin1 != null) q.pin1 = flipHole(p.pin1);
+        return q;
+      });
+    }
+    if (Array.isArray(rd.wires)) out.wires = rd.wires.map(w => (obj(w) ? Object.assign({}, w, { ends: ends(w.ends) }) : w));
+    if (Array.isArray(rd.power)) out.power = rd.power.map(s => (obj(s) ? Object.assign({}, s, { plus: end(s.plus), minus: end(s.minus) }) : s));
+    return out;
+  }
+
   // "a12" / "tp_12" → { col (0-based), row }.
   function holeRef(h) {
     const m = /^(?:([a-j])(\d+)|(tp|tn|bp|bn)_(\d+))$/.exec(h);
@@ -121,9 +215,6 @@
     return rows.slice().sort((p, q) => Math.abs(rows.indexOf(p) - i) - Math.abs(rows.indexOf(q) - i)).map(r => r + at.col);
   }
 
-  // "column 14 (a–e)", "the a-side + rail".
-  const said = at => (at.kind === 'rail' ? `the ${RAIL_SAID[at.rail]} rail` : `column ${at.col} (${at.half === 'top' ? 'a–e' : 'f–j'})`);
-
   // Why a part can't sit on its own two nodes (it needs the bridge), or null.
   function bridgeWhy(A, B, def) {
     const { min, max } = def.place.span;
@@ -136,14 +227,14 @@
   }
 
   // An LED's leads as [cathode, anode], from the confirmed roles only.
-  // Neither known: the first dot is the anode, flagged.
-  function ledOrder(x, flag) {
+  // Neither known: the first dot is the anode, flagged (its hole as `shown`).
+  function ledOrder(x, flag, shown) {
     const [l0, l1] = x.leads;
     const role = l => (l.role === 'anode' || l.role === 'cathode' ? l.role : null);
     const r0 = role(l0), r1 = role(l1);
     if ((r0 === 'cathode' && r1 !== 'cathode') || (r1 === 'anode' && r0 !== 'anode')) return [l0, l1];
     if ((r1 === 'cathode' && r0 !== 'cathode') || (r0 === 'anode' && r1 !== 'anode')) return [l1, l0];
-    flag('polarity', x.id, `${x.id}: which lead is the anode wasn't marked, so the first dot (${l0.at.hole}) is taken as the anode. Check it.`);
+    flag('polarity', x.id, `${x.id}: which lead is the anode wasn't marked, so the first dot (${shown(l0.at.hole)}) is taken as the anode. Check it.`);
     return [l1, l0];
   }
 
@@ -167,15 +258,17 @@
   // ── build ──────────────────────────────────────────────────
 
   function build(reading, options) {
-    const rd      = reading && typeof reading === 'object' ? reading : {};
+    const aTop    = !!options && options.aTop === true;
+    const given   = reading && typeof reading === 'object' ? reading : {};
+    const rd      = aTop ? flipped(given) : given;
     const board   = rd.board && typeof rd.board === 'object' ? rd.board : {};
     const rails   = railsBySign(board.rails && typeof board.rails === 'object' ? board.rails : {});
     const cols    = Number.isInteger(board.cols) && board.cols >= 1 && board.cols <= COLS ? board.cols : COLS;
     const placed  = list(options && options.components).filter(c => c && typeof c === 'object');
     const actions = [], labels = {}, flags = [], skipped = [];
 
-    const flag     = (kind, id, why) => flags.push({ kind, id, why });
-    const notBuilt = (id, type, kind, why) => { skipped.push({ id, type, why }); if (kind) flag(kind, id, why); };
+    const flag     = (kind, id, why, more) => flags.push(Object.assign({ kind, id, why }, more));
+    const notBuilt = (id, type, kind, why, more) => { skipped.push({ id, type, why }); if (kind) flag(kind, id, why, more); };
     const label    = type => { const l = Ids.nextLabel(placed, type); placed.push({ type, label: l }); return l; };
     const uses     = new Map();   // key → how many entries use it
     const copies   = new Set();   // what each part and wire is, to drop exact copies
@@ -193,6 +286,44 @@
     const claims   = [];          // every photo hole, in Reading order: { at, owner }
     const at       = hole => { const e = endpoint(hole, rails.map); if (e && e.strip) used.add(e.strip); return e; };
     const claim    = ends => { for (const e of ends) if (e.at) claims.push(e); };
+    if (aTop) flag('flipped', null, FLIPPED_WHY);
+    // Her screen's words (Ruling B5a): a hole ("e30", "tp_5"), row or rail
+    // as every why names it, on an aTop board her printed one (T_A again:
+    // "f30", "bp_5"); "column 14 (a–e)", "the a-side + rail".
+    const shown    = x => (aTop ? Mirror.MIRROR_ROW[x] || Mirror.mirrorHoleName(x) : x);
+    const said     = at => (at.kind === 'rail' ? `the ${RAIL_SAID[shown(at.rail)]} rail`
+                                               : `column ${at.col} (${TOP.includes(shown(at.row)) ? 'a–e' : 'f–j'})`);
+
+    // An ic → its seat in `chips` (its 8 holes claimed), or not built, its
+    // photo holes claimed as any unbuilt part's (the RULES' order).
+    const chips = [];
+    function chipOf(p, id) {
+      const leads = list(p.leads), pins = Number(p.pins) || 8, name = String(p.label == null ? '' : p.label).trim();
+      const no    = (kind, why) => {
+        claim(leads.map((l, k) => ({ at: endpoint(l && l.hole, rails.map), owner: `${id}.${k}` })));
+        notBuilt(id, 'ic', kind, why);
+      };
+      if (pins !== 8) return no('type', `${id} has ${pins} pins; only 8-pin dual op-amps can be built from a photo yet. Add it by hand.`);
+      const is    = identity(p);
+      if (is === 'no' || is === 'other') {
+        return no('type', `${id}${is === 'other' ? ` (${name})` : ''} isn't a dual op-amp with the TL072's pins, so it can't be built from a photo yet. Add it by hand.`);
+      }
+      if (is === 'unknown') return no('chip', `Is ${id} a dual op-amp like a TL072? Its label couldn't be read.`);
+      const pinOf   = l => (l && l.pin != null ? String(l.pin).trim() : '');
+      const named   = n => leads.find(l => pinOf(l) === n);
+      const N       = String(pins / 2);
+      const boxed   = leads.length === 2 && leads.every(l => l && !pinOf(l));   // the reader's box-end placeholders (B2b)
+      if (!(named('1') && named(N)) && !boxed) return no('position', `${id} isn't built: which of its leads are pin 1 and pin ${N} isn't known.`);
+      const seat    = !boxed ? PhotoChips.seat({ pin1: named('1').hole, pinN: named(N).hole, pins, notch: p.notch, cols })
+                             : PhotoChips.seatFromColumns({ ends: leads.map(l => l.hole), notch: p.notch, cols });
+      if (seat.why) return no('position', `${id} isn't built: ${seat.why[0].toLowerCase()}${seat.why.slice(1)}`);
+      if (!seat.sure && p.pin1Confirmed !== true) {
+        return no('pin1', `${id}: which end is pin 1 isn't certain. Check the 1 dot (⇄ turns the chip), then confirm.`);
+      }
+      const legs = Parts.footprintLegs(CHIP, seat.hole, TURN[seat.direction]);
+      claim(legs.map((l, k) => ({ at: endpoint(l.hole, rails.map), owner: `${id}.${k}` })));
+      chips.push({ id, hole: seat.hole, direction: seat.direction, legs });
+    }
 
     // ── 1. Resolve every endpoint; drop what can't be built ──
     const parts = [];
@@ -200,6 +331,7 @@
       const id   = keyOf(p && p.id, `part${i + 1}`);
       const type = p && typeof p.type === 'string' ? p.type : 'other';
       if (p && isCopy(['part', type, p.value, holesOf(p.leads)])) return notBuilt(id, type, null, `${id} is a copy of an earlier part; it is built once.`);
+      if (type === 'ic') return chipOf(p, id);
       const def = BUILT[type] ? Parts.get(BUILT[type]) : null;
       if (!def) {
         claim(list(p && p.leads).map((l, k) => ({ at: endpoint(l && l.hole, rails.map), owner: `${id}.${k}` })));
@@ -219,6 +351,10 @@
       claim(ends);
       return { key, src, plus: ends[0], minus: ends[1] };
     });
+    // What powers the rails (result.power): the Reading's own entries, else the option.
+    const want   = options && POWERS.includes(options.power) ? options.power : 'auto';
+    const opAmp  = list(rd.parts).some(p => p && p.type === 'ic' && identity(p) === 'opamp');
+    const choice = power.length ? 'reading' : want !== 'auto' ? want : opAmp ? 'supply12' : 'battery9';
 
     const wires = [];
     list(rd.wires).forEach((w, i) => {
@@ -227,6 +363,10 @@
       const ends = list(w && w.ends).map((e, k) => ({ at: at(e && e.hole), owner: `${id}.${k}` }));
       if (ends.length !== 2 || ends.some(e => !e.at)) {
         claim(ends);
+        const on = holesOf(w && w.ends).filter(h => h.trim().toLowerCase() === 'off').length === 1 && ends.find(e => e.at);
+        if (ends.length === 2 && on) {   // a lead to an instrument off the board
+          return notBuilt(id, 'wire', 'offboard', `${id} leaves the board at ${said(on.at)}: connect your signal source or meter there.`, { hole: on.at.hole });
+        }
         return notBuilt(id, 'wire', 'position', `${id}: an end isn't on a hole yet (unseen, in the gap or off the board), so it isn't built.`);
       }
       if (ends[0].at.node === ends[1].at.node) return notBuilt(id, 'wire', null, `${id} has both ends in one strip, so it joins nothing; left out.`);
@@ -236,7 +376,8 @@
 
     for (const side of SIDES) {
       if (rails.guessed[side.name] && (used.has(side.outer) || used.has(side.inner))) {
-        flag('rails', null, `The ${side.name} rails' + and − signs couldn't be read, so the outer strip is taken as + and the inner as −. Check them.`);
+        const name = SIDES.find(x => x.plus === shown(side.plus)).name;   // her side's name
+        flag('rails', null, `The ${name} rails' + and − signs couldn't be read, so the outer strip is taken as + and the inner as −. Check them.`);
       }
     }
 
@@ -371,8 +512,8 @@
       return null;
     }
 
-    // ── 3. Batteries ──
-    const pending = [];   // wires in output order: { id, color, reading, ends: [{ pin } | end] } | a jumper { id, color, holes }
+    // ── 3. The power: each battery, or the assumed battery or bench supply ──
+    const pending = [];   // wires in output order: { id, by, color, reading, ends: [{ pin } | end] } | a jumper { id, color, holes }
     for (const s of power) {
       const kind = s.src.kind, volts = s.src.volts;
       const ok   = Parts.checkValue('battery', 'voltage', volts).ok;
@@ -388,27 +529,43 @@
         pending.push({ id: s.key, color, ends: [{ pin: bat + '.' + pin }, e] });
       });
     }
-    if (!power.length) {
-      const inUse = new Set([...used].map(strip => rails.map[strip]));
-      const plus  = ['tp', 'bp'].filter(r => inUse.has(r)), minus = ['tn', 'bn'].filter(r => inUse.has(r));
-      if (plus.length || minus.length) {
-        actions.push({ tool: 'place_battery', voltage: 9 });
-        const bat  = label('battery');
-        const rail = r => ({ at: { kind: 'rail', rail: r, col: 1, node: 'rail:' + r, hole: r + '_1' }, owner: 'assumed', assumed: true });
-        for (const r of plus)  pending.push({ id: null, color: 'red',   ends: [{ pin: bat + '.0' }, rail(r)] });
-        for (const r of minus) pending.push({ id: null, color: 'black', ends: [{ pin: bat + '.1' }, rail(r)] });
-        const on = plus.concat(minus).map(r => RAIL_SAID[r]);
-        flag('source', null, `No battery in the photo, so a 9 V battery is assumed on the ${on.join(' and ')} rail${on.length > 1 ? 's' : ''}.`);
+    const inUse = new Set([...used].map(strip => rails.map[strip]));
+    const rail  = r => ({ at: { kind: 'rail', rail: r, col: 1, node: 'rail:' + r, hole: r + '_1' }, owner: 'assumed', assumed: true });
+    if (!power.length && inUse.size && choice === 'supply12') {
+      actions.push({ tool: 'place_bench_supply', voltage: 12 });
+      const ps = label('bench_supply');
+      for (const [r, pin, color] of SUPPLY) {
+        if (inUse.has(r)) pending.push({ id: null, by: 'The bench supply', color, ends: [{ pin: ps + '.' + pin }, rail(r)] });
       }
+      flag('source', null, SUPPLY_WHY(shown));
+      if (inUse.has('bp')) flag('source', null, BP_WHY(shown), { rail: 'bp' });
+    } else if (!power.length && inUse.size) {
+      const plus = ['tp', 'bp'].filter(r => inUse.has(r)), minus = ['tn', 'bn'].filter(r => inUse.has(r));
+      actions.push({ tool: 'place_battery', voltage: 9 });
+      const bat = label('battery');
+      for (const r of plus)  pending.push({ id: null, by: 'The battery', color: 'red',   ends: [{ pin: bat + '.0' }, rail(r)] });
+      for (const r of minus) pending.push({ id: null, by: 'The battery', color: 'black', ends: [{ pin: bat + '.1' }, rail(r)] });
+      const on = plus.concat(minus).map(r => RAIL_SAID[shown(r)]);
+      flag('source', null, `No battery in the photo, so a 9 V battery is assumed on the ${on.join(' and ')} rail${on.length > 1 ? 's' : ''}.`);
     }
 
-    // ── 4. Parts ──
+    // ── 4. Chips (each takes its 8 holes), then the other parts ──
+    for (const c of chips) {
+      const def = Parts.get(CHIP), hit = c.legs.find(l => taken.has(l.hole));
+      if (!Parts.checkPlacement(CHIP, c.legs, taken, BOARD).ok) {
+        notBuilt(c.id, 'ic', 'mismatch', `${c.id} would share ${hit ? `${shown(hit.hole)} with ${taken.get(hit.hole).label}` : 'its holes with another part'}, so it isn't built. Add it by hand.`);
+        continue;
+      }
+      actions.push({ tool: toolOf(def), hole: c.hole, direction: c.direction });
+      const lab = labels[c.id] = label(CHIP);
+      c.legs.forEach(l => taken.set(l.hole, { label: lab, pin: l.pin }));
+    }
     for (const x of parts) {
-      const [lA, lB] = x.type === 'led' ? ledOrder(x, flag) : x.leads;   // → holeA, holeB
+      const [lA, lB] = x.type === 'led' ? ledOrder(x, flag, shown) : x.leads;   // → holeA, holeB
       const A = lA.at, B = lB.at, shorted = A.node === B.node;
       const full = [lA, lB].find(l => l.at.kind === 'body' && room(l.at) < (shorted ? 2 : 1));
       if (full) {
-        notBuilt(x.id, x.type, 'position', `${x.id}: ${said(full.at)} already holds five leads, so its lead in ${full.at.hole} has no hole; it isn't built.`);
+        notBuilt(x.id, x.type, 'position', `${x.id}: ${said(full.at)} already holds five leads, so its lead in ${shown(full.at.hole)} has no hole; it isn't built.`);
         continue;
       }
       const why = bridgeWhy(A, B, x.def);
@@ -428,31 +585,31 @@
       } else if (jumpers.length) {
         flag('moved', x.id, `${lab} (${x.id}) is drawn with a jumper (${why || 'no row has both its holes free'}): on your board it runs from ${said(A)} to ${said(B)}. Same circuit.`);
       } else if (holes[0] !== A.hole || holes[1] !== B.hole) {
-        flag('moved', x.id, `${lab} (${x.id}) sits in ${holes[0]} and ${holes[1]}: the same strips as ${lA.at.hole} and ${lB.at.hole} in the photo.`);
+        flag('moved', x.id, `${lab} (${x.id}) sits in ${shown(holes[0])} and ${shown(holes[1])}: the same strips as ${shown(lA.at.hole)} and ${shown(lB.at.hole)} in the photo.`);
       }
     }
 
-    // ── 5. Wires: the battery's leads, the bridge jumpers, then the Reading's ──
+    // ── 5. Wires: the power's leads, the bridge jumpers, then the Reading's ──
     for (const w of wires) pending.push({ id: w.id, color: w.color, reading: true, ends: w.ends });
     let wireN = 0;
     for (const w of pending) {
       const holes = w.holes || w.ends.map(e => e.pin || pick(e));   // a jumper's holes are taken already
       if (holes.some(h => !h)) {
-        const why = `${w.id || 'The battery'}: a strip it goes to is full, so it isn't built.`;
+        const why = `${w.id || w.by}: a strip it goes to is full, so it isn't built.`;
         if (w.reading) notBuilt(w.id, 'wire', 'position', why); else flag('position', w.id, why);
         continue;
       }
       holes.forEach((h, k) => { if (w.holes || !w.ends[k].pin) taken.set(h, { wire: actions.length }); });
       if (!w.holes && w.ends.some((e, k) => !e.pin && !e.assumed && holes[k] !== e.at.hole)) {
-        flag('moved', w.id, `${w.id}: an end moved to another hole of the same strip (${holes.filter(h => !/\./.test(h)).join(', ')}).`);
+        flag('moved', w.id, `${w.id}: an end moved to another hole of the same strip (${holes.filter(h => !/\./.test(h)).map(shown).join(', ')}).`);
       }
       actions.push({ tool: 'add_wire', from: holes[0], to: holes[1], color: w.color });
       wireN++;
       if (w.reading) labels[w.id] = 'W' + wireN;
     }
 
-    return { actions, labels, flags, skipped };
+    return { actions, labels, flags, skipped, power: choice };
   }
 
-  return { build };
+  return { build, flipHole };
 });

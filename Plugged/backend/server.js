@@ -10,9 +10,13 @@
  *                          (Accept application/x-ndjson: a line per item as it settles, then { done, … })
  * POST /api/voice/stt      { audio } (a base64 audio data URL)  →  { text }
  * POST /api/voice/tts      { text } (1–600 characters)          →  audio/mpeg, streamed
- * GET  /api/health                                         →  { status, model, voice }
+ * GET  /api/health                                         →  { status, model, voice, auth, counters }
  * POST /api/course/canvas/sync                             →  { ok, demo, syncedAt }  (Edison demo, no real Canvas)
  * GET  anything else       the app's static files
+ *
+ * REQUIRE_AUTH on (deploy): /api/ask, /api/photo, /api/photo/leads and /api/voice/* need
+ * a Firebase ID token from a Google sign-in (auth.js), and /api/ask and /api/photo keep
+ * daily limits (quota.js); a recorded sample photo needs neither.
  */
 
 const http = require('http');
@@ -23,6 +27,8 @@ const { makeAsk, isFixRequest } = require('./ai-providers');
 const { readPhoto, isSafeId, usageOf, thinkingLevel } = require('./photo-reader');
 const { readLeads } = require('./photo-leads');
 const Voice = require('./voice');
+const Auth  = require('./auth');
+const Quota = require('./quota');
 // The board's size: the same file the 3D editor builds the board from.
 const { COLS, TOTAL_HOLES, BODY_ROWS } = require('../circuit3d/js/board-geometry.js');
 // The parts registry: every part's tool, prompt lines and circuit behaviour.
@@ -1771,6 +1777,80 @@ function readBody(req, res, max, tooLarge) {
   });
 }
 
+// ── Sign-in and daily allowances (deploy D3) ─────────────────
+// On when REQUIRE_AUTH is set to anything but '', '0', 'false', 'off' or
+// 'no' (read per request, trimmed, any case), so a misspelt "on" never
+// leaves it open; unset is off and nothing below runs. /api/ask and
+// /api/photo then need a Firebase ID token (`Authorization: Bearer …`) from
+// a Google sign-in and take one from the user's day and one from the day's
+// global pool, in that order; /api/photo/leads and /api/voice/* need the
+// token only, and a recorded sample photo needs neither (D3c). The texts
+// are the contract's (docs/API-CONTRACT.md), with the configured numbers.
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const LIMIT_REPLY = {
+  SIGN_IN:      n => `Sign in with Google to ask your own questions (${n} a day).`,
+  ASK_USER:     n => `You've used today's ${plural(n, 'question')}. The demos still work — come back tomorrow.`,
+  ASK_GLOBAL:   () => "Edison's free AI questions are used up for today. The demos still work — come back tomorrow.",
+  PHOTO_USER:   n => `You've used today's ${n === 1 ? 'photo read' : plural(n, 'photo read')}. Try a sample photo — they always work.`,
+  PHOTO_GLOBAL: () => "Today's free photo reads are used up. Try a sample photo — they always work.",
+};
+const DAY_LIMITS = {
+  ask:   { user: ['ASK_PER_USER_DAY', 5],   global: ['ASK_GLOBAL_DAY', 100],  userReply: LIMIT_REPLY.ASK_USER,   globalReply: LIMIT_REPLY.ASK_GLOBAL },
+  photo: { user: ['PHOTO_PER_USER_DAY', 1], global: ['PHOTO_GLOBAL_DAY', 15], userReply: LIMIT_REPLY.PHOTO_USER, globalReply: LIMIT_REPLY.PHOTO_GLOBAL },
+};
+const AUTH_OFF = new Set(['', '0', 'false', 'off', 'no']);
+const authRequired = () => !AUTH_OFF.has(String(process.env.REQUIRE_AUTH || '').trim().toLowerCase());
+// Said once per instance: with no Upstash the daily counts are this instance's alone.
+let memoryNoted = false;
+function noteMemoryCounters() {
+  if (memoryNoted || !authRequired() || Quota.storeName() !== 'memory') return;
+  memoryNoted = true;
+  console.warn('[quota] in-memory counters (no Upstash): daily limits are per server instance');
+}
+noteMemoryCounters();
+// A whole number ≥ 0 from env, else the default (never unlimited).
+const dayLimit = ([name, dflt]) => { const v = String(process.env[name] || '').trim(); return /^\d+$/.test(v) ? Number(v) : dflt; };
+const limitBody = (code, message, extra) => ({ reply: message, ...extra, code, message });
+
+// UNLIMITED_EMAILS (comma-separated, set on the host, never in the repo): a
+// Google-verified sign-in with one of these emails skips the daily allowances
+// and takes nothing from the global pool (the owner). Read per request.
+const unlimitedEmails = () => String(process.env.UNLIMITED_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+
+// The signed-in user's uid, or null once it has answered 401 SIGN_IN; marks
+// req.unlimited for an UNLIMITED_EMAILS owner. Never logs the token, only why it was refused.
+async function signedInUser(req, res, extra) {
+  const m = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(String(req.headers.authorization || ''));
+  try {
+    if (!m) throw Object.assign(new Error('no bearer token'), { code: 'NO_TOKEN' });
+    const { uid, email, emailVerified } = await Auth.verifyIdToken(m[1], { projectId: process.env.FIREBASE_PROJECT_ID || 'plugged-hackathon' });
+    req.unlimited = emailVerified && !!email && unlimitedEmails().includes(email.toLowerCase());
+    return uid;
+  } catch (e) {
+    console.warn(`[auth] ${req.url} refused: ${e.code || 'ERROR'}`);
+    sendJSON(res, 401, limitBody('SIGN_IN', LIMIT_REPLY.SIGN_IN(dayLimit(DAY_LIMITS.ask.user)), extra));
+    return null;
+  }
+}
+
+// Takes one of `uid`'s `route` allowance, then (only if that was allowed) one
+// of the day's global pool. Answers 429 and returns its code on the first
+// refusal; null when the request may go on.
+async function overDayLimit(res, uid, route, extra) {
+  noteMemoryCounters();
+  const L = DAY_LIMITS[route];
+  const mine = dayLimit(L.user);
+  if (!(await Quota.take(`u:${uid}:${route}`, mine)).ok) {
+    sendJSON(res, 429, limitBody('DAILY_LIMIT', L.userReply(mine), extra));
+    return 'DAILY_LIMIT';
+  }
+  if (!(await Quota.take(`g:${route}`, dayLimit(L.global))).ok) {
+    sendJSON(res, 429, limitBody('DAILY_LIMIT_GLOBAL', L.globalReply(), extra));
+    return 'DAILY_LIMIT_GLOBAL';
+  }
+  return null;
+}
+
 // ── /api/photo ───────────────────────────────────────────────
 // The contract's replies, word for word (docs/API-CONTRACT.md).
 const PHOTO_REPLY = {
@@ -1819,10 +1899,22 @@ async function handlePhoto(req, res) {
   const fail = (code, out, retries, usage) => { logPhoto({ sample, out, error: code, started, bytes, retries, usage }); return photoError(res, code); };
   if (!isPhotoDataUrl(image)) return fail('BAD_IMAGE');
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
+  const photoIn = { image, grid, sample, window: frame };
 
-  let out;
+  // Auth on (D3c): a sample id with a recording is replayed with no
+  // token and no allowance, by the fixture reader alone, so it can never
+  // reach a live AI (the image is ignored). Anything else (no sample, or one
+  // with no recording) signs in and takes the allowance before any reader.
+  const gated = authRequired();
+  let out = gated && isSafeId(sample) ? await readPhoto(photoIn, { providers: ['fixture'] }).catch(() => null) : null;
+  if (!out && gated) {
+    const uid = await signedInUser(req, res);
+    if (uid === null) return logPhoto({ sample, error: 'SIGN_IN', started, bytes });
+    const over = req.unlimited ? null : await overDayLimit(res, uid, 'photo');
+    if (over) return logPhoto({ sample, error: over, started, bytes });
+  }
   try {
-    out = await readPhoto({ image, grid, sample, window: frame });
+    if (!out) out = await readPhoto(photoIn);
   } catch (e) {
     return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries, e.usage);
   }
@@ -1864,6 +1956,10 @@ async function handleLeads(req, res) {
   if (rateLimited(req, leadsHits, LEADS_MAX_PER_WINDOW)) {
     logLeads({ count: 0, error: 'RATE', started, bytes: 0 });
     return sendJSON(res, 429, { reply: LEADS_REPLY.RATE });
+  }
+  // A token, but no allowance: the crop round is part of its photo's read.
+  if (authRequired() && (await signedInUser(req, res)) === null) {
+    return logLeads({ count: 0, error: 'SIGN_IN', started, bytes: 0 });
   }
   const body = await readBody(req, res, MAX_LEADS_BYTES, { reply: LEADS_REPLY.TOO_LARGE, code: 'TOO_LARGE' });
   if (body === null) return logLeads({ count: 0, error: 'TOO_LARGE', started, bytes: MAX_LEADS_BYTES });
@@ -1925,8 +2021,10 @@ function voiceField(raw, key) {
   } catch { return undefined; }
 }
 
+// With auth on (D3e) both voice routes need a token, after the rate limit; no allowance.
 async function handleVoiceStt(req, res) {
   if (rateLimited(req, voiceHits, VOICE_MAX_PER_WINDOW)) return sendJSON(res, 429, VOICE_RATE);
+  if (authRequired() && (await signedInUser(req, res)) === null) return;
   const raw = await readBody(req, res, MAX_VOICE_BYTES, { reply: 'That recording is too long.', code: 'TOO_LARGE' });
   if (raw === null) return;
   const clip = Voice.parseAudioDataUrl(voiceField(raw, 'audio'));
@@ -1946,6 +2044,7 @@ async function handleVoiceStt(req, res) {
 
 async function handleVoiceTts(req, res) {
   if (rateLimited(req, voiceHits, VOICE_MAX_PER_WINDOW)) return sendJSON(res, 429, VOICE_RATE);
+  if (authRequired() && (await signedInUser(req, res)) === null) return;
   const raw = await readBody(req, res, MAX_TTS_BYTES, { reply: 'That reply is too long to speak.', code: 'TOO_LARGE' });
   if (raw === null) return;
   const said = voiceField(raw, 'text');
@@ -1993,7 +2092,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && req.url === '/api/health') {
-    return sendJSON(res, 200, { status: 'ok', model: MODEL_NAME, voice: Voice.voiceMode() });
+    return sendJSON(res, 200, { status: 'ok', model: MODEL_NAME, voice: Voice.voiceMode(), auth: authRequired(), counters: Quota.storeName() });
   }
 
   // The Edison course hub's Canvas dummy: a sync that worked, marked as a demo. No real Canvas.
@@ -2005,10 +2104,14 @@ const server = http.createServer(async (req, res) => {
     if (rateLimited(req, askHits, ASK_MAX_PER_WINDOW)) {
       return sendJSON(res, 429, { reply: 'Too many requests. Give Edison a moment and try again.', actions: [] });
     }
+    const uid = authRequired() ? await signedInUser(req, res, { actions: [] }) : '';
+    if (uid === null) return;
     const body = await readBody(req, res, MAX_BODY_BYTES, { reply: 'That request is too large.', actions: [] });
     if (body === null) return;
     try {
       const { markdown = '', message = '', history = [], board, explain } = JSON.parse(body || '{}');
+      const over = uid && !req.unlimited ? await overDayLimit(res, uid, 'ask', { actions: [] }) : null;
+      if (over) return console.log(`[ask] refused: ${over}`);
       const result = await ask(markdown, message, history, isBoard(board) ? board : undefined, { explain: explain === true });
       const { reply, actions } = result;
       console.log(`[ask] "${message.slice(0,60)}" → ${actions.length} action(s)${result.fallbackModel ? ` (fallback ${result.fallbackModel})` : ''}`);

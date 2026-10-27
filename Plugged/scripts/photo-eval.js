@@ -16,7 +16,8 @@
 //    npm run photo-eval -- --shots <dir>         save the tap, confirm and placed screens
 //  Sets: eval (test/fixtures/photo/eval/), web (test/fixtures/photo/web/:
 //  the spike's 6 photos; their rail ends are converted to app rail names,
-//  their corners fitted from the labelled taps), all.
+//  their corners fitted from the labelled taps), online (test/fixtures/photo/online/:
+//  CC-licensed op-amp board photos found online, A5), all (the three).
 //  Without --port it starts `node backend/server.js` on a free port with
 //  this shell's environment (the server reads its own key file as usual).
 //
@@ -33,7 +34,8 @@ const PhotoGrid = require('../circuit3d/js/photo-grid.js');
 
 const ROOT     = path.join(__dirname, '..');
 const FIXTURES = path.join(ROOT, 'test/fixtures/photo');
-const SCORED   = ['resistor', 'led'];
+const SCORED   = ['resistor', 'led'];   // the headline: parts, legs, wires, ends, invented, other, polarity, rails
+const EXTRA    = ['capacitor', 'potentiometer', 'diode', 'ic'];   // reported in their own fields (A2), never in the headline
 const CONFIRM_TIMEOUT_MS = 180000;   // page: 60 s box round, plus slack
 const PLACED_TIMEOUT_MS  = 70000;    // after the confirm screen: the page's 45 s crop round, plus slack
 const MIN_GAP_MS = 11000;            // the server allows 6 photos a minute per IP
@@ -137,9 +139,9 @@ function pair(truth, pred) {
 // truth (truth.json entry) + got (the page's snapped Reading) → the scores.
 function score(truth, got) {
   const tParts = truth.parts.filter(p => SCORED.includes(p.type))
-    .map(p => ({ type: p.type, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.pin) }));
+    .map(p => ({ type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
   const pParts = got.parts.filter(p => SCORED.includes(p.type))
-    .map(p => ({ type: p.type, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => l.role) }));
+    .map(p => ({ type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => (l.role && l.role !== 'unknown' ? l.role : l.pin)) }));
   const tWires = truth.wires.map(w => ({ type: 'wire', nodes: w.ends.map(e => nodeOf(e.hole)) }));
   const pWires = got.wires.map(w => ({ type: 'wire', nodes: w.ends.map(e => nodeOf(e.hole)) }));
 
@@ -157,6 +159,44 @@ function score(truth, got) {
     const pi = p.roles.indexOf('anode');
     if (pi >= 0 && p.nodes[pi] === t.nodes[ti]) polRight++;
   }
+  // The other types, in their own fields so the headline stays comparable with older runs. A
+  // part is right when every known truth leg's node is covered. A truth part with no known leg
+  // is "unlocated": counted, never right or wrong. A chip's orientation is right when the truth
+  // names pin 1 and the paired reading's pin 1 is on that node. A chip the truth flags (one the
+  // app can't build, e.g. a SOIC adapter or an NE555) is right when ITS paired reading part, if
+  // any, is not a TL072-family build.
+  const xTruth = truth.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
+    type: p.type, flagged: p.expect === 'flagged', nodes: (p.leads || []).map(l => nodeOf(l.hole)), roles: (p.leads || []).map(l => l.pin) }));
+  const xRead  = got.parts.filter(p => EXTRA.includes(p.type)).map(p => ({
+    type: p.type, value: p.value, nodes: p.leads.map(l => nodeOf(l.hole)), roles: p.leads.map(l => (l.role && l.role !== 'unknown' ? l.role : l.pin)) }));
+  const located = xTruth.filter(t => t.flagged || t.nodes.some(Boolean));
+  const xPairs  = pair(located, xRead).pairs;
+  const mate = t => { const c = xPairs.find(x => located[x.i] === t); return c && xRead[c.j]; };
+  const typeScore = type => {
+    let right = 0, total = 0;
+    for (const t of located) {
+      if (t.type !== type || t.flagged) continue;
+      total++;
+      const p = mate(t);
+      if (p && shared(t.nodes, p.nodes) === t.nodes.filter(Boolean).length) right++;
+    }
+    return { right, total };
+  };
+  const flagged = { right: 0, total: 0 };
+  for (const t of located) {
+    if (!t.flagged) continue;
+    flagged.total++;
+    const p = mate(t);
+    if (!p || !/^TL0[78]\d/i.test(String(p.value || '').trim())) flagged.right++;
+  }
+  let pin1Right = 0, pin1Known = 0;
+  for (const t of located) {
+    const ti = t.roles.indexOf('1');
+    if (t.type !== 'ic' || t.flagged || ti < 0 || !t.nodes[ti]) continue;
+    pin1Known++;
+    const p = mate(t), pi = p ? p.roles.indexOf('1') : -1;
+    if (pi >= 0 && p.nodes[pi] === t.nodes[ti]) pin1Right++;
+  }
   let railRight = 0, railKnown = 0;
   for (const [k, v] of Object.entries(truth.rails || {})) {
     if (v !== '+' && v !== '-') continue;
@@ -170,17 +210,27 @@ function score(truth, got) {
     ends:     { right: right(tWires, pWires, wires.pairs), total: known(tWires) },
     polarity: { right: polRight, known: polKnown },
     rails:    { right: railRight, known: railKnown },
+    chips:    typeScore('ic'),
+    chipPin1: { right: pin1Right, known: pin1Known },
+    caps:     typeScore('capacitor'),
+    pots:     typeScore('potentiometer'),
+    diodes:   typeScore('diode'),
+    flagged,
+    unlocated: xTruth.length - located.length,
     other:    got.parts.filter(p => !SCORED.includes(p.type)).length,
   };
 }
 
 // ── CLI ────────────────────────────────────────────────────
 
+// The sets a --set value runs: all is eval, web and online.
+const setsFor = set => (set === 'all' ? ['eval', 'web', 'online'] : [set]);
+
 function parseArgs(argv) {
   const out = { set: 'eval', runs: 1, only: null, out: null, port: null, shots: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = argv[i + 1];
-    if (a === '--set') { out.set = v; i++; if (!['eval', 'web', 'all'].includes(v)) throw new Error('--set is eval, web or all'); }
+    if (a === '--set') { out.set = v; i++; if (!['eval', 'web', 'online', 'all'].includes(v)) throw new Error('--set is eval, web, online or all'); }
     else if (a === '--runs') { out.runs = Number(v); i++; if (!Number.isInteger(out.runs) || out.runs < 1) throw new Error('--runs needs a whole number of at least 1'); }
     else if (a === '--only') { out.only = String(v || '').split(',').filter(Boolean); i++; if (!out.only.length) throw new Error('--only needs ids'); }
     else if (a === '--out') { out.out = v; i++; if (!v) throw new Error('--out needs a file'); }
@@ -229,6 +279,7 @@ async function readNet(r, n) {
     Object.assign(n, { provider: d.provider, model: d.model });
     if (Array.isArray(d.items)) n.items = { n: d.items.length, timeout: d.items.filter(x => x.error === 'AI_TIMEOUT').length, failed: d.items.filter(x => x.error === 'AI_FAILED').length };
     if (d.code) n.code = d.code;
+    if (d.usage) n.usage = d.usage;
   } catch { /* not JSON */ }
 }
 
@@ -285,7 +336,7 @@ async function runPhoto(browser, base, photo, shots, tag) {
       const hole = e => (e.hole === '?' || e.hole === 'gap' || !e.hole) && Array.isArray(e.pt) ? g.snap(e.pt).hole : e.hole;
       return {
         rails: R.board && R.board.rails,
-        parts: R.parts.map(p => ({ id: p.id, type: p.type, value: p.value, color: p.color, leads: p.leads.map(l => ({ hole: hole(l), role: l.role })) })),
+        parts: R.parts.map(p => ({ id: p.id, type: p.type, value: p.value, color: p.color, leads: p.leads.map(l => ({ hole: hole(l), role: l.role, pin: l.pin })) })),
         wires: R.wires.map(w => ({ id: w.id, color: w.color, ends: w.ends.map(e => ({ hole: hole(e) })) })),
       };
     });
@@ -300,17 +351,35 @@ async function runPhoto(browser, base, photo, shots, tag) {
 const frac = (a, b) => `${a}/${b}`;
 const secs = ms => (ms == null ? '-' : (ms / 1000).toFixed(1));
 
+// Calls, 429s, tokens in and tokens out (thought included) over a photo's two responses.
+function usageSum(net) {
+  const t = { calls: 0, http429: 0, tokensIn: 0, tokensOut: 0 };
+  for (const k of ['/api/photo', '/api/photo/leads']) {
+    const u = (net && net[k] && net[k].usage) || {};
+    t.calls += Number(u.calls) || 0;
+    t.http429 += Number(u.http429) || 0;
+    t.tokensIn += Number(u.promptTokens) || 0;
+    t.tokensOut += (Number(u.outputTokens) || 0) + (Number(u.thoughtTokens) || 0);
+  }
+  return t;
+}
+
 function row(r) {
+  const us = usageSum(r.net);
   const s = r.score, p = r.net['/api/photo'] || {}, l = r.net['/api/photo/leads'] || {};
   const leads = l.items ? `${(l.s || 0).toFixed(1)}s ${l.items.n - l.items.timeout - l.items.failed}/${l.items.n}${l.items.timeout ? ` t${l.items.timeout}` : ''}${l.items.failed ? ` f${l.items.failed}` : ''}` : (l.status ? String(l.status) : '-');
   return [r.id + (r.run > 1 ? `#${r.run}` : ''), secs(r.ms), secs(r.placedMs), p.status ? `${p.status} ${p.provider || p.code || ''} ${(p.s || 0).toFixed(1)}s` : '-', leads,
           s ? frac(s.parts.found, s.parts.truth) : '-', s ? frac(s.legs.right, s.legs.total) : '-',
           s ? frac(s.wires.found, s.wires.truth) : '-', s ? frac(s.ends.right, s.ends.total) : '-',
-          s ? String(s.parts.invented + s.wires.invented) : '-', r.outcome === 'ok' ? '' : r.outcome];
+          s ? String(s.parts.invented + s.wires.invented) : '-',
+          s ? frac(s.chips.right, s.chips.total) : '-', s ? frac(s.chipPin1.right, s.chipPin1.known) : '-',
+          s ? frac(s.caps.right, s.caps.total) : '-', s ? frac(s.pots.right, s.pots.total) : '-',
+          s ? frac(s.diodes.right, s.diodes.total) : '-', s ? frac(s.flagged.right, s.flagged.total) : '-', s ? String(s.unlocated) : '-',
+          String(us.calls), String(us.http429), String(us.tokensIn), String(us.tokensOut), r.outcome === 'ok' ? '' : r.outcome];
 }
 
 function table(rows) {
-  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'failure'];
+  const head = ['photo', 'confirm s', 'placed s', '/api/photo', 'leads', 'parts', 'legs', 'wires', 'ends', 'invented', 'chips', 'chip pin-1', 'caps', 'pots', 'diodes', 'flagged', 'unlocated', 'calls', '429', 'tok in', 'tok out', 'failure'];
   const all = [head, ...rows];
   const w = head.map((_, i) => Math.max(...all.map(r => String(r[i]).length)));
   return all.map(r => r.map((c, i) => String(c).padEnd(w[i])).join('  ').trimEnd()).join('\n');
@@ -324,7 +393,12 @@ function totals(results) {
     return times.length ? [Math.round(times[Math.floor((times.length - 1) / 2)] / 100) / 10, Math.round(times[times.length - 1] / 100) / 10] : [null, null];
   };
   const [medianS, maxS] = spread('ms'), [placedMedianS, placedMaxS] = spread('placedMs');
+  const us = results.map(r => usageSum(r.net));
+  const usum = k => us.reduce((n, u) => n + u[k], 0);
+  const tokensIn = usum('tokensIn'), tokensOut = usum('tokensOut');
   return {
+    calls: usum('calls'), http429: usum('http429'), tokensIn, tokensOut,
+    costUsd: tokensIn / 1e6 * 1 + tokensOut / 1e6 * 5,   // $1/M in, $5/M out (thinking included)
     photos: results.length, failures: results.length - ok.length,
     placedTimeouts: results.filter(r => r.outcome.startsWith('PLACED_TIMEOUT')).length,
     medianS, maxS, placedMedianS, placedMaxS,
@@ -332,6 +406,10 @@ function totals(results) {
     wires: { found: sum('wires', 'found'), truth: sum('wires', 'truth') }, ends: { right: sum('ends', 'right'), total: sum('ends', 'total') },
     invented: ok.reduce((n, r) => n + r.score.parts.invented + r.score.wires.invented, 0),
     polarity: { right: sum('polarity', 'right'), known: sum('polarity', 'known') }, rails: { right: sum('rails', 'right'), known: sum('rails', 'known') },
+    chips: { right: sum('chips', 'right'), total: sum('chips', 'total') }, chipPin1: { right: sum('chipPin1', 'right'), known: sum('chipPin1', 'known') },
+    caps: { right: sum('caps', 'right'), total: sum('caps', 'total') }, pots: { right: sum('pots', 'right'), total: sum('pots', 'total') },
+    diodes: { right: sum('diodes', 'right'), total: sum('diodes', 'total') }, flagged: { right: sum('flagged', 'right'), total: sum('flagged', 'total') },
+    unlocated: ok.reduce((n, r) => n + r.score.unlocated, 0),
   };
 }
 
@@ -345,7 +423,7 @@ async function main() {
   }
   if (process.platform === 'darwin') { try { os.setPriority(15); } catch { /* normal priority */ } }
 
-  let photos = (args.set === 'all' ? ['eval', 'web'] : [args.set]).flatMap(loadSet);
+  let photos = setsFor(args.set).flatMap(loadSet);
   if (args.only) photos = photos.filter(p => args.only.some(o => p.id === o || p.id.startsWith(o)));
   if (!photos.length) { console.error('photo-eval: no photo matches --only'); process.exit(2); }
   if (args.shots) fs.mkdirSync(args.shots, { recursive: true });
@@ -388,13 +466,15 @@ async function main() {
   console.log(`\n${t.photos} runs, ${t.failures} failed${t.placedTimeouts ? `, ${t.placedTimeouts} placing timed out` : ''} · ` +
     `confirm screen median ${t.medianS}s, max ${t.maxS}s · legs placed median ${t.placedMedianS}s, max ${t.placedMaxS}s · ` +
     `parts ${t.parts.found}/${t.parts.truth} · legs ${t.legs.right}/${t.legs.total} · wires ${t.wires.found}/${t.wires.truth} · ` +
-    `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known}`);
+    `ends ${t.ends.right}/${t.ends.total} · invented ${t.invented} · LED polarity ${t.polarity.right}/${t.polarity.known} · rail signs ${t.rails.right}/${t.rails.known} · ` +
+    `chips ${t.chips.right}/${t.chips.total} · chip pin-1 ${t.chipPin1.right}/${t.chipPin1.known} · caps ${t.caps.right}/${t.caps.total} · pots ${t.pots.right}/${t.pots.total} · diodes ${t.diodes.right}/${t.diodes.total} · flagged ${t.flagged.right}/${t.flagged.total} · unlocated ${t.unlocated} · ` +
+    `${t.calls} Gemini calls, ${t.http429} 429s, ${t.tokensIn} tokens in, ${t.tokensOut} out · est. $${t.costUsd.toFixed(4)}`);
   if (args.out) {
     fs.writeFileSync(args.out, JSON.stringify({ at: new Date().toISOString(), args, totals: t, results }, null, 1));
     console.log(`wrote ${args.out}`);
   }
 }
 
-module.exports = { nodeOf, shared, pair, score, webRails, webHole, webCorners, loadSet, parseArgs };
+module.exports = { nodeOf, shared, pair, score, row, table, totals, webRails, webHole, webCorners, loadSet, parseArgs, setsFor };
 
 if (require.main === module) main();

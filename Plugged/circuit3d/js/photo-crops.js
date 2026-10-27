@@ -89,7 +89,7 @@
     return H.map(r => [r[0] * k, r[1] * k, r[0] * win.x + r[1] * win.y + r[2]]);
   }
 
-  // The answers into a new Reading: 2 legs set the points (hole '?' for
+  // The answers into a new Reading: as many legs as the item has placeholders (2 or more) set the points (hole '?' for
   // the confirm screen to snap), found false drops the item, anything
   // else keeps its placeholders and its 'leads' flag.
   function merge(reading, results) {
@@ -98,7 +98,7 @@
     const keep = e => !(by.has(e.id) && by.get(e.id).found === false);
     const place = (e, ends, isPart) => {
       const r = by.get(e.id);
-      if (!r || r.found !== true || !Array.isArray(r.leads) || r.leads.length !== 2 || !Array.isArray(ends) || ends.length !== 2) return;
+      if (!r || r.found !== true || !Array.isArray(r.leads) || !Array.isArray(ends) || r.leads.length < 2 || r.leads.length !== ends.length) return;
       r.leads.forEach((leg, i) => {
         const pt = leg && leg.pt;
         if (Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite)) Object.assign(ends[i], { hole: '?', pt: pt.slice() });
@@ -118,7 +118,9 @@
 
   // The labelled crop as a JPEG data URL. source: the photo's pixels
   // (ImageData-like); H: flattened → those pixels; rails: board.rails.
-  function render(source, H, grid, win, rails) {
+  // box (optional, flattened px): outlined in thin magenta (Set-of-Mark), so
+  // the model knows which part the crop is about.
+  function render(source, H, grid, win, rails, box) {
     const { scale, padLeft: pl, padTop: pt, width: W, height: Ht } = win;
     const iw = W - 2 * pl, ih = Ht - 2 * pt;
     const canvas = document.createElement('canvas');
@@ -148,6 +150,11 @@
       const sign = rails && rails[name];
       if (sign === '+') row('+', grid.holeCentre(`rail:${name}:1`)[1], '#dc2626');
       if (sign === '-') row('−', grid.holeCentre(`rail:${name}:1`)[1], '#2563eb');
+    }
+    if (isBox(box)) {
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(u(box[0]), v(box[1]), (box[2] - box[0]) * scale, (box[3] - box[1]) * scale);
     }
     return canvas.toDataURL('image/jpeg', 0.85);
   }

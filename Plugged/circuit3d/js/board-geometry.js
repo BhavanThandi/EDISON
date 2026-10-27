@@ -26,14 +26,14 @@
     BOARD_D:     7.9,
 
     // World-Z of every row centre.
-    // Positive Z = near the viewer.  Negative Z = far side.
-    // tp/tn live on the far side; bn/bp on the near side.
+    // Positive Z = near the viewer (bottom of the screen).  Negative Z = far.
+    // Rows a-e and tp/tn are the near half; f-j and bn/bp the far half.
     ROW_Z: {
-      tp: -3.35, tn: -2.95,                                    // top rails
-      a : -2.15, b : -1.75, c : -1.35, d : -0.95, e : -0.55,   // top body
+      tp:  3.35, tn:  2.95,                                    // near rails
+      a :  2.15, b :  1.75, c :  1.35, d :  0.95, e :  0.55,   // near body
       // ── centre channel (no holes) ──
-      f :  0.55, g :  0.95, h :  1.35, i :  1.75, j :  2.15,   // bottom body
-      bn:  2.95, bp:  3.35,                                    // bottom rails
+      f : -0.55, g : -0.95, h : -1.35, i : -1.75, j : -2.15,   // far body
+      bn: -2.95, bp: -3.35,                                    // far rails
     },
 
     // + (red) is the outer rail on both halves:  tp=+  tn=−  bn=−  bp=+

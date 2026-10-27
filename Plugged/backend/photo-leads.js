@@ -1,28 +1,31 @@
 // ─────────────────────────────────────────────────────────────
 //  photo-leads.js — where each lead enters the board, for /api/photo/leads
 //
-//  readLeads({ key, items }, opts) asks Gemini once per labelled crop (the
-//  page cuts them, photo-crops.js) and resolves
+//  readLeads({ key, items }, opts) asks Gemini about the labelled crops (the
+//  page cuts them, photo-crops.js), batched (A3) and resolves
 //  { items, provider, model, ms, resent, retries }: one entry per item, in
 //  order, { id, found, leads: [{ pin, pt, role }], conf } or
 //  { id, error: 'AI_TIMEOUT' | 'AI_FAILED' }. It never rejects. `resent`
-//  (items that got a stall resend) and `retries` (calls sent again after a
+//  (batches that got a stall resend) and `retries` (calls sent again after a
 //  failure) are for the route's log only.
 //  opts.onItem(entry) (#173) is called once per item as it settles, in
 //  finish order, with the entry `items` will hold (a saved answer standing
 //  in included); replays and the no-key path call it too. The route
 //  streams these as NDJSON lines.
 //
-//  Each item is a raceGemini (photo-reader.js, #172): a call that fails at
-//  once is retried 1–2 s later; one with no answer after PHOTO_HEDGE_MS
-//  (default 12 s, from when that call went out) gets one identical call
-//  alongside; at most 3 calls an item; a 400/401/403 is never retried. At
-//  most PHOTO_LEADS_CONCURRENCY (default 16) first calls and retries are in
-//  flight across the items; the rest wait their turn, first calls in item
-//  order. A stall resend is exempt: it goes out on time, never queued and
-//  never taking a slot (resends queued behind waiting items left 9 of 13
-//  crops unanswered live). At PHOTO_LEADS_TIMEOUT_MS (default 40 s since
-//  #173; the page no longer waits on it) every call is aborted and the items unanswered or still waiting are AI_TIMEOUT.
+//  Items go out in batches of at most PHOTO_LEADS_BATCH (default 12), one
+//  generateContent per batch, each crop outlined in magenta by the page
+//  (Set-of-Mark). Each batch is a raceGemini (photo-reader.js, #172): a call
+//  that fails at once is retried 1–2 s later (a 429's retryAfterMs
+//  honoured); one with no answer after PHOTO_HEDGE_MS (default 12 s) gets
+//  one identical call alongside; at most 3 calls a batch; a 400/401/403 is
+//  never retried. At most PHOTO_LEADS_CONCURRENCY (default 2) batch
+//  calls (first calls and retries) are in flight;
+//  the rest wait their turn, in item order. A stall resend is exempt. An
+//  item's line streams when its batch answers; ids outside the batch are
+//  ignored and a skipped id is that item unanswered. At
+//  PHOTO_LEADS_TIMEOUT_MS (default 40 s) every call is aborted and the items
+//  unanswered or still waiting are AI_TIMEOUT.
 //  opts.signal (#177; the route's, aborted when the page goes away) ends
 //  the round the same way at once: every call aborted, none sent after,
 //  the timers cleared, the unanswered items AI_TIMEOUT.
@@ -40,9 +43,9 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini,
-        loadFixture, parseLooseJSON, isSafeId, failed, num, obj, list } = require('./photo-reader');
-const { PHOTO_CROP_PROMPT, PHOTO_CROP_SCHEMA } = require('./photo-prompt');
+const { GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
+        loadFixture, thinkingConfig, parseLooseJSON, isSafeId, failed, num, obj, list } = require('./photo-reader');
+const { PHOTO_CROP_PROMPT_BATCH, PHOTO_CROP_SCHEMA_BATCH, cropShows } = require('./photo-prompt');
 
 const LEADS_DIR      = path.join(__dirname, '..', 'test', 'fixtures', 'photo', 'leads');
 const IMAGE_HASH     = /^[0-9a-f]{64}$/;
@@ -51,9 +54,14 @@ const CROP_MAX_CALLS = 3;
 
 // Read per request, so a test (or a restart-free tweak) can change them.
 const cutoffMs    = () => (Number(process.env.PHOTO_LEADS_TIMEOUT_MS) > 0 ? Number(process.env.PHOTO_LEADS_TIMEOUT_MS) : 40000);
+// PHOTO_LEADS_CONCURRENCY: most batch calls (first calls and retries) in flight, default 2.
 const concurrency = () => {
   const n = Math.floor(Number(process.env.PHOTO_LEADS_CONCURRENCY));
-  return n >= 1 ? n : 16;
+  return n >= 1 ? n : 2;
+};
+const batchSize   = () => {
+  const n = Math.floor(Number(process.env.PHOTO_LEADS_BATCH));
+  return n >= 1 ? n : 12;
 };
 
 const round1 = v => Math.round(v * 10) / 10 || 0;   // || 0: never -0
@@ -119,29 +127,65 @@ function limiter(cap) {
   };
 }
 
-// Every item live, at most concurrency() first calls and retries at once.
-// settle(entry) takes each item's live entry as it settles and returns the
-// one to keep. signal (optional) ends the round as the cutoff does, at once.
-// Resolves { entries, resent, retries, ok }, ok counting live answers.
+// One batch reply's JSON → an entry per item of the batch, in order. Ids
+// outside the batch are ignored; an item the reply skips (or answers
+// unusably) is { id, error: 'AI_FAILED' }. Throws when the reply holds no
+// items list at all.
+function toBatchEntries(batch, answer) {
+  const a = Array.isArray(answer) ? { items: answer } : answer;
+  if (!a || typeof a !== 'object' || !Array.isArray(a.items)) throw failed('the reply is not a batch answer');
+  const byId = new Map();
+  for (const r of a.items) if (r && typeof r === 'object' && typeof r.id === 'string' && !byId.has(r.id)) byId.set(r.id, r);
+  if (!batch.some(item => byId.has(item.id))) throw failed('no crop answered');   // retried by raceGemini
+  return batch.map(item => {
+    const r = byId.get(item.id);
+    if (!r) return { id: item.id, error: 'AI_FAILED' };
+    try {
+      const leads = list(r.leads).map(obj).map(l => [l.pin, l.point]);
+      return toEntry(item, { found: r.found, conf: r.conf, leads });
+    } catch {
+      return { id: item.id, error: 'AI_FAILED' };
+    }
+  });
+}
+
+// The batch's request: the instructions, then per crop its text and image.
+function batchBody(batch) {
+  const parts = [{ text: PHOTO_CROP_PROMPT_BATCH }];
+  batch.forEach((item, k) => {
+    parts.push({ text: `Crop ${k + 1}: id ${item.id}, ${cropShows(item)}, outlined in magenta` }, geminiImagePart(item.image));
+  });
+  return {
+    contents: [{ role: 'user', parts }],
+    generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_CROP_SCHEMA_BATCH(batch.map(i => i.id)), temperature: 1, maxOutputTokens: 32768, ...thinkingConfig() },
+  };
+}
+
+// Every item live, in batches of batchSize() items, one call each, at most
+// concurrency() first calls and retries at once. settle(entry) takes
+// each item's live entry as its batch settles (so lines stream per batch)
+// and returns the one to keep. signal (optional) ends the round as the
+// cutoff does, at once. Resolves { entries, resent, retries, ok, usage },
+// ok counting live answers.
 async function askGemini(items, model, fetch, settle, signal) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('photo-leads: GEMINI_API_KEY is not set');
-    return { entries: items.map(it => settle({ id: it.id, error: 'AI_FAILED' })), resent: 0, retries: 0, ok: 0 };
+    return { entries: items.map(it => settle({ id: it.id, error: 'AI_FAILED' })), resent: 0, retries: 0, ok: 0, usage: usageOf() };
   }
   if (signal && signal.aborted) {   // nobody is listening: send nothing
-    return { entries: items.map(it => settle({ id: it.id, error: 'AI_TIMEOUT' })), resent: 0, retries: 0, ok: 0 };
+    return { entries: items.map(it => settle({ id: it.id, error: 'AI_TIMEOUT' })), resent: 0, retries: 0, ok: 0, usage: usageOf() };
   }
+  const tally = newTally();
   const who = `gemini ${model}`, url = `${GEMINI_BASE}${model}:generateContent`;
   const slot = limiter(concurrency()), hedgeMs = photoHedgeMs(), deadlineAt = Date.now() + cutoffMs();
-  const runs = items.map(item => {
-    const body = {
-      contents: [{ role: 'user', parts: [{ text: PHOTO_CROP_PROMPT(item) }, geminiImagePart(item.image)] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_CROP_SCHEMA, temperature: 1, maxOutputTokens: 32768 },
-    };
+  const size = batchSize(), batches = [];
+  for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size));
+  const runs = batches.map(batch => {
+    const body = batchBody(batch);
     const call = async signal => {
-      const data = await postJSON({ fetch }, signal, who, url, { 'x-goog-api-key': apiKey }, body);
-      return toEntry(item, parseLooseJSON(geminiText(data, who)));
+      const data = await postJSON({ fetch, tally }, signal, who, url, { 'x-goog-api-key': apiKey }, body);
+      return toBatchEntries(batch, parseLooseJSON(geminiText(data, who)));
     };
     return raceGemini(call, { maxCalls: CROP_MAX_CALLS, hedgeMs, deadlineAt, slot });
   });
@@ -150,17 +194,18 @@ async function askGemini(items, model, fetch, settle, signal) {
   const cutoff  = setTimeout(() => runs.forEach(r => r.stop(late)), cutoffMs());
   const onAbort = () => { clearTimeout(cutoff); runs.forEach(r => r.stop(gone)); };
   if (signal) signal.addEventListener('abort', onAbort, { once: true });
-  const lost    = new Set();   // the items with no live answer
-  const entries = await Promise.all(runs.map((r, i) => r.result
-    .catch(e => ({ id: items[i].id, error: e && e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED' }))
-    .then(e => { if (e.error) lost.add(i); return settle(e); })));
+  let lost = 0;   // the items with no live answer
+  const lostRuns = new Set();
+  const perBatch = await Promise.all(runs.map((r, bi) => r.result
+    .catch(e => batches[bi].map(it => ({ id: it.id, error: e && e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED' })))
+    .then(es => es.map(e => { if (e.error) { lost++; lostRuns.add(bi); } return settle(e); }))));
   clearTimeout(cutoff);
   if (signal) signal.removeEventListener('abort', onAbort);
 
-  const whys = [...new Set(runs.filter((r, i) => lost.has(i) && r.stats.why).map(r => r.stats.why))];
-  if (whys.length) console.warn(`photo-leads: ${lost.size} item(s) unanswered: ${whys.join('; ')}`);
-  return { entries, resent: runs.filter(r => r.stats.resent).length, retries: runs.reduce((n, r) => n + r.stats.retries, 0),
-           ok: items.length - lost.size };
+  const whys = [...new Set(runs.filter((r, i) => lostRuns.has(i) && r.stats.why).map(r => r.stats.why))];
+  if (whys.length) console.warn(`photo-leads: ${lost} item(s) unanswered: ${whys.join('; ')}`);
+  return { entries: perBatch.flat(), resent: runs.filter(r => r.stats.resent).length, retries: runs.reduce((n, r) => n + r.stats.retries, 0),
+           ok: items.length - lost, usage: usageOf(tally) };
 }
 
 function record(dir, key, model, items) {
@@ -183,7 +228,7 @@ async function readLeads(body, opts = {}) {
   const names       = photoProviders();
   const replayOnly  = names.length === 1 && names[0] === 'fixture';
   const recording   = process.env.PHOTO_RECORD === '1';
-  const done = (out, provider, model, resent = 0, retries = 0) => ({ items: out, provider, model, ms: Date.now() - started, resent, retries });
+  const done = (out, provider, model, resent = 0, retries = 0, usage = usageOf()) => ({ items: out, provider, model, ms: Date.now() - started, resent, retries, usage });
   const report = e => {   // the caller's onItem never breaks the round
     try { if (typeof opts.onItem === 'function') opts.onItem(e); } catch (err) { console.warn('photo-leads: onItem threw:', err.message); }
     return e;
@@ -204,8 +249,8 @@ async function readLeads(body, opts = {}) {
   const live  = await askGemini(items, model, opts.fetch || globalThis.fetch, settle, opts.signal);
   const out   = live.entries;
   if (recording && live.ok && isSafeId(key)) record(fixturesDir, key, model, out.filter(e => !e.error));
-  return live.ok === 0 && fromFile ? done(out, 'fixture', file.model, live.resent, live.retries)
-    : done(out, 'gemini', model, live.resent, live.retries);
+  return live.ok === 0 && fromFile ? done(out, 'fixture', file.model, live.resent, live.retries, live.usage)
+    : done(out, 'gemini', model, live.resent, live.retries, live.usage);
 }
 
 module.exports = { readLeads };

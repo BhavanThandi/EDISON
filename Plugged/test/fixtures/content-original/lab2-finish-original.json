@@ -1,0 +1,90 @@
+{
+ "holes": {
+  "out1": "f30",
+  "in1n": "f31",
+  "in1p": "f32",
+  "vneg": "f33",
+  "vpos": "e30"
+ },
+ "finish": {
+  "supply": {
+   "parts": [],
+   "wires": [
+    [
+     "PS1.0",
+     "tp_63"
+    ],
+    [
+     "PS1.1",
+     "tn_63"
+    ],
+    [
+     "PS1.2",
+     "bn_63"
+    ],
+    [
+     "tn_1",
+     "bp_1"
+    ],
+    [
+     "tp_30",
+     "a30"
+    ],
+    [
+     "bn_33",
+     "j33"
+    ]
+   ]
+  },
+  "input": {
+   "parts": [
+    {
+     "type": "resistor",
+     "label": "R1",
+     "holes": [
+      "i35",
+      "i31"
+     ],
+     "values": {
+      "resistance": 10000
+     }
+    }
+   ],
+   "wires": [
+    [
+     "j32",
+     "bp_32"
+    ],
+    [
+     "FG1.0",
+     "g35"
+    ],
+    [
+     "FG1.1",
+     "tn_62"
+    ]
+   ]
+  },
+  "feedback": {
+   "parts": [
+    {
+     "type": "resistor",
+     "label": "R2",
+     "holes": [
+      "j30",
+      "j34"
+     ],
+     "values": {
+      "resistance": 100000
+     }
+    }
+   ],
+   "wires": [
+    [
+     "h34",
+     "h31"
+    ]
+   ]
+  }
+ }
+}

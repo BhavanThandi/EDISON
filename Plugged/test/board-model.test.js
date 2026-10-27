@@ -199,25 +199,25 @@ test('place_resistor and place_led: span parts get holes [holeA, holeB] and thei
 });
 
 test('place_seven_segment: hole + direction give the registry footprint legs at that rotation', () => {
-  const out = applyOk(Board.empty(), [{ tool: 'place_seven_segment', hole: 'f30', direction: 'right' }]);
+  const out = applyOk(Board.empty(), [{ tool: 'place_seven_segment', hole: 'e30', direction: 'right' }]);
   const ds = partOf(out, 'DS1');
   assert.ok(ds, `expected DS1; got ${JSON.stringify(labels(out))}`);
   assert.equal(ds.type, 'seven_segment');
-  const legs = Parts.footprintLegs('seven_segment', 'f30', Chat.ROTATION.right).map(l => l.hole);
+  const legs = Parts.footprintLegs('seven_segment', 'e30', Chat.ROTATION.right).map(l => l.hole);
   assert.deepStrictEqual(ds.holes, legs);
-  assert.deepStrictEqual(ds.holes, ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30']);
+  assert.deepStrictEqual(ds.holes, ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30']);
 
-  const left = applyOk(Board.empty(), [{ tool: 'place_seven_segment', hole: 'e40', direction: 'left' }]);
+  const left = applyOk(Board.empty(), [{ tool: 'place_seven_segment', hole: 'f40', direction: 'left' }]);
   assert.deepStrictEqual(partOf(left, 'DS1').holes,
-    Parts.footprintLegs('seven_segment', 'e40', Chat.ROTATION.left).map(l => l.hole));
+    Parts.footprintLegs('seven_segment', 'f40', Chat.ROTATION.left).map(l => l.hole));
 });
 
 test('place_potentiometer in each direction: legs are footprintLegs at Chat.ROTATION[direction]', () => {
   for (const direction of Object.keys(Chat.ROTATION)) {
-    const out = applyOk(Board.empty(), [{ tool: 'place_potentiometer', hole: 'e20', direction, resistance: 10000 }]);
+    const out = applyOk(Board.empty(), [{ tool: 'place_potentiometer', hole: 'f20', direction, resistance: 10000 }]);
     const rv = partOf(out, 'RV1');
     assert.ok(rv, `${direction}: expected RV1; got ${JSON.stringify(labels(out))}`);
-    const want = Parts.footprintLegs('potentiometer', 'e20', Chat.ROTATION[direction]).map(l => l.hole);
+    const want = Parts.footprintLegs('potentiometer', 'f20', Chat.ROTATION[direction]).map(l => l.hole);
     assert.deepStrictEqual(rv.holes, want, `direction ${direction}`);
     assert.equal(rv.values.resistance, 10000);
     for (const arg of ['hole', 'direction']) {
@@ -390,10 +390,10 @@ test('malformed place and add_wire actions are errors and skipped: no holes, bad
   const bad = [
     { tool: 'place_resistor', holeB: 'b6' },                                  // 0: no holeA
     { tool: 'place_led', holeA: 'c8' },                                       // 1: no holeB
-    { tool: 'place_potentiometer', hole: 'e20', direction: 'sideways' },      // 2: not a direction
-    { tool: 'place_potentiometer', hole: 'e2', direction: 'left' },           // 3: legs e1, e0, e-1
-    { tool: 'place_potentiometer', hole: 'b20', direction: 'up' },            // 4: legs b, a, past a
-    { tool: 'place_potentiometer', hole: `e${COLS - 1}`, direction: 'right' }, // 5: legs e62, e63, e64
+    { tool: 'place_potentiometer', hole: 'f20', direction: 'sideways' },      // 2: not a direction
+    { tool: 'place_potentiometer', hole: 'f2', direction: 'left' },           // 3: legs f1, f0, f-1
+    { tool: 'place_potentiometer', hole: 'i20', direction: 'up' },            // 4: legs i, j, past j
+    { tool: 'place_potentiometer', hole: `f${COLS - 1}`, direction: 'right' }, // 5: legs f62, f63, f64
     { tool: 'add_wire', from: 'a3' },                                         // 6: no `to`
   ];
   const { board, errors } = Board.apply(Board.empty(), bad.concat({ tool: 'place_resistor', holeA: 'b2', holeB: 'b6' }));
@@ -544,7 +544,7 @@ test('apply labels parts exactly as chat.js predictLabels predicts them', () => 
     { tool: 'place_resistor', holeA: 'b10', holeB: 'b14' },
     { tool: 'delete_part', part: 'R1' },
     { tool: 'place_resistor', holeA: 'b20', holeB: 'b24' },
-    { tool: 'place_seven_segment', hole: 'f30', direction: 'right' },
+    { tool: 'place_seven_segment', hole: 'e30', direction: 'right' },
     { tool: 'place_button', holeA: 'b40', holeB: 'b43' },
   ];
   const predicted = Chat.predictLabels(actions, []).filter(Boolean);   // ['BAT1', 'R1', 'R2', 'R3', 'DS1', 'SW1']
@@ -758,30 +758,30 @@ test('toActions on a board with label gaps (BAT2, R1, R3): labelMap BAT2 → BAT
 });
 
 // A footprint part and a bench supply, with gaps: PS2 at 9 V, the
-// seven-segment recipe's display DS1 (hole f30, right) and its three 470 Ω
+// seven-segment recipe's display DS1 (hole e30, right) and its three 470 Ω
 // resistors labelled R1, R5, R3. Rebuilt in order: PS2 → PS1, R5 → R2, R3
 // stays R3 (R1 and R2 are taken by then). It still shows "7".
 const MIXED = {
   parts: [
     { type: 'bench_supply',  label: 'PS2', values: { voltage: 9 } },
-    { type: 'seven_segment', label: 'DS1', holes: ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30'] },
-    { type: 'resistor',      label: 'R1', holes: ['b33', 'b37'], values: { resistance: 470 } },
-    { type: 'resistor',      label: 'R5', holes: ['c34', 'c39'], values: { resistance: 470 } },
-    { type: 'resistor',      label: 'R3', holes: ['h33', 'h37'], values: { resistance: 470 } },
+    { type: 'seven_segment', label: 'DS1', holes: ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'] },
+    { type: 'resistor',      label: 'R1', holes: ['i33', 'i37'], values: { resistance: 470 } },
+    { type: 'resistor',      label: 'R5', holes: ['h34', 'h39'], values: { resistance: 470 } },
+    { type: 'resistor',      label: 'R3', holes: ['c33', 'c37'], values: { resistance: 470 } },
   ],
   wires: [
-    { id: 'W1', from: 'PS2.0', to: 'tp_63' },
-    { id: 'W2', from: 'PS2.1', to: 'tn_63' },
-    { id: 'W3', from: 'tp_37', to: 'a37' },
-    { id: 'W4', from: 'tp_39', to: 'a39' },
-    { id: 'W5', from: 'e37',   to: 'f37' },
-    { id: 'W6', from: 'a32',   to: 'tn_32' },
+    { id: 'W1', from: 'PS2.0', to: 'bp_63' },
+    { id: 'W2', from: 'PS2.1', to: 'bn_63' },
+    { id: 'W3', from: 'bp_37', to: 'j37' },
+    { id: 'W4', from: 'bp_39', to: 'j39' },
+    { id: 'W5', from: 'f37',   to: 'e37' },
+    { id: 'W6', from: 'j32',   to: 'bn_32' },
   ],
 };
 
 test('toActions with a footprint part and a bench supply: hole + direction, PS2 → PS1, R5 → R2, and the display still shows 7', () => {
   const { actions, labelMap, after } = roundTrip('footprint + bench supply', MIXED);
-  assert.deepStrictEqual(actions.find(a => a.tool === 'place_seven_segment'), { tool: 'place_seven_segment', hole: 'f30', direction: 'right' });
+  assert.deepStrictEqual(actions.find(a => a.tool === 'place_seven_segment'), { tool: 'place_seven_segment', hole: 'e30', direction: 'right' });
   assert.deepStrictEqual(actions.find(a => a.tool === 'place_bench_supply'), { tool: 'place_bench_supply', voltage: 9 });
   assert.equal(renamed(labelMap, 'PS2'), 'PS1');
   assert.equal(renamed(labelMap, 'R5'), 'R2');

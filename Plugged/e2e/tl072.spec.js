@@ -22,15 +22,18 @@
 // - While simulating, the hover card (#hover-card) over OUT1 (its pin, and
 //   the chip itself) shows OUT1's voltage, signed: "−5.0 V" (or "-5.0 V").
 //
-// Layout, chip at f30 (OUT1 f30, IN1− f31, IN1+ f32, V− f33, IN2+ e33,
-// IN2− e32, OUT2 e31, V+ e30):
+// Layout, chip at f33 facing left (OUT1 f33, IN1− f32, IN1+ f31, V− f30,
+// IN2+ e30, IN2− e31, OUT2 e32, V+ e33). The board is flipped (row a nearest
+// the viewer), and this is the COLUMN REFLECTION of the old layout (chip f30
+// facing right, columns c → 63 − c; Ruling 21), so PS + → tp, COM → tn and
+// − → bn stay as they were:
 //   PS1 ±12 V: + → tp_63, COM → tn_63, − → bn_63; tn_1 → bp_1 (bp is COM).
-//   V+ tp_30 → a30; V− bn_33 → j33; IN1+ j32 → bp_32.
-//   BAT1 at 1 V (the bench has one supply, #197): + → g35, − → tn_62.
-//   Rin 20 kΩ i35–i31 (IN1−).
-//   Rf 100 kΩ j30 (OUT1)–j34, h34 → h31 (IN1−). Half 2 left unused.
+//   V+ tp_33 → a33; V− bn_30 → j30; IN1+ j31 → bp_31.
+//   BAT1 at 1 V (the bench has one supply, #197): + → g28, − → tn_62.
+//   Rin 20 kΩ i28–i32 (IN1−).
+//   Rf 100 kΩ j33 (OUT1)–j29, h29 → h32 (IN1−). Half 2 left unused.
 //   Nothing crosses OUT1's column in rows g–i, and the one part in it (Rf,
-//   in row j) sits below the default camera's line of sight to f30, so
+//   in row j) sits below the default camera's line of sight to f33, so
 //   hovering OUT1's pin reaches the chip, not a resistor in front of it.
 //   Vout1 = −(100k / 20k) · 1 V ≈ −5.00 V (the −10 version, 0.5 V through
 //   10 kΩ, is hand-computed in test/tl072.test.js: −5.00038 V).
@@ -143,16 +146,17 @@ test('by hand: pick the TL072, its ghost straddles the gap and a click places it
   await expect(item, 'the TL072 has a sidebar item').toHaveCount(1);
   await item.click();
   expect(await page.evaluate(() => [App.state.mode, App.state.pickedType])).toEqual(['place', 'tl072']);
+  await page.keyboard.press('r');   // facing left: pins 1–4 run left along row f, then back along row e
+  await expect(page.locator('#hint-text')).toContainText('180');
 
-  // Pin 1's hole, and the 8 holes the legs take from it: across the gap at column 30.
+  // Pin 1's hole, and the 8 holes the legs take from it: across the gap, columns 30–33,
+  // pins 1–4 in row f running left (f33 … f30), pins 5–8 back along row e (e30 … e33).
   const legs = await page.evaluate(() => {
-    for (const anchor of ['f30', 'e30']) {
-      const ls = Parts.footprintLegs('tl072', anchor, 0);
-      if (ls && ls.every(l => l.row === 'e' || l.row === 'f')) return ls.map(l => l.hole);
-    }
-    return null;
+    const ls = Parts.footprintLegs('tl072', 'f33', 180);
+    return ls && ls.every(l => l.row === 'e' || l.row === 'f') ? ls.map(l => l.hole) : null;
   });
-  expect(legs, "Parts.footprintLegs('tl072', 'f30', 0) puts all 8 legs in rows e and f").not.toBeNull();
+  expect(legs, "Parts.footprintLegs('tl072', 'f33', 180) puts all 8 legs in rows e and f").not.toBeNull();
+  expect(legs, 'chip at f33 facing left').toEqual(['f33', 'f32', 'f31', 'f30', 'e30', 'e31', 'e32', 'e33']);
   expect(legs).toHaveLength(8);
 
   const anchor = await toScreen(page, 'hole', legs[0]);
@@ -187,12 +191,12 @@ test('by hand: pick the TL072, its ghost straddles the gap and a click places it
     const spot = App.batterySpot();
     App.placePart('bench_supply', spot, { voltage: 12 });
     App.placePart('battery', { x: spot.x, z: spot.z + 3 }, { voltage: 1 });
-    App.placePart('resistor', [hole('i' + (col.in1n + 4)), hole('i' + col.in1n)], { resistance: 20000 });
-    App.placePart('resistor', [hole('j' + col.out1), hole('j' + (col.out1 + 4))], { resistance: 100000 });
+    App.placePart('resistor', [hole('i' + (col.in1n - 4)), hole('i' + col.in1n)], { resistance: 20000 });
+    App.placePart('resistor', [hole('j' + col.out1), hole('j' + (col.out1 - 4))], { resistance: 100000 });
     for (const [a, b] of [['PS1.0', 'tp_63'], ['PS1.1', 'tn_63'], ['PS1.2', 'bn_63'], ['tn_1', 'bp_1'],
                           ['tp_' + col.vpos, 'a' + col.vpos], ['bn_' + col.vneg, 'j' + col.vneg],
                           ['j' + col.in1p, 'bp_' + col.in1p],
-                          ['BAT1.0', 'g' + (col.in1n + 4)], ['BAT1.1', 'tn_62'], ['h' + (col.out1 + 4), 'h' + col.in1n]]) {
+                          ['BAT1.0', 'g' + (col.in1n - 4)], ['BAT1.1', 'tn_62'], ['h' + (col.out1 - 4), 'h' + col.in1n]]) {
       wire(a, b);
     }
   }, { col: { out1: col(0), in1n: col(1), in1p: col(2), vneg: col(3), vpos: col(7) } });

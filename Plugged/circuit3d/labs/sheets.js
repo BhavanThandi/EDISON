@@ -88,13 +88,13 @@
           { type: 'resistor', label: 'R2', holes: ['c14', 'c18'], values: { resistance: 2200 }, says: 'R2 (2.2 kΩ) from c14 to c18' },
           { type: 'resistor', label: 'R3', holes: ['e14', 'e18'], values: { resistance: 3300 }, says: 'R3 (3.3 kΩ) from e14 to e18, beside R2: in parallel' },
         ] } },
-      { n: 4, text: 'Wire the supply: + to column 10, column 18 to ground.', hint: 'PS1 + to the top + rail and COM to the top − rail, then a jumper from the + rail to b10 and one from a18 to the − rail.',
+      { n: 4, text: 'Wire the supply: + to column 10, column 18 to ground.', hint: 'PS1 + to the + rail beside row a (tp) and COM to the − rail beside row a (tn), then a jumper from the + rail to b10 and one from a18 to the − rail.',
         check: { kind: 'flows', label: 'R1' },
         give: { wires: [
-          ['PS1.0', 'tp_50', 'PS1 + to the top + rail'],
-          ['PS1.1', 'tn_50', 'PS1 COM (ground) to the top − rail'],
-          ['tp_10', 'b10', 'The + rail to column 10, R1\'s free end (b10)'],
-          ['a18', 'tn_18', 'Column 18, where R2 and R3 meet, to ground (a18 to the − rail)'],
+          ['PS1.0', 'tp_50', 'PS1 + to the + rail beside row a (tp)'],
+          ['PS1.1', 'tn_50', 'PS1 COM (ground) to the − rail beside row a (tn)'],
+          ['tp_10', 'b10', 'The + rail beside row a (tp) to column 10, R1\'s free end (b10)'],
+          ['a18', 'tn_18', 'Column 18, where R2 and R3 meet, to ground: a18 to the − rail beside row a (tn)'],
         ] } },
       { n: 5, text: 'Run, and measure the current through R1.', hint: 'R1 carries the whole circuit current. Compare R1 with R2 and R3 in parallel.',
         check: { kind: 'measure', label: 'R1', quantity: 'I', expect: 4.31, unit: 'mA', tol: 0.03, needs: LAB1_PARTS },
@@ -132,37 +132,37 @@
       { n: '6.2', q: 'Use KCL at column 14: does the current into the node equal the current out?' },
     ] },
     lab2: { id: 'lab2', code: 'LAB-02', title: 'Op-amps and the sine source', week: 'Week 4', starter: 'labs/lab2.sparky', steps: [
-      { n: 1, text: 'Wire the ±12 V supply to pins 8 and 4.', hint: 'U1 starts seated across the centre gap, pin 1 at f30 and pin 8 at e30. Pin 8 is V+ and goes to the supply\'s +. Pin 4 (f33) is V− and goes to its −. The supply\'s COM is ground.',
+      { n: 1, text: 'Wire the ±12 V supply to pins 8 and 4.', hint: 'U1 starts seated across the centre gap, pin 1 at f33 and pin 8 at e33. Pin 8 is V+ and goes to the supply\'s +. Pin 4 (f30) is V− and goes to its −. The supply\'s COM is ground.',
         check: { kind: 'supply', label: 'U1', pins: { vpos: 12, vneg: -12 }, tol: 0.05 },
         give: { wires: [
-          ['PS1.0', 'tp_63', 'PS1 + (+12 V) to the top + rail'],
-          ['PS1.1', 'tn_63', 'PS1 COM (ground) to the top − rail'],
-          ['PS1.2', 'bn_63', 'PS1 − (−12 V) to the bottom − rail'],
-          ['tn_1', 'bp_1', 'A jumper from the top − rail to the bottom + rail, so both are ground'],
-          ['tp_{vpos}', 'a{vpos}', 'The +12 V rail to pin 8 (V+), hole a{vpos}'],
-          ['bn_{vneg}', 'j{vneg}', 'The −12 V rail to pin 4 (V−), hole j{vneg}'],
+          ['PS1.0', 'tp_63', 'PS1 + (+12 V) to the + rail beside row a (tp)'],
+          ['PS1.1', 'tn_63', 'PS1 COM (ground) to the − rail beside row a (tn)'],
+          ['PS1.2', 'bn_63', 'PS1 − (−12 V) to the − rail beside row j (bn)'],
+          ['tn_1', 'bp_1', 'A jumper from the − rail beside row a (tn) to the + rail beside row j (bp), so both are ground'],
+          ['tp_{vpos}', 'a{vpos}', 'The + rail beside row a (tp) to pin 8 (V+), hole a{vpos}'],
+          ['bn_{vneg}', 'j{vneg}', 'The − rail beside row j (bn) to pin 4 (V−), hole j{vneg}'],
         ] } },
       { n: 2, text: 'Connect the generator through Rin (10 kΩ) to pin 2.', hint: 'Rin is 10 kΩ, from the generator\'s OUT to pin 2 (the − input). Wire pin 3 (the + input) and the generator\'s COM to ground.',
         check: { kind: 'part', label: 'R1' },
         give: {
-          parts: [{ type: 'resistor', label: 'R1', holes: ['i{in1n+4}', 'i{in1n}'], values: { resistance: 10000 }, says: 'R1 (Rin, 10 kΩ) from i{in1n+4} to i{in1n}, pin 2\'s column' }],
+          parts: [{ type: 'resistor', label: 'R1', holes: ['i{in1n-4}', 'i{in1n}'], values: { resistance: 10000 }, says: 'R1 (Rin, 10 kΩ) from i{in1n-4} to i{in1n}, pin 2\'s column' }],
           wires: [
-            ['j{in1p}', 'bp_{in1p}', 'Pin 3 (+ input) to ground, j{in1p} to the bottom + rail'],
-            ['FG1.0', 'g{in1n+4}', 'FG1 OUT to R1\'s far end, hole g{in1n+4}'],
-            ['FG1.1', 'tn_62', 'FG1 COM to ground, the top − rail'],
+            ['j{in1p}', 'bp_{in1p}', 'Pin 3 (+ input) to ground, j{in1p} to the + rail beside row j (bp)'],
+            ['FG1.0', 'g{in1n-4}', 'FG1 OUT to R1\'s far end, hole g{in1n-4}'],
+            ['FG1.1', 'tn_62', 'FG1 COM to ground, the − rail beside row a (tn)'],
           ] } },
       { n: 3, text: 'Add Rf (100 kΩ) from pin 1 to pin 2.', hint: 'Rf is 100 kΩ, from the output (pin 1) back to the − input (pin 2). The gain is −Rf / Rin.',
         check: { kind: 'part', label: 'R2' },
         give: {
-          parts: [{ type: 'resistor', label: 'R2', holes: ['j{out1}', 'j{out1+4}'], values: { resistance: 100000 }, says: 'R2 (Rf, 100 kΩ) from j{out1}, pin 1\'s column, to j{out1+4}' }],
-          wires: [['h{out1+4}', 'h{in1n}', 'A jumper from R2\'s far end (h{out1+4}) back to pin 2 (h{in1n})']] } },
-      { n: 4, text: 'Put the multimeter on the output: red probe to pin 1, black probe to ground.', hint: 'Place the multimeter in V mode. Wire its red probe to a free hole in pin 1\'s column (g to i) and its black probe to the top − rail, which is ground.',
+          parts: [{ type: 'resistor', label: 'R2', holes: ['j{out1}', 'j{out1-4}'], values: { resistance: 100000 }, says: 'R2 (Rf, 100 kΩ) from j{out1}, pin 1\'s column, to j{out1-4}' }],
+          wires: [['h{out1-4}', 'h{in1n}', 'A jumper from R2\'s far end (h{out1-4}) back to pin 2 (h{in1n})']] } },
+      { n: 4, text: 'Put the multimeter on the output: red probe to pin 1, black probe to ground.', hint: 'Place the multimeter in V mode. Wire its red probe to a free hole in pin 1\'s column (g to i) and its black probe to the − rail beside row a (tn), which is ground.',
         check: { kind: 'probes', label: 'MM1', red: { label: 'U1', pin: 'out1' }, black: { label: 'PS1', pin: 'com' } },
         give: {
           parts: [{ type: 'multimeter', label: 'MM1', holes: null, values: { mode: 'V' }, says: 'MM1, the multimeter, on the bench in V mode' }],
           wires: [
             ['MM1.0', 'g{out1}', 'MM1 red probe to pin 1\'s column (g{out1}): the output'],
-            ['MM1.1', 'tn_59', 'MM1 black probe to ground, the top − rail (tn_59)'],
+            ['MM1.1', 'tn_59', 'MM1 black probe to ground, the − rail beside row a (tn) at tn_59'],
           ] } },
       { n: 5, text: 'Run, and read the output on the scope and the meter.', hint: 'Click Probe, then a hole in pin 1\'s column. The scope shows Vpp; the peak is half of it. With a gain of −10 it is ten times the input\'s peak, and the meter follows the output as it swings. A flat top means the output is clipping.',
         check: { kind: 'peak', label: 'U1', pin: 'out1', expect: 5, unit: 'V', tol: 0.03, needs: LAB2_PARTS },
@@ -176,12 +176,12 @@
     // −5.0 V at the input's peak and +5.0 V at its trough, linear.
     // A data row with prelab shows the student's own answer as its expected
     // value, never the key, so the paper doesn't give the answers away.
-    // How Give me expects U1 seated (its starter place, rotation 0): pins 1–4
-    // in row f, pin 8 in row e. Any other seat gives nothing.
+    // How Give me expects U1 seated (its starter place, f33 facing left,
+    // rotation 180): pins 1–4 in row f, pin 8 in row e. Any other seat gives nothing.
     seat: { f: ['out1', 'in1n', 'in1p', 'vneg'], e: ['vpos'] },
     due: 'Oct 9',
     objective: 'Build an inverting amplifier with a gain of −10 on the ±12 V supply, drive it with a 0.5 V sine from the function generator, and read its output on the scope and the multimeter.',
-    reading: 'Read first: textbook §1.4, the inverting op-amp. The TL072 (U1) starts seated across the centre gap at f30; you wire the rest.',
+    reading: 'Read first: textbook §1.4, the inverting op-amp. The TL072 (U1) starts seated across the centre gap at f33; you wire the rest.',
     readingHref: '../edison/textbook.html#p4',
     equipment: [
       { label: 'U1',  text: 'TL072 dual op-amp, across the centre gap' },
@@ -364,8 +364,8 @@
   }
 
   // A step's "Give me" with its holes filled in from the chip's own: holes
-  // is U1's pins by name ({ out1: 'f30', in1n: 'f31', … }); "{in1n+4}" is
-  // that pin's column plus 4. seat (the sheet's) names the row each pin must
+  // is U1's pins by name ({ out1: 'f33', in1n: 'f32', … }); "{in1n-4}" is
+  // that pin's column minus 4. seat (the sheet's) names the row each pin must
   // be in. → { parts[{ type, label, holes, values, says }], wires[{ from,
   // to, says }], run, says } or null: nothing to give, a pin the chip
   // doesn't have, the chip seated otherwise (turned round, say), or a hole

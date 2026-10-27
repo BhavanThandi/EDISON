@@ -26,8 +26,8 @@
 //     1. delete_all
 //     2. place_battery
 //     3. add_wire: BAT1.0 -> tp_63 (red)
-//     5. place_seven_segment: hole=f30, direction=right
-//     6. place_resistor: holeA=b33, holeB=b37, resistance=470
+//     5. place_seven_segment: hole=e30, direction=right
+//     6. place_resistor: holeA=i33, holeB=i37, resistance=470
 //     9. set_control: part=S1, closed=true
 //   Arguments are key=value, comma-separated; add_wire's are FROM -> TO.
 //   A value of true / false is a boolean, digits a number.

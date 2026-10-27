@@ -88,12 +88,12 @@ const h = (col, row) => ({ col, row });
 const STRETCHED_FILE = {
   id: 'stretched-e2e', name: 'Old stretched resistor',
   components: [
-    { type: 'battery',  label: 'BAT1', values: { voltage: 9 }, holeRefs: null, position: { x: 15.8, z: -3.15 } },
-    { type: 'resistor', label: 'R1', values: { resistance: 470 }, holeRefs: [h(2, 'a'), h(32, 'a')], position: { x: 0, z: 0 } },
+    { type: 'battery',  label: 'BAT1', values: { voltage: 9 }, holeRefs: null, position: { x: 15.8, z: -3.15 }, v: 2 },
+    { type: 'resistor', label: 'R1', values: { resistance: 470 }, holeRefs: [h(2, 'a'), h(32, 'a')], position: { x: 0, z: 0 }, v: 2 },
   ],
   wires: [
-    { startHole: null, endHole: h(2, 'b'),  startCompIdx: 0, startPinIdx: 0, endCompIdx: -1, endPinIdx: -1, color: 0xef4444 },
-    { startHole: null, endHole: h(32, 'b'), startCompIdx: 0, startPinIdx: 1, endCompIdx: -1, endPinIdx: -1, color: 0x111111 },
+    { startHole: null, endHole: h(2, 'b'),  startCompIdx: 0, startPinIdx: 0, endCompIdx: -1, endPinIdx: -1, color: 0xef4444, v: 2 },
+    { startHole: null, endHole: h(32, 'b'), startCompIdx: 0, startPinIdx: 1, endCompIdx: -1, endPinIdx: -1, color: 0x111111, v: 2 },
   ],
 };
 

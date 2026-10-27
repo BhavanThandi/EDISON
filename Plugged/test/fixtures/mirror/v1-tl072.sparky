@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "name": "V1 TL072",
+  "components": [
+    {
+      "type": "battery",
+      "id": "battery_0",
+      "label": "BAT1",
+      "values": {
+        "voltage": 9
+      },
+      "holeRefs": null,
+      "position": {
+        "x": 15.8,
+        "z": 0
+      }
+    },
+    {
+      "type": "resistor",
+      "id": "resistor_1",
+      "label": "R1",
+      "values": {
+        "resistance": 470
+      },
+      "holeRefs": [
+        {
+          "pin": "lead1",
+          "col": 1,
+          "row": "b"
+        },
+        {
+          "pin": "lead2",
+          "col": 5,
+          "row": "b"
+        }
+      ],
+      "position": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "type": "led",
+      "id": "led_2",
+      "label": "LED1",
+      "values": {
+        "color": "red"
+      },
+      "holeRefs": [
+        {
+          "pin": "cathode",
+          "col": 7,
+          "row": "c"
+        },
+        {
+          "pin": "anode",
+          "col": 5,
+          "row": "c"
+        }
+      ],
+      "position": {
+        "x": 0,
+        "z": 0
+      }
+    },
+    {
+      "type": "tl072",
+      "id": "tl072_3",
+      "label": "U1",
+      "values": {},
+      "holeRefs": [
+        {
+          "pin": "out1",
+          "col": 29,
+          "row": "f"
+        },
+        {
+          "pin": "in1n",
+          "col": 30,
+          "row": "f"
+        },
+        {
+          "pin": "in1p",
+          "col": 31,
+          "row": "f"
+        },
+        {
+          "pin": "vneg",
+          "col": 32,
+          "row": "f"
+        },
+        {
+          "pin": "in2p",
+          "col": 32,
+          "row": "e"
+        },
+        {
+          "pin": "in2n",
+          "col": 31,
+          "row": "e"
+        },
+        {
+          "pin": "out2",
+          "col": 30,
+          "row": "e"
+        },
+        {
+          "pin": "vpos",
+          "col": 29,
+          "row": "e"
+        }
+      ],
+      "position": {
+        "x": 0,
+        "z": 0
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "wire_0",
+      "startHole": null,
+      "endHole": {
+        "col": 30,
+        "row": "tp"
+      },
+      "startCompIdx": 0,
+      "startPinIdx": 0,
+      "endCompIdx": -1,
+      "endPinIdx": -1,
+      "color": 15680580
+    },
+    {
+      "id": "wire_1",
+      "startHole": null,
+      "endHole": {
+        "col": 31,
+        "row": "tn"
+      },
+      "startCompIdx": 0,
+      "startPinIdx": 1,
+      "endCompIdx": -1,
+      "endPinIdx": -1,
+      "color": 1118481
+    },
+    {
+      "id": "wire_2",
+      "startHole": {
+        "col": 2,
+        "row": "tp"
+      },
+      "endHole": {
+        "col": 1,
+        "row": "a"
+      },
+      "startCompIdx": -1,
+      "startPinIdx": -1,
+      "endCompIdx": -1,
+      "endPinIdx": -1,
+      "color": 15680580
+    },
+    {
+      "id": "wire_3",
+      "startHole": {
+        "col": 7,
+        "row": "a"
+      },
+      "endHole": {
+        "col": 7,
+        "row": "tn"
+      },
+      "startCompIdx": -1,
+      "startPinIdx": -1,
+      "endCompIdx": -1,
+      "endPinIdx": -1,
+      "color": 1118481
+    }
+  ]
+}

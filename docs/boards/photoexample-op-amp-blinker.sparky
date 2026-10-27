@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "name": "Photo example: op-amp LED blinker (solved)",
  "components": [
   {
@@ -11,8 +11,9 @@
    "holeRefs": null,
    "position": {
     "x": -16.5,
-    "z": -1
-   }
+    "z": 1
+   },
+   "v": 2
   },
   {
    "type": "tl072",
@@ -20,38 +21,39 @@
    "values": {},
    "holeRefs": [
     {
-     "col": 13,
+     "col": 22,
      "row": "f"
     },
     {
-     "col": 14,
+     "col": 21,
      "row": "f"
     },
     {
-     "col": 15,
+     "col": 20,
      "row": "f"
     },
     {
-     "col": 16,
+     "col": 19,
      "row": "f"
     },
     {
-     "col": 16,
+     "col": 19,
      "row": "e"
     },
     {
-     "col": 15,
+     "col": 20,
      "row": "e"
     },
     {
-     "col": 14,
+     "col": 21,
      "row": "e"
     },
     {
-     "col": 13,
+     "col": 22,
      "row": "e"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "potentiometer",
@@ -61,18 +63,19 @@
    },
    "holeRefs": [
     {
-     "col": 8,
+     "col": 27,
      "row": "f"
     },
     {
-     "col": 9,
+     "col": 26,
      "row": "f"
     },
     {
-     "col": 10,
+     "col": 25,
      "row": "f"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "capacitor",
@@ -82,14 +85,15 @@
    },
    "holeRefs": [
     {
-     "col": 14,
+     "col": 21,
      "row": "g"
     },
     {
-     "col": 12,
+     "col": 23,
      "row": "g"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "resistor",
@@ -99,14 +103,15 @@
    },
    "holeRefs": [
     {
-     "col": 10,
+     "col": 25,
      "row": "i"
     },
     {
-     "col": 14,
+     "col": 21,
      "row": "i"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "resistor",
@@ -116,14 +121,15 @@
    },
    "holeRefs": [
     {
-     "col": 19,
+     "col": 16,
      "row": "e"
     },
     {
-     "col": 19,
+     "col": 16,
      "row": "f"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "resistor",
@@ -133,14 +139,15 @@
    },
    "holeRefs": [
     {
-     "col": 19,
+     "col": 16,
      "row": "h"
     },
     {
-     "col": 23,
+     "col": 12,
      "row": "h"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "resistor",
@@ -150,14 +157,15 @@
    },
    "holeRefs": [
     {
-     "col": 17,
+     "col": 18,
      "row": "i"
     },
     {
-     "col": 19,
+     "col": 16,
      "row": "i"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "resistor",
@@ -167,14 +175,15 @@
    },
    "holeRefs": [
     {
-     "col": 23,
+     "col": 12,
      "row": "g"
     },
     {
-     "col": 26,
+     "col": 9,
      "row": "g"
     }
-   ]
+   ],
+   "v": 2
   },
   {
    "type": "led",
@@ -184,14 +193,15 @@
    },
    "holeRefs": [
     {
-     "col": 27,
+     "col": 8,
      "row": "h"
     },
     {
-     "col": 26,
+     "col": 9,
      "row": "h"
     }
-   ]
+   ],
+   "v": 2
   }
  ],
  "wires": [
@@ -206,7 +216,8 @@
    "startPinIdx": 0,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 15680580
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W2",
@@ -219,45 +230,31 @@
    "startPinIdx": 1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 1118481
+   "color": 1118481,
+   "v": 2
   },
   {
    "id": "W3",
    "startHole": {
-    "col": 12,
+    "col": 23,
     "row": "tp"
    },
    "endHole": {
-    "col": 13,
+    "col": 22,
     "row": "a"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 15680580
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W4",
    "startHole": {
-    "col": 17,
+    "col": 18,
     "row": "tn"
-   },
-   "endHole": {
-    "col": 16,
-    "row": "a"
-   },
-   "startCompIdx": -1,
-   "startPinIdx": -1,
-   "endCompIdx": -1,
-   "endPinIdx": -1,
-   "color": 1118481
-  },
-  {
-   "id": "W5",
-   "startHole": {
-    "col": 20,
-    "row": "tp"
    },
    "endHole": {
     "col": 19,
@@ -267,23 +264,42 @@
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 15680580
+   "color": 1118481,
+   "v": 2
+  },
+  {
+   "id": "W5",
+   "startHole": {
+    "col": 15,
+    "row": "tp"
+   },
+   "endHole": {
+    "col": 16,
+    "row": "a"
+   },
+   "startCompIdx": -1,
+   "startPinIdx": -1,
+   "endCompIdx": -1,
+   "endPinIdx": -1,
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W6",
    "startHole": {
-    "col": 14,
+    "col": 21,
     "row": "b"
    },
    "endHole": {
-    "col": 15,
+    "col": 20,
     "row": "b"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 2278750
+   "color": 2278750,
+   "v": 2
   },
   {
    "id": "W7",
@@ -299,7 +315,8 @@
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 15680580
+   "color": 15680580,
+   "v": 2
   },
   {
    "id": "W8",
@@ -315,135 +332,144 @@
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 1118481
+   "color": 1118481,
+   "v": 2
   },
   {
    "id": "W9",
    "startHole": {
-    "col": 9,
+    "col": 26,
     "row": "g"
    },
    "endHole": {
-    "col": 10,
+    "col": 25,
     "row": "g"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 2278750
+   "color": 2278750,
+   "v": 2
   },
   {
    "id": "W10",
    "startHole": {
-    "col": 8,
+    "col": 27,
     "row": "h"
    },
    "endHole": {
-    "col": 13,
+    "col": 22,
     "row": "h"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 3900150
+   "color": 3900150,
+   "v": 2
   },
   {
    "id": "W11",
    "startHole": {
-    "col": 15,
+    "col": 20,
     "row": "g"
    },
    "endHole": {
-    "col": 19,
+    "col": 16,
     "row": "g"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 16347926
+   "color": 16347926,
+   "v": 2
   },
   {
    "id": "W12",
    "startHole": {
-    "col": 13,
+    "col": 22,
     "row": "j"
    },
    "endHole": {
-    "col": 23,
+    "col": 12,
     "row": "j"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 3900150
+   "color": 3900150,
+   "v": 2
   },
   {
    "id": "W13",
    "startHole": {
-    "col": 12,
+    "col": 23,
     "row": "j"
    },
    "endHole": {
-    "col": 13,
+    "col": 22,
     "row": "bn"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 1118481
+   "color": 1118481,
+   "v": 2
   },
   {
    "id": "W14",
    "startHole": {
-    "col": 17,
+    "col": 18,
     "row": "j"
    },
    "endHole": {
-    "col": 18,
+    "col": 17,
     "row": "bn"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 1118481
+   "color": 1118481,
+   "v": 2
   },
   {
    "id": "W15",
    "startHole": {
-    "col": 27,
+    "col": 8,
     "row": "j"
    },
    "endHole": {
-    "col": 26,
+    "col": 9,
     "row": "bn"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 1118481
+   "color": 1118481,
+   "v": 2
   },
   {
    "id": "W16",
    "startHole": {
-    "col": 16,
+    "col": 19,
     "row": "j"
    },
    "endHole": {
-    "col": 16,
+    "col": 19,
     "row": "bn"
    },
    "startCompIdx": -1,
    "startPinIdx": -1,
    "endCompIdx": -1,
    "endPinIdx": -1,
-   "color": 1118481
+   "color": 1118481,
+   "v": 2
   }
  ]
 }

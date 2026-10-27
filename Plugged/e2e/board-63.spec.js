@@ -134,7 +134,7 @@ async function openSaved(page, data) {
 
 const HOLE = /^((tp|tn|bn|bp)_\d+|[a-j]\d+)$/;
 
-test('a circuit saved on the 50-column board opens in the same holes, battery beside the board', async ({ page }) => {
+test('a circuit saved on the 50-column board opens migrated to the new board (holes through the row map), battery beside the board', async ({ page }) => {
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   await openSaved(page, OLD_CIRCUIT);
@@ -154,18 +154,18 @@ test('a circuit saved on the 50-column board opens in the same holes, battery be
   expect(out.cols, 'this checks an old save on the 63-column board').toBe(63);
   expect(out.parts).toEqual([
     { id: expect.anything(), holes: null },
-    { id: expect.anything(), holes: ['b2', 'b6'] },
-    { id: expect.anything(), holes: ['c8', 'c6'] },
-    { id: expect.anything(), holes: ['a46', 'a50'] },
+    { id: expect.anything(), holes: ['i2', 'i6'] },
+    { id: expect.anything(), holes: ['h8', 'h6'] },
+    { id: expect.anything(), holes: ['j46', 'j50'] },
   ]);
   expect(out.wires.map(w => w.filter(e => HOLE.test(e)))).toEqual([
-    ['tp_50'], ['tn_50'], ['tp_3', 'a2'], ['a8', 'tn_8'],
+    ['bp_50'], ['bn_50'], ['bp_3', 'j2'], ['j8', 'bn_8'],
   ]);
   expect(out.bat.x, 'battery x must be past the 63-column board end').toBeGreaterThan(out.halfW);
   expect(out.bat.x).toBeCloseTo(out.halfW + out.margin, 2);
   expect(out.bat.z).toBeCloseTo(-3.15, 2);
 
-  // Same holes, same circuit: the LED still lights from the old tp_50/tn_50 wires.
+  // Same circuit: the LED still lights from the migrated bp_50/bn_50 wires.
   await page.evaluate(() => App.runSimulation());
   await expect(page.locator('#sim-results')).toContainText('LED ON');
   await expect(page.locator('#sim-results')).not.toContainText('Short circuit');

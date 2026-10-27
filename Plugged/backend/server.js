@@ -20,7 +20,7 @@ const fs   = require('fs');
 const path = require('path');
 const { Readable, pipeline } = require('stream');
 const { makeAsk, isFixRequest } = require('./ai-providers');
-const { readPhoto, isSafeId } = require('./photo-reader');
+const { readPhoto, isSafeId, usageOf, thinkingLevel } = require('./photo-reader');
 const { readLeads } = require('./photo-leads');
 const Voice = require('./voice');
 // The board's size: the same file the 3D editor builds the board from.
@@ -134,7 +134,7 @@ const buildPrompt = tools => [
   `You are Edison, a friendly AI electronics tutor. You help beginners build circuits on a virtual ${TOTAL_HOLES}-point breadboard.`,
   '',
   'BREADBOARD LAYOUT:',
-  `- Columns 1-${COLS}. Rows a/b/c/d/e = top half. Rows f/g/h/i/j = bottom half.`,
+  `- Columns 1-${COLS}. Rows a/b/c/d/e = bottom half. Rows f/g/h/i/j = top half.`,
   '- Same column + same half = electrically connected (e.g. a14 and e14 share a node).',
   '- The CENTER CHANNEL separates top from bottom. a14 and f14 are NOT connected unless you wire them.',
   '- tp_N = positive (+) power rail at column N. tn_N = GND rail at column N.',
@@ -160,7 +160,7 @@ const buildPrompt = tools => [
   '- Without BOTH battery wires the circuit WILL NOT WORK. ALWAYS include them.',
   '- Never wire BAT1.0 straight to BAT1.1, or tp to tn: that is a short circuit.',
   '- Battery wires go to the rails at the highest column, the end nearest the battery, so they drop straight in. In the recipes, N = the highest column in the board description (Columns 1-N).',
-  '- A second battery (two separate circuits) goes on the bottom rails, bp_N (+) and bn_N (−), nearest row j: BAT2.0 -> bp_{N} (red) and BAT2.1 -> bn_{N} (black). Its parts go in rows f–j, with its rail wires in row j. Never wire a second battery to the tp/tn rails.',
+  '- A second battery (two separate circuits) goes on the other rails, bp_N (+) and bn_N (−), beside row j: BAT2.0 -> bp_{N} (red) and BAT2.1 -> bn_{N} (black). Its parts go in rows f–j, with its rail wires in row j. Never wire a second battery to the tp/tn rails.',
   '',
   'COMPONENT RULES:',
   ...GENERATED.pinRoles(tools),
@@ -1138,7 +1138,7 @@ function findCircuitProblems(actions, { labelForm = true, solved = null } = {}) 
     const names = ns.map(batName);
     const said = `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
     const [p, m] = pair.split('|');
-    problems.push(`${said} are wired to the same rails (${p} and ${m}), so they fight each other. Give the second battery the bottom rails (bp_N and bn_N), with its circuit in rows f–j.`);
+    problems.push(`${said} are wired to the same rails (${p} and ${m}), so they fight each other. Give the second battery the other rails (bp_N and bn_N), with its circuit in rows f–j.`);
   }
 
   // These checks see only this reply, not the board on screen. Without a
@@ -1793,12 +1793,14 @@ const isPhotoGrid    = g => !!g && typeof g === 'object' && (g.cols === 30 || g.
 
 // The one [photo] line per request. Never the image or an upstream body;
 // a sample that isn't a plain id is shown as '?'.
-function logPhoto({ sample, out, error, started, bytes, retries }) {
+function logPhoto({ sample, out, error, started, bytes, retries, usage }) {
   const id = sample === undefined || sample === null ? '-' : isSafeId(sample) ? sample : '?';
   const r  = out && out.reading;
+  const u  = usageOf(out ? out.usage : usage);
   console.log(`[photo] sample=${id} provider=${out ? out.provider : '-'} model=${out ? out.model : '-'} ` +
     `${((Date.now() - started) / 1000).toFixed(1)}s parts=${r ? r.parts.length : 0} wires=${r ? r.wires.length : 0} ` +
     `fallback=${out && out.fallback ? 'yes' : 'no'} retries=${(out ? out.retries : retries) || 0} ` +
+    `calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} thinking=${thinkingLevel()} ` +
     `${Math.round(bytes / 1024)}KB${error ? ` error=${error}` : ''}`);
 }
 
@@ -1813,20 +1815,20 @@ async function handlePhoto(req, res) {
   const bytes = Buffer.byteLength(body);
   let input;
   try { input = JSON.parse(body || '{}'); } catch { input = {}; }
-  const { image, grid, sample } = input && typeof input === 'object' ? input : {};
-  const fail = (code, out, retries) => { logPhoto({ sample, out, error: code, started, bytes, retries }); return photoError(res, code); };
+  const { image, grid, sample, window: frame } = input && typeof input === 'object' ? input : {};
+  const fail = (code, out, retries, usage) => { logPhoto({ sample, out, error: code, started, bytes, retries, usage }); return photoError(res, code); };
   if (!isPhotoDataUrl(image)) return fail('BAD_IMAGE');
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
 
   let out;
   try {
-    out = await readPhoto({ image, grid, sample });
+    out = await readPhoto({ image, grid, sample, window: frame });
   } catch (e) {
-    return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries);
+    return fail(e.code === 'AI_TIMEOUT' ? 'AI_TIMEOUT' : 'AI_FAILED', null, e.retries, e.usage);
   }
   if (out.reading.board.visible === false) return fail('NO_BOARD', out);
   logPhoto({ sample, out, started, bytes });
-  return sendJSON(res, 200, { reading: out.reading, provider: out.provider, model: out.model, ms: Date.now() - started, key: out.key });
+  return sendJSON(res, 200, { reading: out.reading, provider: out.provider, model: out.model, ms: Date.now() - started, key: out.key, usage: usageOf(out.usage) });
 }
 
 // ── /api/photo/leads ─────────────────────────────────────────
@@ -1849,10 +1851,11 @@ const isLeadsItem   = it => !!it && typeof it === 'object' && typeof it.id === '
 // a key that isn't a plain id is shown as '?'.
 function logLeads({ key, count, out, error, started, bytes }) {
   const id = key === undefined || key === null ? '-' : isSafeId(key) ? key : '?';
+  const u  = usageOf(out && out.usage);
   const n  = code => (out ? out.items.filter(x => x.error === code).length : 0);
   console.log(`[photo-leads] key=${id} items=${count} ok=${out ? out.items.filter(x => !x.error).length : 0} ` +
     `timeout=${n('AI_TIMEOUT')} failed=${n('AI_FAILED')} resent=${out ? out.resent || 0 : 0} retries=${out ? out.retries || 0 : 0} ` +
-    `provider=${out ? out.provider : '-'} ` +
+    `provider=${out ? out.provider : '-'} calls=${u.calls} 429s=${u.http429} tokens=${u.promptTokens}/${u.outputTokens}/${u.thoughtTokens} thinking=${thinkingLevel()} ` +
     `${((Date.now() - started) / 1000).toFixed(1)}s ${(bytes / 1048576).toFixed(1)}MB${error ? ` error=${error}` : ''}`);
 }
 
@@ -1897,9 +1900,9 @@ async function handleLeads(req, res) {
     out = { items: items.map(it => ({ id: it.id, error: 'AI_FAILED' })), provider: null, model: null };
   }
   logLeads({ key, count, out, started, bytes });
-  if (!stream) return sendJSON(res, 200, { items: out.items, provider: out.provider, model: out.model, ms: Date.now() - started });
+  if (!stream) return sendJSON(res, 200, { items: out.items, provider: out.provider, model: out.model, ms: Date.now() - started, usage: usageOf(out.usage) });
   for (const e of out.items) if (!sent.has(e.id)) line(e);   // every id gets its line
-  line({ done: true, provider: out.provider, model: out.model, ms: Date.now() - started });
+  line({ done: true, provider: out.provider, model: out.model, ms: Date.now() - started, usage: usageOf(out.usage) });
   if (!res.writableEnded && !res.destroyed) res.end();
 }
 

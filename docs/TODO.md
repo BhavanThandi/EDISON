@@ -41,6 +41,9 @@ Each check names the part, the pins and the holes. It catches the exact mistake 
 
 **Steps.** After task 3: rebase the branch onto dev, run the test set and compare, then `/ship`.
 
+## Next after the mirror ships: photo fix Part B
+Chips, capacitors and pots placed on the board from a photo; ±12 V default power for op-amp boards; and the open pin-1 question (which end of a chip is pin 1). See `docs/STATUS.md` (2026-10-25 "Next") for the why.
+
 ## 6. Wire on-board parts by pin name (only if still needed)
 
 **Why.** With reasoning off, the leftover problems were mostly about holes:
@@ -55,7 +58,7 @@ Reasoning fixed cases 2 and 3, so **do this only if hole-level mistakes remain a
 2. Tell the model it may use these names, and drop the prompt rule "never use R1.0 as a wire end". This changes the golden prompts; follow AGENTS.md's Gotchas.
 
 **Done when.**
-- `U1.in1p` on a TL072 at f30 becomes a free hole in column 32, rows f–j.
+- `U1.in1p` on a TL072 at f33 (facing left) becomes a free hole in column 31, rows f–j.
 - Two wires to the same pin get different holes.
 - A pin name the part doesn't have is refused.
 - The test set beats its last run.

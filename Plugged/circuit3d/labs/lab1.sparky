@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "ENSC 220 Lab 1: Series-parallel resistors",
   "thumbnail": "",
   "components": [
@@ -14,8 +14,9 @@
       "holeRefs": null,
       "position": {
         "x": 16.4,
-        "z": -1
-      }
+        "z": 1
+      },
+      "v": 2
     },
     {
       "type": "resistor",
@@ -39,7 +40,8 @@
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     },
     {
       "type": "resistor",
@@ -63,7 +65,8 @@
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     },
     {
       "type": "resistor",
@@ -87,7 +90,8 @@
       "position": {
         "x": 0,
         "z": 0
-      }
+      },
+      "v": 2
     }
   ],
   "wires": [
@@ -103,7 +107,8 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "pos",
-      "color": 15680580
+      "color": 15680580,
+      "v": 2
     },
     {
       "id": "W2",
@@ -117,7 +122,8 @@
       "endCompIdx": -1,
       "endPinIdx": -1,
       "startPin": "com",
-      "color": 1118481
+      "color": 1118481,
+      "v": 2
     },
     {
       "id": "W3",
@@ -133,7 +139,8 @@
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 15680580
+      "color": 15680580,
+      "v": 2
     },
     {
       "id": "W4",
@@ -149,7 +156,8 @@
       "startPinIdx": -1,
       "endCompIdx": -1,
       "endPinIdx": -1,
-      "color": 1118481
+      "color": 1118481,
+      "v": 2
     }
   ]
 }

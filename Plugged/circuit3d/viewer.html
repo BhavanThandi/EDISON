@@ -60,6 +60,7 @@
   <!-- Reuse scene, breadboard, and component builders -->
   <script src="js/scene.js"></script>
   <script src="js/board-geometry.js"></script>
+  <script src="js/board-mirror.js"></script>
   <script src="js/breadboard.js"></script>
   <script src="js/components.js"></script>
   <script src="js/hero-model.js"></script>
@@ -158,6 +159,8 @@
     const loading = fetch(src)
       .then(r => r.json())
       .then(data => {
+        // Old (v1) records sit on the old board; open them through T_A. Idempotent on v: 2.
+        data = data && typeof data === 'object' ? App.BoardMirror.migrateRecords(data) : {};
         const components = [];
         if (hero) hero.circuit(data);   // its circuit paths, for the build-up (#171)
 

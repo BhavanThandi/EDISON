@@ -45,15 +45,16 @@ const Recipes = require('./fixtures/recipes.js');
 
 // ── Builds ──────────────────────────────────────────────────────────────────
 
-// The TL072 at f30 facing right: out1 f30, in1n f31, in1p f32, vneg f33 on
-// row f; in2p e33, in2n e32, out2 e31, vpos e30 back along row e.
-const PLACE_TL072 = { tool: 'place_tl072', hole: 'f30', direction: 'right' };
+// The TL072 at e30 facing right (the old f30, mirrored): out1 e30, in1n e31,
+// in1p e32, vneg e33 on row e; in2p f33, in2n f32, out2 f31, vpos f30 back
+// along row f.
+const PLACE_TL072 = { tool: 'place_tl072', hole: 'e30', direction: 'right' };
 const PLACE_FG    = { tool: 'place_function_generator' };
 const OP_BUILD    = [{ tool: 'delete_all' }, PLACE_TL072, PLACE_FG];
 
-// Column 32, rows g–j: the four holes in1p's strip (f–j) has besides its own.
-// R1 g32/g36 puts a part lead in g32; wires fill the rest.
-const PLACE_R_G32 = { tool: 'place_resistor', holeA: 'g32', holeB: 'g36' };
+// Column 32, rows a–d: the four holes in1p's strip (a–e) has besides its own.
+// R1 d32/d36 puts a part lead in d32; wires fill the rest.
+const PLACE_R_G32 = { tool: 'place_resistor', holeA: 'd32', holeB: 'd36' };
 const wire = (from, to) => ({ tool: 'add_wire', from, to });
 
 // The LED at b6/b8: cathode b6 (holeA), anode b8 (holeB).
@@ -84,20 +85,20 @@ function finish(actions, board) {
 beforeEach(() => { for (const m of ['log', 'info', 'warn']) vi.spyOn(console, m).mockImplementation(() => {}); });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-test('precondition: the TL072 at f30 facing right puts in1p in f32, in2n in e32 and vpos in e30', () => {
-  const legs = Parts.footprintLegs('tl072', 'f30', 0);
+test('precondition: the TL072 at e30 facing right puts in1p in e32, in2n in f32 and vpos in f30', () => {
+  const legs = Parts.footprintLegs('tl072', 'e30', 0);
   const at = Object.fromEntries(legs.map(l => [l.pin, l.hole]));
-  assert.deepStrictEqual([at.in1p, at.in2n, at.vpos], ['f32', 'e32', 'e30'], JSON.stringify(at));
+  assert.deepStrictEqual([at.in1p, at.in2n, at.vpos], ['e32', 'f32', 'f30'], JSON.stringify(at));
 });
 
 // ── 1. A pin name becomes a free hole in its strip ──────────────────────────
 
 for (const [end, other, col, rows, own] of [
-  ['U1.in1p', 'FG1.0', 32, 'f-j', 'f32'],
-  ['U1.in2n', 'bn_40', 32, 'a-e', 'e32'],
-  ['U1.vpos', 'tp_40', 30, 'a-e', 'e30'],
+  ['U1.in1p', 'FG1.0', 32, 'a-e', 'e32'],
+  ['U1.in2n', 'bn_40', 32, 'f-j', 'f32'],
+  ['U1.vpos', 'tp_40', 30, 'f-j', 'f30'],
 ]) {
-  test(`${end} on a TL072 at f30 (right) becomes a free hole in column ${col}, rows ${rows}, not its own hole ${own}`, () => {
+  test(`${end} on a TL072 at e30 (right) becomes a free hole in column ${col}, rows ${rows}, not its own hole ${own}`, () => {
     const out = finish([...OP_BUILD, wire(end, other)]);
     const hole = otherEnd(out.actions, other, `the wire ${end} → ${other}`);
     assert.match(String(hole), strip(col, rows), `${end} should become a hole in column ${col}, rows ${rows}; got ${JSON.stringify(hole)}`);
@@ -105,28 +106,28 @@ for (const [end, other, col, rows, own] of [
   });
 }
 
-test('U1.in1p with the TL072 on the sent board (an edit) becomes a free hole in column 32, rows f–j', () => {
+test('U1.in1p with the TL072 on the sent board (an edit) becomes a free hole in column 32, rows a–e', () => {
   const board = Board.apply(Board.empty(), [PLACE_TL072, PLACE_FG]).board;
   assert.deepStrictEqual(board.parts.map(p => p.label), ['U1', 'FG1'], 'precondition: the board holds U1 and FG1');
   const out = finish([wire('U1.in1p', 'FG1.0')], board);
   const hole = otherEnd(out.actions, 'FG1.0', 'the wire U1.in1p → FG1.0');
-  assert.match(String(hole), strip(32, 'g-j'), `U1.in1p should become g32–j32 (f32 is the pin's own hole); got ${JSON.stringify(hole)}`);
+  assert.match(String(hole), strip(32, 'a-d'), `U1.in1p should become a32–d32 (e32 is the pin's own hole); got ${JSON.stringify(hole)}`);
 });
 
-test('both ends named (a follower\'s OUT1 → IN1−): U1.out1 → U1.in1n becomes column 30 f–j → column 31 f–j', () => {
+test('both ends named (a follower\'s OUT1 → IN1−): U1.out1 → U1.in1n becomes column 30 a–e → column 31 a–e', () => {
   const out = finish([...OP_BUILD, wire('U1.out1', 'U1.in1n')]);
   const wires = out.actions.filter(a => a.tool === 'add_wire');
   assert.equal(wires.length, 1, `expected the one wire, got ${JSON.stringify(wires)}`);
-  assert.match(String(wires[0].from), strip(30, 'g-j'), `U1.out1 (f30) → ${JSON.stringify(wires[0].from)}`);
-  assert.match(String(wires[0].to), strip(31, 'g-j'), `U1.in1n (f31) → ${JSON.stringify(wires[0].to)}`);
+  assert.match(String(wires[0].from), strip(30, 'a-d'), `U1.out1 (e30) → ${JSON.stringify(wires[0].from)}`);
+  assert.match(String(wires[0].to), strip(31, 'a-d'), `U1.in1n (e31) → ${JSON.stringify(wires[0].to)}`);
 });
 
 // ── 2. Two wires to one pin get different holes ─────────────────────────────
 
-test('two wires to U1.in1p get two different free holes in column 32, rows g–j', () => {
+test('two wires to U1.in1p get two different free holes in column 32, rows a–d', () => {
   const out = finish([...OP_BUILD, wire('U1.in1p', 'FG1.0'), wire('U1.in1p', 'a40')]);
   const one = otherEnd(out.actions, 'FG1.0', 'the first wire'), two = otherEnd(out.actions, 'a40', 'the second wire');
-  for (const h of [one, two]) assert.match(String(h), strip(32, 'g-j'), `each wire lands in in1p's strip, not f32: got ${JSON.stringify([one, two])}`);
+  for (const h of [one, two]) assert.match(String(h), strip(32, 'a-d'), `each wire lands in in1p's strip, not e32: got ${JSON.stringify([one, two])}`);
   assert.notEqual(one, two, `the two wires share hole ${one}`);
 });
 
@@ -161,14 +162,14 @@ test('pin: a rebuild (delete_all) with a wire to LED1.nope keeps the rest of the
   assert.match(out.reply, /LED1\.nope/, out.reply);
 });
 
-// The other end of the wire, a plain hole, is taken too: U1.in1p → j32 must
-// not become j32 → j32.
-test('U1.in1p → j32 (TL072 at f30, right): in1p becomes g32, h32 or i32, never the wire\'s own other end j32', () => {
-  const out = finish([...OP_BUILD, wire('U1.in1p', 'j32')]);
+// The other end of the wire, a plain hole, is taken too: U1.in1p → a32 must
+// not become a32 → a32.
+test('U1.in1p → a32 (TL072 at e30, right): in1p becomes b32, c32 or d32, never the wire\'s own other end a32', () => {
+  const out = finish([...OP_BUILD, wire('U1.in1p', 'a32')]);
   const wires = out.actions.filter(a => a.tool === 'add_wire');
   assert.equal(wires.length, 1, `expected the one wire, got ${JSON.stringify(wires)}`);
-  const hole = wires[0].to === 'j32' ? wires[0].from : wires[0].to;
-  assert.match(String(hole), strip(32, 'g-i'), `U1.in1p should land in g32–i32, not on its own wire's other end: got ${JSON.stringify(wires[0])}`);
+  const hole = wires[0].to === 'a32' ? wires[0].from : wires[0].to;
+  assert.match(String(hole), strip(32, 'b-d'), `U1.in1p should land in b32–d32, not on its own wire's other end: got ${JSON.stringify(wires[0])}`);
 });
 
 // ── 4. A 2-pin part: by name or by index ────────────────────────────────────
@@ -251,16 +252,16 @@ test('pin: off-board ends (BAT1.0, MM1.red, PS1.com, FG1.0) are left as written'
 
 // ── 6. Free means no lead and no wire end: the reply's and the board's ──────
 
-// in1p's strip is f32 (the pin) and g32–j32. These fill g32 (R1's lead),
-// h32 and j32 (wire ends), leaving only i32.
-const FILL_GHJ = [PLACE_R_G32, wire('h32', 'bn_1'), wire('j32', 'bn_3')];
+// in1p's strip is e32 (the pin) and a32–d32. These fill d32 (R1's lead),
+// c32 and a32 (wire ends), leaving only b32.
+const FILL_GHJ = [PLACE_R_G32, wire('c32', 'bn_1'), wire('a32', 'bn_3')];
 const BOARD_GHJ = Board.apply(Board.empty(), [PLACE_TL072, PLACE_FG, ...FILL_GHJ]).board;
-const BOARD_FULL = Board.apply(Board.empty(), [PLACE_TL072, PLACE_FG, ...FILL_GHJ, wire('i32', 'bn_2')]).board;
+const BOARD_FULL = Board.apply(Board.empty(), [PLACE_TL072, PLACE_FG, ...FILL_GHJ, wire('b32', 'bn_2')]).board;
 
 for (const [name, actions, board, want] of [
-  ['a resistor lead and two wire ends earlier in the reply', [...OP_BUILD, ...FILL_GHJ, wire('U1.in1p', 'FG1.0')], undefined, ['i32']],
-  ['the sent board\'s resistor lead and wires', [wire('U1.in1p', 'FG1.0')], BOARD_GHJ, ['i32']],
-  ['a full sent board wiped by a delete_all in the reply', [...OP_BUILD, wire('U1.in1p', 'FG1.0')], BOARD_FULL, ['g32', 'h32', 'i32', 'j32']],
+  ['a resistor lead and two wire ends earlier in the reply', [...OP_BUILD, ...FILL_GHJ, wire('U1.in1p', 'FG1.0')], undefined, ['b32']],
+  ['the sent board\'s resistor lead and wires', [wire('U1.in1p', 'FG1.0')], BOARD_GHJ, ['b32']],
+  ['a full sent board wiped by a delete_all in the reply', [...OP_BUILD, wire('U1.in1p', 'FG1.0')], BOARD_FULL, ['a32', 'b32', 'c32', 'd32']],
 ]) {
   test(`U1.in1p skips the holes taken by ${name}: it becomes ${want.join(' or ')}`, () => {
     const out = finish(actions, board);
@@ -272,11 +273,11 @@ for (const [name, actions, board, want] of [
 // ── 7. A strip with no free hole is refused ─────────────────────────────────
 
 for (const [name, actions, board] of [
-  ['a resistor lead and three wire ends in the reply', [...OP_BUILD, ...FILL_GHJ, wire('i32', 'bn_2'), wire('U1.in1p', 'FG1.0')], undefined],
+  ['a resistor lead and three wire ends in the reply', [...OP_BUILD, ...FILL_GHJ, wire('b32', 'bn_2'), wire('U1.in1p', 'FG1.0')], undefined],
   ['the sent board', [wire('U1.in1p', 'FG1.0')], BOARD_FULL],
   ['four earlier wires to U1.in1p', [...OP_BUILD, ...['bn_1', 'bn_2', 'bn_3', 'bn_4'].map(r => wire('U1.in1p', r)), wire('U1.in1p', 'FG1.0')], undefined],
 ]) {
-  test(`a full strip (column 32 f–j, filled by ${name}) refuses U1.in1p → FG1.0, with a reason naming U1.in1p`, () => {
+  test(`a full strip (column 32 a–e, filled by ${name}) refuses U1.in1p → FG1.0, with a reason naming U1.in1p`, () => {
     const out = finish(actions, board);
     assert.deepStrictEqual(otherEnds(out.actions, 'FG1.0'), [], `the wire was kept with nowhere free to go: ${JSON.stringify(out.actions.filter(a => a.tool === 'add_wire'))}`);
     assert.ok(!wireEnds(out.actions).some(e => /^u1\./i.test(String(e))), `a pin-named end reached the page: ${JSON.stringify(wireEnds(out.actions))}`);
@@ -284,11 +285,11 @@ for (const [name, actions, board] of [
   });
 }
 
-test('four wires to U1.in1p fill g32–j32, one hole each, before the fifth is refused', () => {
+test('four wires to U1.in1p fill a32–d32, one hole each, before the fifth is refused', () => {
   const rails = ['bn_1', 'bn_2', 'bn_3', 'bn_4'];
   const out = finish([...OP_BUILD, ...rails.map(r => wire('U1.in1p', r)), wire('U1.in1p', 'FG1.0')]);
   const holes = rails.map(r => otherEnd(out.actions, r, `the wire U1.in1p → ${r}`));
-  assert.deepStrictEqual(holes.slice().sort(), ['g32', 'h32', 'i32', 'j32'], `got ${JSON.stringify(holes)}`);
+  assert.deepStrictEqual(holes.slice().sort(), ['a32', 'b32', 'c32', 'd32'], `got ${JSON.stringify(holes)}`);
 });
 
 // ── 8. The tool loop: the checker and the repair loop see holes ─────────────

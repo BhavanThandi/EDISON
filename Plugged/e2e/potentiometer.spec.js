@@ -190,11 +190,12 @@ test('by hand: pick the pot under Passives, see 3 leg spheres and the ghost, R r
   await expect.poll(() => hoverLegHoles(page)).toEqual(['c2', 'c3', 'c4']);
   expect(await hasGhost(page), 'a see-through ghost pot on the board').toBe(true);
 
-  // R: 90° (down). At a40: a40 b40 c40.
+  // R: 90° (down the screen). The board is flipped (row a nearest), so down runs
+  // toward row a: at j40 it is j40 i40 h40 (the old a40 b40 c40 through rows a<->j ...).
   await page.keyboard.press('r');
   await expect(page.locator('#hint-text')).toContainText('90');
-  await hover(page, 'a40');
-  await expect.poll(() => hoverLegHoles(page)).toEqual(['a40', 'b40', 'c40']);
+  await hover(page, 'j40');
+  await expect.poll(() => hoverLegHoles(page)).toEqual(['h40', 'i40', 'j40']);
   // R three more times: 180, 270, back to 0.
   for (let i = 0; i < 3; i++) await page.keyboard.press('r');
   await hover(page, 'c2');

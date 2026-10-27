@@ -536,7 +536,8 @@
       "conf": "med"
      }
     ],
-    "note": "e-row pins hidden under body, set by DIP geometry"
+    "note": "e-row pins hidden under body, set by DIP geometry",
+    "expect": "flagged"
    }
   ],
   "wires": [

@@ -200,7 +200,43 @@
    {
     "id": "U1",
     "type": "ic",
-    "note": "SOIC-on-DIP adapter across the channel, pins e57-e60 and f57-f60"
+    "note": "SOIC-on-DIP adapter across the channel, pins e57-e60 and f57-f60",
+    "leads": [
+     {
+      "hole": "e57",
+      "conf": "med"
+     },
+     {
+      "hole": "e58",
+      "conf": "med"
+     },
+     {
+      "hole": "e59",
+      "conf": "med"
+     },
+     {
+      "hole": "e60",
+      "conf": "med"
+     },
+     {
+      "hole": "f57",
+      "conf": "med"
+     },
+     {
+      "hole": "f58",
+      "conf": "med"
+     },
+     {
+      "hole": "f59",
+      "conf": "med"
+     },
+     {
+      "hole": "f60",
+      "conf": "med"
+     }
+    ],
+    "orientation": "unknown",
+    "expect": "flagged"
    }
   ],
   "wires": [

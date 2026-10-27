@@ -73,6 +73,7 @@ const Readings = require('../circuit3d/js/readings.js');
 const Eval     = require('../scripts/ai-eval.js');
 const CASES    = require('../scripts/ai-eval-cases.js');
 const { recipeActions, parseRecipeSteps, parseRecipeBlocks } = require('./fixtures/recipe-steps.js');
+const { reflect } = require('./fixtures/recipe-reflect.js');
 
 const DEMO      = 'Build a single LED circuit with a current-limiting resistor.';
 const INVERTING = 'Build an inverting amplifier with a gain of −10';
@@ -349,7 +350,7 @@ test('comparator recipe: a single supply (V− pin 4 on COM), IN1− (pin 2) fro
   assert.ok(feed, 'a resistor from OUT1\'s net to the LED anode');
 });
 
-test('follower recipe: FG1.0 on IN1+ (pin 3), OUT1 (pin 1) joined to IN1− (pin 2) — with the chip at f30, column 32, and columns 30 → 31', () => {
+test('follower recipe: FG1.0 on IN1+ (pin 3), OUT1 (pin 1) joined to IN1− (pin 2) — wherever the chip sits', () => {
   const ex = recipeFor('OPAMP-follower');
   const { board, readings } = simulate(recipeActions(ex));
   const chip = board.parts.find(p => p.type === 'tl072');
@@ -397,8 +398,12 @@ test('cases: OPAMP-inverting, OPAMP-comparator and OPAMP-follower, tagged opamp 
   }
 });
 
-// Canned builds, as Examples (turned into actions by recipeActions). The chip
-// at f30 facing right: OUT1 f30, IN1− f31, IN1+ f32, V− f33 (bottom half,
+// Canned builds, as Examples (turned into actions by recipeActions). They are
+// written in the ORIGINAL frame below (the numbers in the comments) and run
+// through the Ruling 21 local column reflection (test/fixtures/recipe-reflect.js:
+// columns turn about the middle of the build's own span, rows and rail names
+// stay), the same rule the app's recipes follow, so on the flipped board the
+// chip below is f33 left. The chip at f30 facing right (original frame): OUT1 f30, IN1− f31, IN1+ f32, V− f33 (bottom half,
 // columns 30–33); IN2+ e33, IN2− e32, OUT2 e31, V+ e30 (top half). PS1 + → tp,
 // COM and COM2 → tn, − → bn (one supply, a lab's four wires); FG1 is the
 // input: FG1.0 (OUT) the signal, FG1.1 on COM, its offset the DC level (#198).
@@ -411,7 +416,7 @@ const R    = (label, holes, ohms) => ({ type: 'resistor', label, holes, values: 
 const DUAL   = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`], ['PS1.3', `tn_${N - 1}`], ['PS1.2', `bn_${N}`], ['tp_30', 'a30'], ['bn_33', 'j33']];   // V+ +12, V− −12
 const SINGLE = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`], ['tp_30', 'a30'], ['j33', 'tn_33']];                       // V+ +12, V− COM
 const INPUT_COM = ['FG1.1', `tn_${N - 2}`];
-const build = (parts, wires) => recipeActions({ name: 'canned', parts, wires, expect: {} });
+const build = (parts, wires) => recipeActions(reflect({ name: 'canned', parts, wires, expect: {} }));
 
 // Inverting −10 on ±12 V: FG1.0 → h27, Rin 10 kΩ g27–g31 (IN1−), Rf 100 kΩ
 // h31–h35, i35 → i30 (OUT1), IN1+ j32 → COM. The generator's 50 Ω adds to
@@ -502,9 +507,11 @@ test('a correct op-amp build gets no Heads up: checkBuild finds nothing in the c
 const problemsIn = actions => Server.checkBuild(actions.map(a => ({ ...a })), null);
 const NOT_CONNECTED = /not connected between power and ground/i;
 
-test('pin: checkBuild still flags a resistor hanging off OUT1 with its far end floating (canned inverting + 1 kΩ g26–g30)', () => {
-  const found = problemsIn([...inverting(), { tool: 'place_resistor', holeA: 'g26', holeB: 'g30', resistance: 1000 }]);
-  assert.ok(found.some(p => NOT_CONNECTED.test(p) && /g26/.test(p)), `no "not connected" problem for the resistor at g26/g30: ${JSON.stringify(found)}`);
+test('pin: checkBuild still flags a resistor hanging off OUT1 with its far end floating (canned inverting + 1 kΩ g26–g30 in the original frame)', () => {
+  // The inverting build spans columns 27–35, so its reflection is c → 62 − c:
+  // OUT1 f30 is f32, and the original g26–g30 resistor is g36–g32.
+  const found = problemsIn([...inverting(), { tool: 'place_resistor', holeA: 'g36', holeB: 'g32', resistance: 1000 }]);
+  assert.ok(found.some(p => NOT_CONNECTED.test(p) && /g36/.test(p)), `no "not connected" problem for the resistor at g36/g32: ${JSON.stringify(found)}`);
 });
 
 // The comparator's tp → R → R → tn divider makes the graph's orientation

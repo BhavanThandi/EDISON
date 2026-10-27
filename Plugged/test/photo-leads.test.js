@@ -95,6 +95,18 @@
 // prompt_s5_crop. The schema is the builder's choice, so it isn't in the
 // golden; the request test checks its key properties instead.
 //
+// Task A3 (batched crop round): readLeads now sends the items in batches of
+// at most PHOTO_LEADS_BATCH (default 12), one generateContent per batch, at
+// most PHOTO_LEADS_CONCURRENCY (default 2) in flight, and reads the reply
+// { items: [{ id, found, conf, leads: [{ pin, point: [y, x] | null, hole }] }] }.
+// The batching itself is tested in photo-leads-batch.test.js. The per-item
+// behaviour in this file (retries, resend, cutoff, saved answers, abort,
+// streaming) is unchanged, so these tests run with PHOTO_LEADS_BATCH=1: a
+// batch of one item is the old per-item call. The fake below turns a test's
+// single-crop reply ({ found, leads: [[pin, [y, x]]], conf }) into that
+// item's batch reply, so each test still says what Gemini answered for it.
+// Tests that need 3 or more calls out at once set PHOTO_LEADS_CONCURRENCY.
+//
 // Route tests: the real HTTP server, as in photo-route.test.js, with no
 // GEMINI_API_KEY and a global fetch that records and fails, so no AI is ever
 // reached. Each request comes from its own X-Forwarded-For address
@@ -124,7 +136,12 @@ function Leads() {
   assert.equal(typeof mod.readLeads, 'function', 'backend/photo-leads.js does not export readLeads(body, opts)');
   return mod;
 }
-function cropPrompt() {
+function batchPrompt() {
+  const P = require('../backend/photo-prompt.js');
+  assert.equal(typeof P.PHOTO_CROP_PROMPT_BATCH, 'string', 'backend/photo-prompt.js does not export PHOTO_CROP_PROMPT_BATCH');
+  return P.PHOTO_CROP_PROMPT_BATCH;
+}
+function cropPrompt() {   // the single-crop prompt, kept exported for fixtures and replay
   const P = require('../backend/photo-prompt.js');
   assert.equal(typeof P.PHOTO_CROP_PROMPT, 'function', 'backend/photo-prompt.js does not export PHOTO_CROP_PROMPT(item)');
   return P.PHOTO_CROP_PROMPT;
@@ -142,6 +159,7 @@ const DEFAULT_CUTOFF_MS = 40000;   // #173: PHOTO_LEADS_TIMEOUT_MS's default (wa
 const cutoffAt25 = () => { process.env.PHOTO_LEADS_TIMEOUT_MS = String(TIMEOUT_MS); };
 
 const GOLDEN = path.join(__dirname, 'fixtures', 'prompts', 'photo-crop.txt');
+const GOLDEN_BATCH = path.join(__dirname, 'fixtures', 'prompts', 'photo-crop-batch.txt');
 const UPDATE = process.env.UPDATE_GOLDEN === '1';
 
 // ── Crops ───────────────────────────────────────────────────────────────────
@@ -184,8 +202,12 @@ function reply(status, body) {
   return { ok: status >= 200 && status < 300, status, statusText: '', headers: new Headers({ 'content-type': 'application/json' }),
     text: async () => text, json: async () => JSON.parse(text) };
 }
-const geminiSays = answer => reply(200, { candidates: [{ content: { role: 'model', parts: [{ text: typeof answer === 'string' ? answer : JSON.stringify(answer) }] }, finishReason: 'STOP' }] });
+const geminiSays = answer => Object.assign(reply(200, { candidates: [{ content: { role: 'model', parts: [{ text: typeof answer === 'string' ? answer : JSON.stringify(answer) }] }, finishReason: 'STOP' }] }),
+  { said: typeof answer === 'string' ? undefined : answer });
 const answer = (leads, extra = {}) => geminiSays({ found: true, type: '...', leads, conf: 0.8, ...extra });
+// A batch reply: every id given answers with the same single-crop leads (as P1).
+const batchSays = (ids, leads, extra = {}) => geminiSays({ items: ids.map(id => ({ id, found: true, conf: 0.8, ...extra,
+  leads: leads.map(([pin, point]) => ({ pin, point, hole: '' })) })) });
 const status = n => reply(n, { error: { code: n, message: `upstream ${n}` } });
 const HANG   = Symbol('never answers; only an abort ends it');
 const after  = (ms, res) => new Promise(r => setTimeout(() => r(res), ms));   // on the fake clock
@@ -193,6 +215,20 @@ const after  = (ms, res) => new Promise(r => setTimeout(() => r(res), ms));   //
 const imagePart = body => ((body && body.contents) || []).flatMap(m => (m && m.parts) || []).find(p => p && (p.inline_data || p.inlineData));
 const sentText  = body => ((body && body.contents) || []).flatMap(m => (m && m.parts) || [])
   .filter(p => p && typeof p.text === 'string').map(p => p.text).join('\n');
+
+// The ids a batch request names, in order, from its "Crop k: id <id>, …" parts.
+const idsOf = body => ((body && body.contents) || []).flatMap(m => (m && m.parts) || [])
+  .map(p => (p && typeof p.text === 'string' ? /^Crop \d+: id ([^,\s]+)/.exec(p.text) : null)).filter(Boolean).map(m => m[1]);
+
+// A single-crop reply ({ found, leads: [[pin, [y, x]]], conf }) for a call
+// that carries one item becomes that item's batch reply; anything else (a
+// failure, text that isn't JSON, a reply already in batch shape) is left as is.
+function asBatchReply(call, res) {
+  const said = res && res.said;
+  if (call.ids.length !== 1 || !said || Array.isArray(said) || said.items !== undefined) return res;
+  const leads = Array.isArray(said.leads) ? said.leads.filter(Array.isArray).map(([pin, point]) => ({ pin, point, hole: '' })) : said.leads;
+  return geminiSays({ items: [{ id: call.ids[0], found: said.found, conf: said.conf, leads }] });
+}
 
 // answerFor(call) → a reply, a promise of one, HANG, or throws (a network
 // error). Each Gemini call is kept as { id, n, url, method, headers, body,
@@ -217,8 +253,9 @@ function fakeGemini(items, answerFor) {
     let body = null;
     try { body = JSON.parse(opts.body); } catch { /* the request test reports it */ }
     const part = imagePart(body);
-    const id   = part ? idOf.get((part.inline_data || part.inlineData).data) : undefined;
-    const call = { id, n: calls.filter(c => c.id === id).length + 1, url: u, method: opts.method,
+    const ids  = idsOf(body);
+    const id   = ids.length ? ids[0] : part ? idOf.get((part.inline_data || part.inlineData).data) : undefined;
+    const call = { id, ids, n: calls.filter(c => c.id === id).length + 1, url: u, method: opts.method,
       headers: new Headers(opts.headers), body, part, signal: opts.signal, resend: (busy.get(id) || 0) > 0 };
     calls.push(call);
     busy.set(id, (busy.get(id) || 0) + 1);
@@ -231,7 +268,7 @@ function fakeGemini(items, answerFor) {
       if (signal) signal.addEventListener('abort', abort, { once: true });
       let out;
       try { out = answerFor(call); } catch (e) { return reject(e); }
-      if (out !== HANG) Promise.resolve(out).then(resolve, reject);
+      if (out !== HANG) Promise.resolve(out).then(res => asBatchReply(call, res)).then(resolve, reject);
     }).finally(() => {
       inFlight--;
       busy.set(id, busy.get(id) - 1);
@@ -299,7 +336,7 @@ const readSaved = (dir, key) => JSON.parse(fs.readFileSync(path.join(dir, `${key
 // ── Environment ─────────────────────────────────────────────────────────────
 
 const ENV_KEYS = ['GEMINI_API_KEY', 'DEEPSEEK_API_KEY', 'PHOTO_GEMINI_MODEL', 'PHOTO_RECORD', 'PHOTO_PROVIDERS',
-  'PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY'];
+  'PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY', 'PHOTO_LEADS_BATCH'];
 let savedEnv, logs, port;
 
 beforeAll(() => new Promise(r => {
@@ -315,6 +352,7 @@ beforeEach(() => {
   process.env.GEMINI_API_KEY = GEMINI_KEY;
   process.env.DEEPSEEK_API_KEY = DEEPSEEK_KEY;
   for (const k of ['PHOTO_GEMINI_MODEL', 'PHOTO_RECORD', 'PHOTO_PROVIDERS', 'PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY']) delete process.env[k];
+  process.env.PHOTO_LEADS_BATCH = '1';   // Task A3: a batch of one item is the old per-item call
   logs = [];
   for (const m of ['log', 'info', 'warn', 'error', 'debug']) {
     vi.spyOn(console, m).mockImplementation((...args) => { logs.push(args.map(a => (typeof a === 'string' ? a : util.inspect(a))).join(' ')); });
@@ -332,36 +370,39 @@ afterEach(() => {
 
 // ── 1. The Gemini request ───────────────────────────────────────────────────
 
-test('the Gemini request: one per item to the pinned model, key in x-goog-api-key and never the URL, the crop inline at ULTRA_HIGH, PHOTO_CROP_PROMPT(item), JSON with a schema, temperature 1, 32768 tokens', async () => {
-  const items = [item('R1', { image: crop('R1|', 'image/png'), window: WIN_R1 }), item('W1', { window: WIN_W1 })];
-  const fake = fakeGemini(items, () => answer(P1));
+test('the Gemini request (Task A3): one batch call for the items to the pinned model, key in x-goog-api-key and never the URL, the instructions then per item a "Crop k: id" text and its crop inline at ULTRA_HIGH, JSON with a schema, temperature 1, 32768 tokens', async () => {
+  delete process.env.PHOTO_LEADS_BATCH;   // the default batch size (12)
+  const items = [item('R1', { window: WIN_R1, image: crop('R1|', 'image/png') }), item('W1', { window: WIN_W1 })];
+  const fake = fakeGemini(items, c => batchSays(c.ids, P1));
   const out = await readAll({ key: 'no-saved-leads', items }, fake);
 
-  assert.deepStrictEqual(fake.calls.map(c => c.id).sort(), ['R1', 'W1'], `one call per item, each carrying its crop: ${JSON.stringify(fake.calls.map(c => c.id))}`);
-  const PROMPT = cropPrompt();
-  for (const it of items) {
-    const c = fake.of(it.id)[0];
-    assert.equal(c.url, `${GEMINI_BASE}${DEFAULT_MODEL}:generateContent`);
-    assert.equal(c.method, 'POST');
-    assert.equal(c.headers.get('x-goog-api-key'), GEMINI_KEY);
-    assert.ok(!c.url.includes(GEMINI_KEY) && !/[?&]key=/.test(c.url), `the key is in the URL: ${c.url}`);
-    assert.ok(c.signal instanceof AbortSignal, `${it.id}: no AbortSignal, so the resend and the cutoff can't cancel it`);
+  assert.equal(fake.calls.length, 1, `two items are one batch call: ${JSON.stringify(fake.calls.map(c => c.ids))}`);
+  const c = fake.calls[0];
+  assert.deepStrictEqual(c.ids, ['R1', 'W1'], 'the batch names its items, in order');
+  assert.equal(c.url, `${GEMINI_BASE}${DEFAULT_MODEL}:generateContent`);
+  assert.equal(c.method, 'POST');
+  assert.equal(c.headers.get('x-goog-api-key'), GEMINI_KEY);
+  assert.ok(!c.url.includes(GEMINI_KEY) && !/[?&]key=/.test(c.url), `the key is in the URL: ${c.url}`);
+  assert.ok(c.signal instanceof AbortSignal, 'no AbortSignal, so the resend and the cutoff can\'t cancel it');
 
-    const img = c.part.inline_data || c.part.inlineData;
+  const parts = c.body.contents.flatMap(m => m.parts);
+  assert.equal(parts.length, 1 + 2 * items.length, 'instructions, then a text part and an image part per item');
+  assert.equal(parts[0].text, batchPrompt(), 'the first part is PHOTO_CROP_PROMPT_BATCH');
+  items.forEach((it, k) => {
+    assert.match(parts[1 + 2 * k].text, new RegExp(`^Crop ${k + 1}: id ${it.id}, .*outlined in magenta$`), `${it.id}'s text part`);
+    const part = parts[2 + 2 * k], img = part.inline_data || part.inlineData;
+    assert.ok(img, `part ${2 + 2 * k} is ${it.id}'s image`);
     assert.equal(img.mime_type || img.mimeType, it.image.slice(5, it.image.indexOf(';')), `${it.id}: the image's mime type`);
     assert.equal(img.data, b64(it.image), `${it.id}: the image part is the data URL's base64, without the data: prefix`);
-    const partWithoutData = JSON.stringify({ ...c.part, inline_data: undefined, inlineData: undefined });
-    assert.ok(partWithoutData.includes('MEDIA_RESOLUTION_ULTRA_HIGH'), `${it.id}: the image part is not sent at MEDIA_RESOLUTION_ULTRA_HIGH: ${partWithoutData}`);
-    assert.equal(sentText(c.body), PROMPT(it), `${it.id}: the text sent is not PHOTO_CROP_PROMPT(item)`);
-
-    const gc = c.body.generationConfig || {};
-    assert.equal(gc.responseMimeType, 'application/json');
-    assert.ok(gc.responseSchema && typeof gc.responseSchema === 'object', `no responseSchema: ${JSON.stringify(gc).slice(0, 300)}`);
-    const schema = JSON.stringify(gc.responseSchema);
-    for (const word of ['found', 'leads']) assert.ok(schema.includes(word), `the crop schema has no ${word}: ${schema.slice(0, 300)}`);
-    assert.equal(gc.temperature, 1);
-    assert.equal(gc.maxOutputTokens, 32768, 'Robotics-ER\'s thinking counts toward maxOutputTokens');
-  }
+    assert.ok(JSON.stringify({ ...part, inline_data: undefined, inlineData: undefined }).includes('MEDIA_RESOLUTION_ULTRA_HIGH'), `${it.id}: the image part is not at MEDIA_RESOLUTION_ULTRA_HIGH`);
+  });
+  const gc = c.body.generationConfig || {};
+  assert.equal(gc.responseMimeType, 'application/json');
+  assert.ok(gc.responseSchema && typeof gc.responseSchema === 'object', `no responseSchema: ${JSON.stringify(gc).slice(0, 300)}`);
+  const schema = JSON.stringify(gc.responseSchema);
+  for (const word of ['found', 'leads', 'point', 'hole']) assert.ok(schema.includes(word), `the batch schema has no ${word}: ${schema.slice(0, 300)}`);
+  assert.equal(gc.temperature, 1);
+  assert.equal(gc.maxOutputTokens, 32768, 'Robotics-ER\'s thinking counts toward maxOutputTokens');
   assert.equal(out.provider, 'gemini');
   assert.equal(out.model, DEFAULT_MODEL);
   assert.equal(typeof out.ms, 'number', `ms: ${out.ms}`);
@@ -376,14 +417,16 @@ test('PHOTO_GEMINI_MODEL picks the model, in the URL and in the answer', async (
   assert.equal(out.model, 'gemini-test-pinned-159');
 });
 
-test('every item\'s call starts at once: all are in flight before any answers', async () => {
+test('every batch\'s call starts at once (up to 2): both are in flight before any answers, and a batch that answered in 1 s is not resent', async () => {
+  process.env.PHOTO_LEADS_BATCH = '3';
   const items = ['R1', 'R2', 'LED1', 'W1', 'W2'].map(id => item(id));
-  const fake = fakeGemini(items, () => after(1000, answer(P1)));
+  const fake = fakeGemini(items, c => after(1000, batchSays(c.ids, P1)));
   const s = start({ key: 'no-saved-leads', items }, fake);
-  await until(() => fake.calls.length === items.length, () => `${fake.calls.length} of ${items.length} calls started before any answered: the items must go out in parallel`);
+  await until(() => fake.calls.length === 2, () => `${fake.calls.length} of 2 batch calls started before any answered: the batches must go out in parallel`);
+  assert.deepStrictEqual(fake.calls.map(c => c.ids), [['R1', 'R2', 'LED1'], ['W1', 'W2']], 'the first 3 items, then the other 2');
   const out = await finish(s);
-  assert.equal(fake.maxInFlight, items.length, `at most ${fake.maxInFlight} calls were in flight at once`);
-  for (const it of items) assert.equal(fake.of(it.id).length, 1, `${it.id} answered in 1 s and must not be resent`);
+  assert.equal(fake.maxInFlight, 2, `at most ${fake.maxInFlight} calls were in flight at once`);
+  assert.equal(fake.calls.length, 2, 'answered in 1 s, so no resend');
   assert.ok(out.items.every(x => x.found === true), JSON.stringify(out.items));
 });
 
@@ -435,20 +478,20 @@ test('roles: an LED pin Gemini names anode or cathode keeps it; "?" or a number 
   }
 });
 
-test('bare-list answers: [{...}] is its first object, [["1",[y,x]], …] is the leads; found false comes through', async () => {
+test('loose batch answers: a fenced reply with a trailing comma, a bare list of item objects, and found false all come through', async () => {
+  delete process.env.PHOTO_LEADS_BATCH;   // one batch call for the three
   const items = [item('R1', { window: WIN_R1 }), item('R2', { window: WIN_R1 }), item('X1')];
-  const said = {
-    R1: '```json\n[{"found":true,"type":"resistor","leads":[["1",[500,250]],["2",[500,750]]],"conf":0.7},]\n```',
-    R2: '[["1",[500,250]],["2",[500,750]]]',
-    X1: '{"found":false,"type":"other","leads":[],"conf":0.3}',
-  };
-  const fake = fakeGemini(items, c => geminiSays(said[c.id]));
-  const out = await readAll({ key: 'no-saved-leads', items }, fake);
-  assert.deepStrictEqual(byId(out, 'R1'), { id: 'R1', found: true, leads: R1_P1, conf: 0.7 }, 'a list holding the answer object, in a fence, with a trailing comma');
-  const r2 = byId(out, 'R2');
-  assert.ok(r2 && !r2.error, `a bare list of [pin, [y, x]] pairs is an answer, got ${JSON.stringify(r2)}`);
-  assert.deepStrictEqual(r2.leads, R1_P1, 'a bare list of pairs is the leads');
-  assert.deepStrictEqual(byId(out, 'X1'), { id: 'X1', found: false, leads: [], conf: 0.3 });
+  const entry = (id, found, leads, conf) => ({ id, found, conf, leads: leads.map(([pin, point]) => ({ pin, point, hole: '' })) });
+  const fenced = '```json\n' + JSON.stringify({ items: [entry('R1', true, P1, 0.7), entry('R2', true, P1, 0.8), entry('X1', false, [], 0.3)] }).replace(/\]\}$/, ',]}') + '\n```';
+  const bare = JSON.stringify([entry('R1', true, P1, 0.7), entry('R2', true, P1, 0.8), entry('X1', false, [], 0.3)]);
+  for (const [what, said] of [['fenced, trailing comma', fenced], ['a bare list', bare]]) {
+    const fake = fakeGemini(items, () => geminiSays(said));
+    const out = await readAll({ key: 'no-saved-leads', items }, fake);
+    vi.useRealTimers();
+    assert.deepStrictEqual(byId(out, 'R1'), { id: 'R1', found: true, leads: R1_P1, conf: 0.7 }, what);
+    assert.deepStrictEqual(byId(out, 'R2'), { id: 'R2', found: true, leads: R1_P1, conf: 0.8 }, what);
+    assert.deepStrictEqual(byId(out, 'X1'), { id: 'X1', found: false, leads: [], conf: 0.3 }, what);
+  }
 });
 
 test('the answer: one entry per requested id, in request order, even when the replies arrive in reverse', async () => {
@@ -760,40 +803,54 @@ test('PHOTO_RECORD=1 with every live call failing writes nothing: a saved file i
 
 // ── 6. The golden crop prompt ───────────────────────────────────────────────
 
-// What Gemini is sent for each crop, as the golden file holds it.
-function renderCropPrompts(fake) {
-  const text = id => {
-    const c = fake.of(id)[0];
-    assert.ok(c, `no call carried ${id}'s crop`);
-    return sentText(c.body);
-  };
-  return ['--- resistor ---', text('R1'), '--- wire ---', text('W1')].join('\n') + '\n';
+// The single-crop prompt (kept exported for fixtures and replay), for a
+// resistor (470) and a wire, as the golden file holds it. readLeads no longer
+// sends it (Task A3), so it is read from backend/photo-prompt.js.
+function renderCropPrompts(items) {
+  const PROMPT = cropPrompt();
+  return ['--- resistor ---', PROMPT(items[0]), '--- wire ---', PROMPT(items[1])].join('\n') + '\n';
 }
 
-test('the crop prompt is exactly the golden (fixtures/prompts/photo-crop.txt): a resistor (470) and a wire', async () => {
-  const items = [
-    { id: 'R1', kind: 'part', type: 'resistor', value: 470, image: crop('R1|'), window: WIN_R1 },
-    { id: 'W1', kind: 'wire', type: 'wire', value: 0, image: crop('W1|'), window: WIN_W1 },
-  ];
-  const fake = fakeGemini(items, () => answer(P1));
-  await readAll({ key: 'no-saved-leads', items }, fake);
-  const actual = renderCropPrompts(fake);
+// Fails with the first differing line, or writes the golden under UPDATE_GOLDEN=1.
+function checkGolden(file, actual, what) {
   if (UPDATE) {
-    fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
-    fs.writeFileSync(GOLDEN, actual);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, actual);
     return;
   }
-  if (!fs.existsSync(GOLDEN)) {
-    assert.fail('The golden file test/fixtures/prompts/photo-crop.txt is missing. Run UPDATE_GOLDEN=1 npm test to create it, review it, and commit it.');
+  const name = path.basename(file);
+  if (!fs.existsSync(file)) {
+    assert.fail(`The golden file test/fixtures/prompts/${name} is missing. Run UPDATE_GOLDEN=1 npm test to create it, review it, and commit it.`);
   }
-  const expected = fs.readFileSync(GOLDEN, 'utf8');
+  const expected = fs.readFileSync(file, 'utf8');
   const exp = expected.split('\n'), act = actual.split('\n');
   let i = 0;
   while (i < exp.length && i < act.length && exp[i] === act[i]) i++;
   if (expected !== actual) {
-    assert.fail('The crop prompt changed. If this is intended, run UPDATE_GOLDEN=1 npm test and review the diff.\n'
-      + `photo-crop.txt line ${i + 1}:\n  golden: ${exp[i]}\n  sent:   ${act[i]}`);
+    assert.fail(`The ${what} changed. If this is intended, run UPDATE_GOLDEN=1 npm test and review the diff.\n`
+      + `${name} line ${i + 1}:\n  golden: ${exp[i]}\n  sent:   ${act[i]}`);
   }
+}
+
+const GOLDEN_ITEMS = () => [
+  { id: 'R1', kind: 'part', type: 'resistor', value: 470, image: crop('R1|'), window: WIN_R1 },
+  { id: 'W1', kind: 'wire', type: 'wire', value: 0, image: crop('W1|'), window: WIN_W1 },
+];
+
+test('the single-crop prompt is exactly the golden (fixtures/prompts/photo-crop.txt): a resistor (470) and a wire', () => {
+  checkGolden(GOLDEN, renderCropPrompts(GOLDEN_ITEMS()), 'crop prompt');
+});
+
+// Task A3: what readLeads really sends for a batch of those two items: the
+// request's text parts joined by '\n' (the instructions, then each "Crop k"
+// line), under a header. The builder generates the file with UPDATE_GOLDEN=1.
+test('the batch prompt is exactly the golden (fixtures/prompts/photo-crop-batch.txt): the instructions and the Crop lines for a resistor (470) and a wire', async () => {
+  delete process.env.PHOTO_LEADS_BATCH;
+  const items = GOLDEN_ITEMS();
+  const fake = fakeGemini(items, c => batchSays(c.ids, P1));
+  await readAll({ key: 'no-saved-leads', items }, fake);
+  assert.equal(fake.calls.length, 1, 'the two items are one batch call');
+  checkGolden(GOLDEN_BATCH, ['--- batch: resistor, wire ---', sentText(fake.calls[0].body)].join('\n') + '\n', 'batch crop prompt');
 });
 
 // ── 7. The route ────────────────────────────────────────────────────────────
@@ -968,7 +1025,7 @@ test('route: one [photo-leads] log line per request, with the key and counts, ne
 
 test('.env.example lists PHOTO_HEDGE_MS, PHOTO_LEADS_TIMEOUT_MS and PHOTO_LEADS_CONCURRENCY (#172)', () => {
   const text = fs.readFileSync(path.join(__dirname, '../../.env.example'), 'utf8');
-  for (const name of ['PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY']) assert.match(text, new RegExp(`^${name}=`, 'm'), `.env.example has no ${name}=`);
+  for (const name of ['PHOTO_HEDGE_MS', 'PHOTO_LEADS_TIMEOUT_MS', 'PHOTO_LEADS_CONCURRENCY', 'PHOTO_LEADS_BATCH']) assert.match(text, new RegExp(`^${name}=`, 'm'), `.env.example has no ${name}=`);
 });
 
 // ── 8. Retries and the cap in flight (#172) ─────────────────────────────────
@@ -1010,35 +1067,36 @@ test('#172 bug: an item whose first call fails at once (503, 500, 429, a network
   }
 });
 
-// #172 follow-up: the default cap went from 10 to 16.
-test('#172 bug: with 24 items, only the first PHOTO_LEADS_CONCURRENCY (default 16) calls go out, and each queued item starts, in item order, the moment a call ends; never more than 16 in flight', async () => {
-  const items = ids(1, 24).map(id => item(id));
+// #172 follow-up: the default cap went from 10 to 16. Task A3: it caps
+// batch calls now, default 2 (PHOTO_LEADS_BATCH=1 here, so a call is an item).
+test('#172 bug (Task A3: cap 2): with 6 single-item batches, only the first PHOTO_LEADS_CONCURRENCY (default 2) calls go out, and each queued one starts, in item order, the moment a call ends; never more than 2 in flight', async () => {
+  const items = ids(1, 6).map(id => item(id));
   // Ri answers 5 s + i × 100 ms after its call went out: R1 at 5.1 s, R2 at 5.2 s, …
   const fake = fakeGemini(items, c => after(5000 + 100 * Number(c.id.slice(1)), answer(P1)));
   const s = start({ key: 'no-saved-leads', items }, fake);
   const sent = () => fake.calls.map(c => c.id);
-  await until(() => fake.calls.length >= 16, () => `only ${fake.calls.length} calls went out at the start; the default PHOTO_LEADS_CONCURRENCY is 16`);
+  await until(() => fake.calls.length >= 2, () => `only ${fake.calls.length} calls went out at the start; the default cap is 2`);
   await flush();
-  assert.deepStrictEqual(sent(), ids(1, 16), `at the start only R1–R16 go out, in item order; ${fake.calls.length} calls went out`);
+  assert.deepStrictEqual(sent(), ids(1, 2), `at the start only R1 and R2 go out, in item order; ${fake.calls.length} calls went out`);
   await advance(5099);
-  assert.deepStrictEqual(sent(), ids(1, 16), 'no call has ended before 5.1 s, so no queued item goes out');
+  assert.deepStrictEqual(sent(), ids(1, 2), 'no call has ended before 5.1 s, so no queued call goes out');
   await advance(1);
-  assert.deepStrictEqual(sent(), ids(1, 17), 'R1 answered at 5.1 s, and R17, next in item order, went out at once');
-  await advance(700);
-  assert.deepStrictEqual(sent(), ids(1, 24), 'by 5.8 s R2–R8 answered one at a time, and R18–R24 went out in item order');
+  assert.deepStrictEqual(sent(), ids(1, 3), 'R1 answered at 5.1 s, and R3, next in item order, went out at once');
+  await advance(100);
+  assert.deepStrictEqual(sent(), ids(1, 4), 'R2 answered at 5.2 s, and R4 went out at once');
   const out = await finish(s);
-  assert.equal(fake.maxInFlight, 16, `${fake.maxInFlight} calls were in flight at once; at most PHOTO_LEADS_CONCURRENCY (16), and the cap is used`);
-  assert.deepStrictEqual(out.items.map(x => x.id), ids(1, 24), 'one entry per item, in request order');
+  assert.deepStrictEqual(sent(), ids(1, 6), 'every call went out once, in item order');
+  assert.equal(fake.maxInFlight, 2, `${fake.maxInFlight} calls were in flight at once; the cap is 2, and it is used`);
+  assert.deepStrictEqual(out.items.map(x => x.id), ids(1, 6), 'one entry per item, in request order');
   assert.ok(out.items.every(x => x.found === true), `unanswered: ${JSON.stringify(out.items.filter(x => x.found !== true))}`);
-  for (const it of items) assert.equal(fake.of(it.id).length, 1, `${it.id}: answered within 12 s of its call going out, so no resend (its 12 s run from when its call went out)`);
 });
 
 // #172 follow-up: was "never more than the cap in flight, resends included".
 // Now a stall resend goes out on time even when the cap is full, while the
 // queued items keep waiting for a first-call slot.
-test('#172 bug: with 24 items whose calls all hang, the first PHOTO_LEADS_CONCURRENCY calls (default 16, or 3 when set) go out; at 12 s each gets its stall resend at once although the cap is full, while the queued items still wait; at the 25 s cutoff every item is AI_TIMEOUT, in order, with every call aborted', async () => {
+test('#172 bug (Task A3: single-item batches): with 24 items whose calls all hang, the first PHOTO_LEADS_CONCURRENCY calls (default 2, or 3 when set) go out; at 12 s each gets its stall resend at once although the cap is full, while the queued items still wait; at the 25 s cutoff every item is AI_TIMEOUT, in order, with every call aborted', async () => {
   cutoffAt25();   // #173: the default is 40 s now
-  for (const [what, env, cap] of [['default', undefined, 16], ['PHOTO_LEADS_CONCURRENCY=3', '3', 3]]) {
+  for (const [what, env, cap] of [['default', undefined, 2], ['PHOTO_LEADS_CONCURRENCY=3', '3', 3]]) {
     if (env === undefined) delete process.env.PHOTO_LEADS_CONCURRENCY;
     else process.env.PHOTO_LEADS_CONCURRENCY = env;
     const items = ids(1, 24).map(id => item(id));
@@ -1240,6 +1298,7 @@ test('#173: PHOTO_LEADS_TIMEOUT_MS defaults to 40 s (was 25 s; the confirm scree
 });
 
 test('#173: readLeads calls opts.onItem(entry) once per id as each item settles, in finish order (X1\'s 400 AI_FAILED at once, W1 at 1 s, R1 at 3 s, LED1 AI_TIMEOUT at the cutoff), each before readLeads resolves and each the entry `items` holds; the resolved items stay in request order', async () => {
+  process.env.PHOTO_LEADS_CONCURRENCY = '4';   // Task A3: 4 single-item batches out at once
   process.env.PHOTO_LEADS_TIMEOUT_MS = '8000';   // under the 12 s resend: one call an item
   const items = [item('R1', { window: WIN_R1 }), item('LED1'), item('W1', { window: WIN_W1 }), item('X1')];
   const says = { R1: () => after(3000, answer(P1)), W1: () => after(1000, answer(P1)), X1: () => status(400), LED1: () => HANG };
@@ -1314,6 +1373,7 @@ test('#173: replays and the no-key path call onItem too, once per id, each the e
 });
 
 test('#173: route: with Accept application/x-ndjson the answer streams: 200 application/x-ndjson, one line per item as it settles (X1\'s 400 at once, W1 at 1 s, R1 at 5 s, each on the wire before the next answers), then { done: true, provider, model, ms }', async () => {
+  process.env.PHOTO_LEADS_CONCURRENCY = '3';   // Task A3: 3 single-item batches out at once
   const items = [item('R1', { window: WIN_R1 }), item('W1', { window: WIN_W1 }), item('X1')];
   const wait = { R1: 5000, W1: 1000 };
   const fake = fakeGemini(items, c => (c.id === 'X1' ? status(400) : after(wait[c.id], answer(P1))));
@@ -1459,6 +1519,7 @@ test('#177: readLeads(body, { signal }): aborting the signal mid-round ends it a
 });
 
 test('#177 bug: route: the page closes the NDJSON request mid-stream (Cancel, close, Build it) → every Gemini call in flight is aborted at once and none goes out after (no 12 s resend); the [photo-leads] line is still written; the server answers the next request', async () => {
+  process.env.PHOTO_LEADS_CONCURRENCY = '3';   // Task A3: 3 single-item batches out at once
   const items = [item('R1', { window: WIN_R1 }), item('LED1'), item('W1', { window: WIN_W1 })];
   const fake = fakeGemini(items, c => (c.id === 'R1' ? after(1000, answer(P1)) : HANG));
   vi.stubGlobal('fetch', fake.fetch);

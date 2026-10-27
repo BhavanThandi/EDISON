@@ -92,11 +92,11 @@
   };
 
   // Hole centres for the legs; legs without holes (a preview with no
-  // anchor) are drawn as if at f0, centred on (0, 0, 0).
+  // anchor) are drawn as if at e0, centred on (0, 0, 0).
   function legPoints(ctx, legs) {
     const onBoard = legs.every(l => l && l.col != null && l.row != null);
     if (onBoard) return legs.map(l => ctx.holeWorld(l.col, l.row));
-    const pts = LEGS.map(([dc, dr]) => ctx.holeWorld(dc, dr ? 'e' : 'f'));
+    const pts = LEGS.map(([dc, dr]) => ctx.holeWorld(dc, dr ? 'f' : 'e'));
     const mid = pts.reduce((s, p) => s.add(p), new ctx.THREE.Vector3()).multiplyScalar(1 / pts.length);
     return pts.map(p => p.sub(mid));
   }
@@ -204,9 +204,9 @@
                 'Its lit segments show a digit.',
       keywords: ['7 segment', 'seven segment', '7-segment', 'seven-segment', 'digit display', 'number display'],
       guide:    'Each segment needs its own resistor (place_resistor); common pins go to ground. ' +
-                'At hole f30, direction right, each pin sits in: e=f30 d=f31 com1=f32 c=f33 dp=f34 (bottom half, ' +
-                'feed from rows g–j) and g=e30 f=e31 com2=e32 a=e33 b=e34 (top half, feed from rows a–d). ' +
-                'Feed each lit segment from + through its own 470 Ω into its column. Wire a32 (com2) to tn. ' +
+                'At hole e30, direction right, each pin sits in: e=e30 d=e31 com1=e32 c=e33 dp=e34 (bottom half, ' +
+                'feed from rows a–d) and g=f30 f=f31 com2=f32 a=f33 b=f34 (top half, feed from rows g–j). ' +
+                'Feed each lit segment from + through its own 470 Ω into its column. Wire j32 (com2) to bn. ' +
                 '1 = b c; 7 = a b c; 8 = all seven.',
       // The digit-7 build, proven on the simulator: the server writes it into
       // the prompt as numbered steps whenever place_seven_segment is sent.
@@ -214,12 +214,12 @@
         name:  "a, b and c each through their own 470 Ω from 9 V, com2 to ground: it shows '7'",
         parts: [{ type: 'battery', label: 'BAT1' },
                 { type: 'seven_segment', label: 'DS1',
-                  holes: ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30'] },
-                { type: 'resistor', label: 'R1', holes: ['b33', 'b37'], values: { resistance: 470 } },   // a
-                { type: 'resistor', label: 'R2', holes: ['c34', 'c39'], values: { resistance: 470 } },   // b
-                { type: 'resistor', label: 'R3', holes: ['h33', 'h37'], values: { resistance: 470 } }],  // c
-        wires: [['BAT1.0', 'tp_63'], ['BAT1.1', 'tn_63'],
-                ['tp_37', 'a37'], ['tp_39', 'a39'], ['e37', 'f37'], ['a32', 'tn_32']],
+                  holes: ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'] },
+                { type: 'resistor', label: 'R1', holes: ['i33', 'i37'], values: { resistance: 470 } },   // a
+                { type: 'resistor', label: 'R2', holes: ['h34', 'h39'], values: { resistance: 470 } },   // b
+                { type: 'resistor', label: 'R3', holes: ['c33', 'c37'], values: { resistance: 470 } }],  // c
+        wires: [['BAT1.0', 'tp_63'], ['BAT1.1', 'tn_63'], ['tp_1', 'bp_1'], ['tn_1', 'bn_1'],
+                ['bp_37', 'j37'], ['bp_39', 'j39'], ['f37', 'e37'], ['j32', 'bn_32']],
         expect: { DS1: { digit: '7', segments: 'abc', dp: false } },
       },
     },
@@ -231,11 +231,11 @@
         name:  "b and c each through 470 Ω from 9 V, commons to ground: it shows '1'",
         parts: [{ type: 'battery', label: 'BAT1' },
                 { type: 'seven_segment', label: 'DS1',
-                  holes: ['f30', 'f31', 'f32', 'f33', 'f34', 'e34', 'e33', 'e32', 'e31', 'e30'] },
-                { type: 'resistor', label: 'R1', holes: ['c34', 'c39'] },    // b
-                { type: 'resistor', label: 'R2', holes: ['h33', 'h37'] }],   // c
+                  holes: ['e30', 'e31', 'e32', 'e33', 'e34', 'f34', 'f33', 'f32', 'f31', 'f30'] },
+                { type: 'resistor', label: 'R1', holes: ['h34', 'h39'] },    // b
+                { type: 'resistor', label: 'R2', holes: ['c33', 'c37'] }],   // c
         wires: [['BAT1.0', 'tp_63'], ['BAT1.1', 'tn_63'], ['tp_1', 'bp_1'], ['tn_1', 'bn_1'],
-                ['tp_39', 'a39'], ['bp_37', 'j37'], ['a32', 'tn_32'], ['j32', 'bn_32']],
+                ['bp_39', 'j39'], ['tp_37', 'a37'], ['j32', 'bn_32'], ['a32', 'tn_32']],
         expect: { DS1: { digit: '1', segments: 'bc', dp: false } },
       },
     ],

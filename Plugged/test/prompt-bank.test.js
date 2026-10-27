@@ -39,9 +39,9 @@ const reply = (actions, text = 'Built it.') => ({ reply: text, actions });
 const grade = (id, actions, text) => Eval.grade(caseById(id), reply(actions, text));
 
 // ── Parts and wiring, as Examples ──────────────────────────────────────────
-// The chip at f30 facing right: OUT1 f30, IN1− f31, IN1+ f32, V− f33 (the
-// bottom strips 30–33), IN2+ e33, IN2− e32, OUT2 e31, V+ e30 (the top ones).
-const CHIP = ['f30', 'f31', 'f32', 'f33', 'e33', 'e32', 'e31', 'e30'];
+// The chip at e30 facing right: OUT1 e30, IN1− e31, IN1+ e32, V− e33 (the
+// bottom strips 30–33), IN2+ f33, IN2− f32, OUT2 f31, V+ f30 (the top ones).
+const CHIP = ['e30', 'e31', 'e32', 'e33', 'f33', 'f32', 'f31', 'f30'];
 const PS1  = volts => ({ type: 'bench_supply', label: 'PS1', values: { voltage: volts } });
 const FG1  = (amp, frequency = 1) => ({ type: 'function_generator', label: 'FG1', values: { amplitude: amp, offset: 0, frequency } });
 const U1   = { type: 'tl072', label: 'U1', holes: CHIP };
@@ -50,193 +50,193 @@ const R    = (label, holes, ohms) => ({ type: 'resistor', label, holes, values: 
 const LED  = (label, holes) => ({ type: 'led', label, holes, values: { color: 'red' } });          // [cathode, anode]
 const D    = (label, holes, model = '1N4148') => ({ type: 'diode', label, holes, values: { model } });   // [cathode, anode]
 const SW   = (label, holes) => ({ type: 'button', label, holes });
-const DUAL   = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`], ['PS1.3', `tn_${N - 1}`], ['PS1.2', `bn_${N}`],
-                ['tp_30', 'a30'], ['bn_33', 'j33']];                                       // V+ +12, V− −12
-const SINGLE = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`], ['tp_30', 'a30'], ['j33', 'tn_33']];   // V+ +12, V− COM
-const ONE_RAIL = [['PS1.0', `tp_${N}`], ['PS1.1', `tn_${N}`]];
-const FG_COM = ['FG1.1', `tn_${N - 2}`];
-const FG_RAILS = [['FG1.0', `tp_${N}`], ['FG1.1', `tn_${N}`]];
+const DUAL   = [['PS1.0', `bp_${N}`], ['PS1.1', `bn_${N}`], ['PS1.3', `bn_${N - 1}`], ['PS1.2', `tn_${N}`],
+                ['bp_30', 'j30'], ['tn_33', 'a33']];                                       // V+ +12, V− −12
+const SINGLE = [['PS1.0', `bp_${N}`], ['PS1.1', `bn_${N}`], ['bp_30', 'j30'], ['a33', 'bn_33']];   // V+ +12, V− COM
+const ONE_RAIL = [['PS1.0', `bp_${N}`], ['PS1.1', `bn_${N}`]];
+const FG_COM = ['FG1.1', `bn_${N - 2}`];
+const FG_RAILS = [['FG1.0', `bp_${N}`], ['FG1.1', `bn_${N}`]];
 const build = (parts, wires) => recipeActions({ name: 'bank', parts, wires, expect: {} });
 const wire = (from, to) => ({ tool: 'add_wire', from, to });
 
-// 1. Inverting −2 on ±12 V: FG1.0 → h27, Rin 10 kΩ g27–g31 (IN1−), Rf h31–h35,
-//    i35 → i30 (OUT1), IN1+ j32 → COM. −20k/(10k + 50 Ω) × 1 V = −1.990 V at
+// 1. Inverting −2 on ±12 V: FG1.0 → c27, Rin 10 kΩ d27–d31 (IN1−), Rf c31–c35,
+//    b35 → b30 (OUT1), IN1+ a32 → COM. −20k/(10k + 50 Ω) × 1 V = −1.990 V at
 //    the peak, +1.990 V at the trough. `rf` 10 kΩ is a gain of −1 (−0.995 V).
 const inverting = ({ rf = 20000, frequency = 1 } = {}) => build(
-  [PS1(12), FG1(1, frequency), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], rf)],
-  [...DUAL, FG_COM, ['FG1.0', 'h27'], ['i35', 'i30'], ['j32', 'tn_32']]);
+  [PS1(12), FG1(1, frequency), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], rf)],
+  [...DUAL, FG_COM, ['FG1.0', 'c27'], ['b35', 'b30'], ['a32', 'bn_32']]);
 
-// 2. Non-inverting ×3: FG1.0 → j32 (IN1+), Rg 10 kΩ g27–g31 with j27 → COM,
-//    Rf 20 kΩ h31–h35, i35 → i30. 1 + 20k/10k = 3: ±3.000 V (IN1+ draws no
+// 2. Non-inverting ×3: FG1.0 → a32 (IN1+), Rg 10 kΩ d27–d31 with a27 → COM,
+//    Rf 20 kΩ c31–c35, b35 → b30. 1 + 20k/10k = 3: ±3.000 V (IN1+ draws no
 //    current, so the 50 Ω drops nothing). `rf` 10 kΩ is a gain of 2 (2.000 V).
 const nonInverting = ({ rf = 20000 } = {}) => build(
-  [PS1(12), FG1(1), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], rf)],
-  [...DUAL, FG_COM, ['FG1.0', 'j32'], ['i35', 'i30'], ['j27', 'tn_27']]);
+  [PS1(12), FG1(1), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], rf)],
+  [...DUAL, FG_COM, ['FG1.0', 'a32'], ['b35', 'b30'], ['a27', 'bn_27']]);
 
-// 3. One 12 V rail: 10k b40–b44 from tp (tp_40 → a40), 10k c44–c48 to COM
-//    (a48 → tn_48): 6.000 V on d44 → j32 (IN1+); g30 → g31 the follower;
-//    the meter red on h30 (OUT1), black on COM: 6.000 V. `swapProbes` reads
+// 3. One 12 V rail: 10k i40–i44 from tp (bp_40 → j40), 10k h44–h48 to COM
+//    (j48 → bn_48): 6.000 V on g44 → a32 (IN1+); d30 → d31 the follower;
+//    the meter red on c30 (OUT1), black on COM: 6.000 V. `swapProbes` reads
 //    −6.000 V.
 const follower = ({ swapProbes = false } = {}) => build(
-  [PS1(12), U1, R('R1', ['b40', 'b44'], 10000), R('R2', ['c44', 'c48'], 10000), MM1()],
-  [...SINGLE, ['tp_40', 'a40'], ['a48', 'tn_48'], ['d44', 'j32'], ['g30', 'g31'],
-   swapProbes ? ['MM1.1', 'h30'] : ['MM1.0', 'h30'], swapProbes ? ['MM1.0', 'tn_50'] : ['MM1.1', 'tn_50']]);
+  [PS1(12), U1, R('R1', ['i40', 'i44'], 10000), R('R2', ['h44', 'h48'], 10000), MM1()],
+  [...SINGLE, ['bp_40', 'j40'], ['j48', 'bn_48'], ['g44', 'a32'], ['d30', 'd31'],
+   swapProbes ? ['MM1.1', 'c30'] : ['MM1.0', 'c30'], swapProbes ? ['MM1.0', 'bn_50'] : ['MM1.1', 'bn_50']]);
 
-// 4. A comparator on one 12 V rail: IN1− (g31) at 6.000 V from the 10k/10k
-//    divider; IN1+ (bot 32) held at COM by 10 kΩ h32–h36 (j36 → COM), the
-//    button i32–i35 to +12 (j35 → tp_35). OUT1 → 1 kΩ h26–h30 → red LED
-//    i26 (anode) / i24 → COM. Pressed: OUT1 high, 10.5 V behind 50 Ω:
+// 4. A comparator on one 12 V rail: IN1− (d31) at 6.000 V from the 10k/10k
+//    divider; IN1+ (bot 32) held at COM by 10 kΩ c32–c36 (a36 → COM), the
+//    button b32–b35 to +12 (a35 → bp_35). OUT1 → 1 kΩ c26–c30 → red LED
+//    b26 (anode) / b24 → COM. Pressed: OUT1 high, 10.5 V behind 50 Ω:
 //    (10.5 − 2.0)/(1000 + 50 + 0.1) = 8.09 mA, lit. Released: OUT1 low at
 //    1.5 V, under the LED's 2.0 V: dark. `fromRail`: the 1 kΩ fed from +12
-//    (h26–h29, j29 → tp_29), not OUT1: lit pressed or not.
+//    (c26–c29, a29 → bp_29), not OUT1: lit pressed or not.
 const comparator = ({ fromRail = false } = {}) => build(
-  [PS1(12), U1, R('R1', ['b40', 'b44'], 10000), R('R2', ['c44', 'c48'], 10000), R('R3', ['h32', 'h36'], 10000),
-   SW('SW1', ['i32', 'i35']), R('R4', fromRail ? ['h26', 'h29'] : ['h26', 'h30'], 1000), LED('LED1', ['i24', 'i26'])],
-  [...SINGLE, ['tp_40', 'a40'], ['a48', 'tn_48'], ['d44', 'g31'], ['j36', 'tn_36'], ['j35', 'tp_35'], ['j24', 'tn_24'],
-   ...(fromRail ? [['j29', 'tp_29']] : [])]);
+  [PS1(12), U1, R('R1', ['i40', 'i44'], 10000), R('R2', ['h44', 'h48'], 10000), R('R3', ['c32', 'c36'], 10000),
+   SW('SW1', ['b32', 'b35']), R('R4', fromRail ? ['c26', 'c29'] : ['c26', 'c30'], 1000), LED('LED1', ['b24', 'b26'])],
+  [...SINGLE, ['bp_40', 'j40'], ['j48', 'bn_48'], ['g44', 'd31'], ['a36', 'bn_36'], ['a35', 'bp_35'], ['a24', 'bn_24'],
+   ...(fromRail ? [['a29', 'bp_29']] : [])]);
 
-// 5. Summing on ±12 V, 100 kΩ all round: FG1.0 → h27, R1 g27–g31; the 1 V
-//    divider 11k b40–b44 / 1k c44–c48 (tp_40 → a40, a48 → tn_48), d44 → g34,
-//    R3 j31–j34; Rf h31–h35, i35 → i30; IN1+ j32 → COM. The sine reaches
+// 5. Summing on ±12 V, 100 kΩ all round: FG1.0 → c27, R1 d27–d31; the 1 V
+//    divider 11k i40–i44 / 1k h44–h48 (bp_40 → j40, j48 → bn_48), g44 → d34,
+//    R3 a31–a34; Rf c31–c35, b35 → b30; IN1+ a32 → COM. The sine reaches
 //    IN1−'s resistor as 1 × 100k/100.05k = 0.9995 V; the divider, 917 Ω
 //    behind its 1.000 V, as 100k/100.917k = 0.9909 V. Peak −(0.9995 +
 //    0.9909) = −1.990 V; trough −(−0.9995 + 0.9909) = +0.009 V. `rf`
 //    200 kΩ doubles both: −3.98 V.
 const summing = ({ rf = 100000 } = {}) => build(
-  [PS1(12), FG1(1), U1, R('R1', ['g27', 'g31'], 100000), R('R2', ['h31', 'h35'], rf), R('R3', ['j31', 'j34'], 100000),
-   R('R4', ['b40', 'b44'], 11000), R('R5', ['c44', 'c48'], 1000)],
-  [...DUAL, FG_COM, ['FG1.0', 'h27'], ['i35', 'i30'], ['j32', 'tn_32'], ['tp_40', 'a40'], ['a48', 'tn_48'], ['d44', 'g34']]);
+  [PS1(12), FG1(1), U1, R('R1', ['d27', 'd31'], 100000), R('R2', ['c31', 'c35'], rf), R('R3', ['a31', 'a34'], 100000),
+   R('R4', ['i40', 'i44'], 11000), R('R5', ['h44', 'h48'], 1000)],
+  [...DUAL, FG_COM, ['FG1.0', 'c27'], ['b35', 'b30'], ['a32', 'bn_32'], ['bp_40', 'j40'], ['j48', 'bn_48'], ['g44', 'd34']]);
 
-// 6. Difference on ±12 V, 10 kΩ all four: V1 → R1 g27–g31 (IN1−), Rf h31–h35
-//    with i35 → i30, V2 = FG1.0 → j36 → R3 i32–i36 (IN1+), R4 j28–j32 with
-//    i28 → COM. V1: a 500/100 Ω divider (b40–b44, c44–c48), 2.000 V with
-//    83.3 Ω behind it, d44 → h27. V+ = ±1 × 10k/20.05k = ±0.4988 V; V1 at
+// 6. Difference on ±12 V, 10 kΩ all four: V1 → R1 d27–d31 (IN1−), Rf c31–c35
+//    with b35 → b30, V2 = FG1.0 → a36 → R3 b32–b36 (IN1+), R4 a28–a32 with
+//    b28 → COM. V1: a 500/100 Ω divider (i40–i44, h44–h48), 2.000 V with
+//    83.3 Ω behind it, g44 → c27. V+ = ±1 × 10k/20.05k = ±0.4988 V; V1 at
 //    R1 = (2 × 10k + V+ × 83.3)/10083.3. Vout = 2·V+ − V1: peak 0.9975 −
 //    1.9876 = −0.990 V; trough −0.9975 − 1.9794 = −2.977 V. `soft` is a
 //    10k/2k divider (1667 Ω behind it): V1 sags to 1.786 V, −0.79 V at the peak.
 const difference = ({ soft = false } = {}) => build(
-  [PS1(12), FG1(1), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], 10000), R('R3', ['i32', 'i36'], 10000),
-   R('R4', ['j28', 'j32'], 10000), R('R5', ['b40', 'b44'], soft ? 10000 : 500), R('R6', ['c44', 'c48'], soft ? 2000 : 100)],
-  [...DUAL, FG_COM, ['tp_40', 'a40'], ['a48', 'tn_48'], ['d44', 'h27'], ['i35', 'i30'], ['FG1.0', 'j36'], ['i28', 'tn_28']]);
+  [PS1(12), FG1(1), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], 10000), R('R3', ['b32', 'b36'], 10000),
+   R('R4', ['a28', 'a32'], 10000), R('R5', ['i40', 'i44'], soft ? 10000 : 500), R('R6', ['h44', 'h48'], soft ? 2000 : 100)],
+  [...DUAL, FG_COM, ['bp_40', 'j40'], ['j48', 'bn_48'], ['g44', 'c27'], ['b35', 'b30'], ['FG1.0', 'a36'], ['b28', 'bn_28']]);
 
-// 7. The superdiode on ±12 V: FG1.0 → j32 (IN1+); D1 1N4148 anode h30 (OUT1),
-//    cathode h26, the output: 10 kΩ i22–i26 to COM (j22 → tn_22) and fed back
-//    g26 → g31 (IN1−). Peak: the cathode follows IN1+, 1.000 V (OUT1 1.65 V);
+// 7. The superdiode on ±12 V: FG1.0 → a32 (IN1+); D1 1N4148 anode c30 (OUT1),
+//    cathode c26, the output: 10 kΩ b22–b26 to COM (a22 → bn_22) and fed back
+//    d26 → d31 (IN1−). Peak: the cathode follows IN1+, 1.000 V (OUT1 1.65 V);
 //    trough: OUT1 at the − rail (−10.5 V), D1 off, the cathode 0 V. `plain`
-//    feeds back from OUT1 (g30 → g31) instead: a follower then a diode, the
+//    feeds back from OUT1 (d30 → d31) instead: a follower then a diode, the
 //    output 1 − 0.65 = 0.35 V at the peak.
 const rectifier = ({ plain = false } = {}) => build(
-  [PS1(12), FG1(1), U1, D('D1', ['h26', 'h30']), R('R1', ['i22', 'i26'], 10000)],
-  [...DUAL, FG_COM, ['FG1.0', 'j32'], plain ? ['g30', 'g31'] : ['g26', 'g31'], ['j22', 'tn_22']]);
+  [PS1(12), FG1(1), U1, D('D1', ['c26', 'c30']), R('R1', ['b22', 'b26'], 10000)],
+  [...DUAL, FG_COM, ['FG1.0', 'a32'], plain ? ['d30', 'd31'] : ['d26', 'd31'], ['a22', 'bn_22']]);
 
-// 8. A follower on ±12 V (FG1.0 → j32, g30 → g31) at 5 Vp into 470 Ω h26–h30
-//    and a red LED i26 (anode) / i24 → COM: (5 − 2.0)/470.1 = 6.38 mA lit
+// 8. A follower on ±12 V (FG1.0 → a32, d30 → d31) at 5 Vp into 470 Ω c26–c30
+//    and a red LED b26 (anode) / b24 → COM: (5 − 2.0)/470.1 = 6.38 mA lit
 //    at the peak; −5 V at the trough, dark. `backwards` never lights.
 const buffer = ({ backwards = false } = {}) => build(
-  [PS1(12), FG1(5), U1, R('R1', ['h26', 'h30'], 470), LED('LED1', backwards ? ['i26', 'i24'] : ['i24', 'i26'])],
-  [...DUAL, FG_COM, ['FG1.0', 'j32'], ['g30', 'g31'], ['j24', 'tn_24']]);
+  [PS1(12), FG1(5), U1, R('R1', ['c26', 'c30'], 470), LED('LED1', backwards ? ['b26', 'b24'] : ['b24', 'b26'])],
+  [...DUAL, FG_COM, ['FG1.0', 'a32'], ['d30', 'd31'], ['a24', 'bn_24']]);
 
 // 9. Both halves on ±12 V: op-amp 1 the inverting −2 of build 1 (vout1
-//    −1.990 V at the peak); OUT1 (j30) → b36, R3 10 kΩ c32–c36 into IN2−
-//    (top 32), R4 b28–b32 back to OUT2 (a28 → a31), IN2+ a33 → COM:
+//    −1.990 V at the peak); OUT1 (a30) → i36, R3 10 kΩ h32–h36 into IN2−
+//    (top 32), R4 i28–i32 back to OUT2 (j28 → j31), IN2+ j33 → COM:
 //    vout2 = −(R4/R3)·vout1 = +1.990 V at the peak, −1.990 V at the trough.
 //    `r4` 20 kΩ makes the second gain −2: +3.98 V.
 const twoHalves = ({ r4 = 10000 } = {}) => build(
-  [PS1(12), FG1(1), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], 20000),
-   R('R3', ['c32', 'c36'], 10000), R('R4', ['b28', 'b32'], r4)],
-  [...DUAL, FG_COM, ['FG1.0', 'h27'], ['i35', 'i30'], ['j32', 'tn_32'], ['j30', 'b36'], ['a28', 'a31'], ['a33', 'tn_33']]);
+  [PS1(12), FG1(1), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], 20000),
+   R('R3', ['h32', 'h36'], 10000), R('R4', ['i28', 'i32'], r4)],
+  [...DUAL, FG_COM, ['FG1.0', 'c27'], ['b35', 'b30'], ['a32', 'bn_32'], ['a30', 'i36'], ['j28', 'j31'], ['j33', 'bn_33']]);
 
 // 10. Inverting −5 on ±12 V, no generator: the 11k/1k divider (1.000 V, 917 Ω
-//     behind it) d44 → h27, Rin 100 kΩ g27–g31, Rf 500 kΩ h31–h35, i35 → i30,
-//     IN1+ j32 → COM; the meter red g30 (OUT1), black COM. Vin at Rin =
+//     behind it) g44 → c27, Rin 100 kΩ d27–d31, Rf 500 kΩ c31–c35, b35 → b30,
+//     IN1+ a32 → COM; the meter red d30 (OUT1), black COM. Vin at Rin =
 //     100k/100.917k = 0.9909 V: −4.955 V. Rin 10 kΩ / Rf 50 kΩ loads the
 //     divider to 1k‖10k = 909 Ω: 12 × 909/11909 = 0.916 V, −4.58 V.
 const gainFive = ({ rin = 100000, rf = 500000 } = {}) => build(
-  [PS1(12), U1, R('R1', ['g27', 'g31'], rin), R('R2', ['h31', 'h35'], rf),
-   R('R3', ['b40', 'b44'], 11000), R('R4', ['c44', 'c48'], 1000), MM1()],
-  [...DUAL, ['i35', 'i30'], ['j32', 'tn_32'], ['tp_40', 'a40'], ['a48', 'tn_48'], ['d44', 'h27'], ['MM1.0', 'g30'], ['MM1.1', 'tn_50']]);
+  [PS1(12), U1, R('R1', ['d27', 'd31'], rin), R('R2', ['c31', 'c35'], rf),
+   R('R3', ['i40', 'i44'], 11000), R('R4', ['h44', 'h48'], 1000), MM1()],
+  [...DUAL, ['b35', 'b30'], ['a32', 'bn_32'], ['bp_40', 'j40'], ['j48', 'bn_48'], ['g44', 'c27'], ['MM1.0', 'd30'], ['MM1.1', 'bn_50']]);
 
-// 11. Lab 2: the TL072 recipe (−10) at 0.5 Vp, the meter red g30 (OUT1):
+// 11. Lab 2: the TL072 recipe (−10) at 0.5 Vp, the meter red d30 (OUT1):
 //     −100k/10.05k × 0.5 = −4.975 V at the peak (meter too), +4.975 V at the
-//     trough. `meterOnInput`: red on i27, the generator's side of Rin:
+//     trough. `meterOnInput`: red on b27, the generator's side of Rin:
 //     0.5 × 10k/10.05k = 0.498 V.
 const lab2 = ({ meterOnInput = false } = {}) => build(
-  [PS1(12), FG1(0.5), U1, R('R1', ['g27', 'g31'], 10000), R('R2', ['h31', 'h35'], 100000), MM1()],
-  [...DUAL, FG_COM, ['FG1.0', 'h27'], ['i35', 'i30'], ['j32', 'tn_32'], ['MM1.0', meterOnInput ? 'i27' : 'g30'], ['MM1.1', 'tn_50']]);
+  [PS1(12), FG1(0.5), U1, R('R1', ['d27', 'd31'], 10000), R('R2', ['c31', 'c35'], 100000), MM1()],
+  [...DUAL, FG_COM, ['FG1.0', 'c27'], ['b35', 'b30'], ['a32', 'bn_32'], ['MM1.0', meterOnInput ? 'b27' : 'd30'], ['MM1.1', 'bn_50']]);
 
-// 12. 5 V, one rail: tp_2 → a2, 1N4001 anode b2 / cathode b6, the button
-//     c6–c9, 150 Ω b9–b13, red LED c13 (anode) / c15, a15 → COM. Pressed:
+// 12. 5 V, one rail: bp_2 → j2, 1N4001 anode i2 / cathode i6, the button
+//     h6–h9, 150 Ω i9–i13, red LED h13 (anode) / h15, j15 → COM. Pressed:
 //     (5 − 0.7 − 2.0)/(150 + 0.2) = 15.3 mA through both; released: dark.
 //     `diodeBackwards` blocks it: never lit.
 const buttonLed = ({ diodeBackwards = false } = {}) => build(
-  [PS1(5), D('D1', diodeBackwards ? ['b2', 'b6'] : ['b6', 'b2'], '1N4001'), SW('SW1', ['c6', 'c9']),
-   R('R1', ['b9', 'b13'], 150), LED('LED1', ['c15', 'c13'])],
-  [...ONE_RAIL, ['tp_2', 'a2'], ['a15', 'tn_15']]);
+  [PS1(5), D('D1', diodeBackwards ? ['i2', 'i6'] : ['i6', 'i2'], '1N4001'), SW('SW1', ['h6', 'h9']),
+   R('R1', ['i9', 'i13'], 150), LED('LED1', ['h15', 'h13'])],
+  [...ONE_RAIL, ['bp_2', 'j2'], ['j15', 'bn_15']]);
 
-// 13. 9 V: tp_2 → a2, the button b2–b5, 10 kΩ c5–c9, 100 µF + d9 / − d12
-//     (a12 → COM), the meter across it (e9, e12). Pressed, a plain solve
+// 13. 9 V: bp_2 → j2, the button i2–i5, 10 kΩ h5–h9, 100 µF + g9 / − g12
+//     (j12 → COM), the meter across it (f9, f12). Pressed, a plain solve
 //     (the capacitor open: charged): 9 × 10M/(10M + 10k) = 8.991 V.
 //     `battery` swaps the bench supply for a 9 V battery; `mode` 'A' puts
 //     the meter on its current range.
 const charge = ({ battery = false, mode = 'V' } = {}) => build(
-  [battery ? { type: 'battery', label: 'BAT1' } : PS1(9), SW('SW1', ['b2', 'b5']), R('R1', ['c5', 'c9'], 10000),
-   { type: 'capacitor', label: 'C1', holes: ['d9', 'd12'], values: { capacitance: '100µF' } }, MM1(mode)],
-  [...(battery ? [['BAT1.0', `tp_${N}`], ['BAT1.1', `tn_${N}`]] : ONE_RAIL),
-   ['tp_2', 'a2'], ['a12', 'tn_12'], ['MM1.0', 'e9'], ['MM1.1', 'e12']]);
+  [battery ? { type: 'battery', label: 'BAT1' } : PS1(9), SW('SW1', ['i2', 'i5']), R('R1', ['h5', 'h9'], 10000),
+   { type: 'capacitor', label: 'C1', holes: ['g9', 'g12'], values: { capacitance: '100µF' } }, MM1(mode)],
+  [...(battery ? [['BAT1.0', `bp_${N}`], ['BAT1.1', `bn_${N}`]] : ONE_RAIL),
+   ['bp_2', 'j2'], ['j12', 'bn_12'], ['MM1.0', 'f9'], ['MM1.1', 'f12']]);
 
-// 14. 5 Vp on the rails (FG1.0 → tp, COM → tn): tp_2 → a2, 1N4148 anode b2 /
-//     cathode b6, 1 kΩ c6–c10, red LED d10 (anode) / d12, a12 → COM. Peak:
+// 14. 5 Vp on the rails (FG1.0 → tp, COM → tn): bp_2 → j2, 1N4148 anode i2 /
+//     cathode i6, 1 kΩ h6–h10, red LED g10 (anode) / g12, j12 → COM. Peak:
 //     (5 − 0.65 − 2.0)/(1000 + 50 + 0.2) = 2.24 mA, lit; trough: blocked.
 //     `diodeBackwards` passes only the trough, where the LED is reversed: dark.
 const halfWave = ({ diodeBackwards = false } = {}) => build(
-  [FG1(5), D('D1', diodeBackwards ? ['b2', 'b6'] : ['b6', 'b2']), R('R1', ['c6', 'c10'], 1000), LED('LED1', ['d12', 'd10'])],
-  [...FG_RAILS, ['tp_2', 'a2'], ['a12', 'tn_12']]);
+  [FG1(5), D('D1', diodeBackwards ? ['i2', 'i6'] : ['i6', 'i2']), R('R1', ['h6', 'h10'], 1000), LED('LED1', ['g12', 'g10'])],
+  [...FG_RAILS, ['bp_2', 'j2'], ['j12', 'bn_12']]);
 
-// 15. 5 Vp on the rails: tp_2 → a2, 220 Ω b2–b6, LED1 anode c6 / c8, LED2
-//     anode d8 / d6 (the other way), a8 → COM. (5 − 2.0)/(220 + 50 + 0.1) =
+// 15. 5 Vp on the rails: bp_2 → j2, 220 Ω i2–i6, LED1 anode h6 / h8, LED2
+//     anode g8 / g6 (the other way), j8 → COM. (5 − 2.0)/(220 + 50 + 0.1) =
 //     11.1 mA: LED1 at the peak, LED2 at the trough. `sameWay` turns LED2
 //     round: both at the peak, neither at the trough.
 const backToBack = ({ sameWay = false } = {}) => build(
-  [FG1(5), R('R1', ['b2', 'b6'], 220), LED('LED1', ['c8', 'c6']), LED('LED2', sameWay ? ['d8', 'd6'] : ['d6', 'd8'])],
-  [...FG_RAILS, ['tp_2', 'a2'], ['a8', 'tn_8']]);
+  [FG1(5), R('R1', ['i2', 'i6'], 220), LED('LED1', ['h8', 'h6']), LED('LED2', sameWay ? ['g8', 'g6'] : ['g6', 'g8'])],
+  [...FG_RAILS, ['bp_2', 'j2'], ['j8', 'bn_8']]);
 
 // 16. Diode AND gates on 5 V, all in the top strips: lines L1 (col 10, and
-//     col 34 by d10 → c34), L2 (18), L3 (26), each pulled up by its button
-//     from tp (SW1 b7–b10, SW2 c18–c21, SW3 c26–c29) and down by 150 Ω to
+//     col 34 by g10 → h34), L2 (18), L3 (26), each pulled up by its button
+//     from tp (SW1 i7–i10, SW2 h18–h21, SW3 h26–h29) and down by 150 Ω to
 //     COM; AND nodes N12 (14), N23 (22), N13 (30), each 1 kΩ up from tp, a
 //     red LED to COM and a 1N4148 (anode on the node) to each of its lines.
 //     Both lines up: (5 − 2.0)/1000.1 = 3.0 mA. A line down sinks two nodes'
 //     current through 150 Ω: at most 1.0 V, so a node sits at most 1.65 V,
 //     under the LED's 2.0 V. Pressed, a line's 150 Ω takes 33 mA (0.17 W).
 const AND_GATES = [
-  D('D1', ['a10', 'a14']), D('D2', ['b18', 'b14']), D('D3', ['a18', 'a22']),
-  D('D4', ['b26', 'b22']), D('D5', ['a26', 'a30']), D('D6', ['b34', 'b30']),
-  SW('SW1', ['b7', 'b10']), SW('SW2', ['c18', 'c21']), SW('SW3', ['c26', 'c29']),
-  R('R1', ['c6', 'c10'], 150), R('R2', ['d15', 'd18'], 150), R('R3', ['d23', 'd26'], 150),
-  R('R4', ['c11', 'c14'], 1000), R('R5', ['c22', 'c25'], 1000), R('R6', ['c30', 'c33'], 1000)];
-const AND_WIRES = [...ONE_RAIL, ['a7', 'tp_7'], ['a21', 'tp_21'], ['a29', 'tp_29'],   // buttons up
-  ['a11', 'tp_11'], ['a25', 'tp_25'], ['a33', 'tp_33'],                                   // 1 kΩ up
-  ['a6', 'tn_6'], ['a15', 'tn_15'], ['a23', 'tn_23'],                                     // 150 Ω down
-  ['d10', 'c34']];                                                                        // L1 to col 34
+  D('D1', ['j10', 'j14']), D('D2', ['i18', 'i14']), D('D3', ['j18', 'j22']),
+  D('D4', ['i26', 'i22']), D('D5', ['j26', 'j30']), D('D6', ['i34', 'i30']),
+  SW('SW1', ['i7', 'i10']), SW('SW2', ['h18', 'h21']), SW('SW3', ['h26', 'h29']),
+  R('R1', ['h6', 'h10'], 150), R('R2', ['g15', 'g18'], 150), R('R3', ['g23', 'g26'], 150),
+  R('R4', ['h11', 'h14'], 1000), R('R5', ['h22', 'h25'], 1000), R('R6', ['h30', 'h33'], 1000)];
+const AND_WIRES = [...ONE_RAIL, ['j7', 'bp_7'], ['j21', 'bp_21'], ['j29', 'bp_29'],   // buttons up
+  ['j11', 'bp_11'], ['j25', 'bp_25'], ['j33', 'bp_33'],                                   // 1 kΩ up
+  ['j6', 'bn_6'], ['j15', 'bn_15'], ['j23', 'bn_23'],                                     // 150 Ω down
+  ['g10', 'h34']];                                                                        // L1 to col 34
 const andGates = () => build(
-  [PS1(5), ...AND_GATES, LED('LED1', ['d12', 'd14']), LED('LED2', ['d24', 'd22']), LED('LED3', ['d32', 'd30'])],
-  [...AND_WIRES, ['e12', 'tn_12'], ['a24', 'tn_24'], ['a32', 'tn_32']]);
+  [PS1(5), ...AND_GATES, LED('LED1', ['g12', 'g14']), LED('LED2', ['g24', 'g22']), LED('LED3', ['g32', 'g30'])],
+  [...AND_WIRES, ['f12', 'bn_12'], ['j24', 'bn_24'], ['j32', 'bn_32']]);
 // Wrong: a button per LED (tp → button → 220 Ω → LED → COM, three times):
 // one button lights an LED by itself, and a pair lights two.
 const oneEach = () => build(
-  [PS1(5), SW('SW1', ['b2', 'b5']), R('R1', ['c5', 'c9'], 220), LED('LED1', ['d11', 'd9']),
-   SW('SW2', ['b14', 'b17']), R('R2', ['c17', 'c21'], 220), LED('LED2', ['d23', 'd21']),
-   SW('SW3', ['b26', 'b29']), R('R3', ['c29', 'c33'], 220), LED('LED3', ['d35', 'd33'])],
-  [...ONE_RAIL, ['tp_2', 'a2'], ['a11', 'tn_11'], ['tp_14', 'a14'], ['a23', 'tn_23'], ['tp_26', 'a26'], ['a35', 'tn_35']]);
-// Wrong: the same AND gates OR-ed into one LED (1N4148s e14/e22/e30 down to
-// bot 14/22/30, joined g14 → g22, h22 → h30; LED1 anode i14, cathode i12 →
+  [PS1(5), SW('SW1', ['i2', 'i5']), R('R1', ['h5', 'h9'], 220), LED('LED1', ['g11', 'g9']),
+   SW('SW2', ['i14', 'i17']), R('R2', ['h17', 'h21'], 220), LED('LED2', ['g23', 'g21']),
+   SW('SW3', ['i26', 'i29']), R('R3', ['h29', 'h33'], 220), LED('LED3', ['g35', 'g33'])],
+  [...ONE_RAIL, ['bp_2', 'j2'], ['j11', 'bn_11'], ['bp_14', 'j14'], ['j23', 'bn_23'], ['bp_26', 'j26'], ['j35', 'bn_35']]);
+// Wrong: the same AND gates OR-ed into one LED (1N4148s f14/f22/f30 down to
+// bot 14/22/30, joined d14 → d22, c22 → c30; LED1 anode b14, cathode b12 →
 // COM): any pair lights LED1 at (5 − 0.65 − 2.0)/1000 = 2.35 mA, so every
 // pair lights the same LED. LED2 and LED3 sit reversed from that node to
 // COM, wired but never lit.
 const majority = () => build(
-  [PS1(5), ...AND_GATES, D('D7', ['f14', 'e14']), D('D8', ['f22', 'e22']), D('D9', ['f30', 'e30']),
-   LED('LED1', ['i12', 'i14']), LED('LED2', ['h14', 'h12']), LED('LED3', ['i22', 'i20'])],
-  [...AND_WIRES, ['g14', 'g22'], ['h22', 'h30'], ['j12', 'tn_12'], ['j20', 'tn_20']]);
+  [PS1(5), ...AND_GATES, D('D7', ['e14', 'f14']), D('D8', ['e22', 'f22']), D('D9', ['e30', 'f30']),
+   LED('LED1', ['b12', 'b14']), LED('LED2', ['c14', 'c12']), LED('LED3', ['b22', 'b20'])],
+  [...AND_WIRES, ['d14', 'd22'], ['c22', 'c30'], ['a12', 'bn_12'], ['a20', 'bn_20']]);
 
 const CLEAN = {
   'BANK-01': inverting, 'BANK-02': nonInverting, 'BANK-03': follower, 'BANK-04': comparator,
@@ -246,13 +246,13 @@ const CLEAN = {
 };
 const wiresIn = actions => actions.filter(a => a.tool === 'add_wire').length;
 
-// An op-amp build with V+ (pin 8, e30) fed through 100 Ω b26–b30 from tp_26
-// instead of the tp_30 → a30 wire. V+ still reads 12 V (the model's rails
+// An op-amp build with V+ (pin 8, f30) fed through 100 Ω i26–i30 from bp_26
+// instead of the bp_30 → j30 wire. V+ still reads 12 V (the model's rails
 // draw no current), so the readings pass and only the op-amp-powered check
 // sees it.
 const vplusThroughResistor = actions => [
-  ...actions.filter(a => !(a.tool === 'add_wire' && a.from === 'tp_30' && a.to === 'a30')),
-  { tool: 'place_resistor', holeA: 'b26', holeB: 'b30', resistance: 100 }, wire('tp_26', 'a26')];
+  ...actions.filter(a => !(a.tool === 'add_wire' && a.from === 'bp_30' && a.to === 'j30')),
+  { tool: 'place_resistor', holeA: 'i26', holeB: 'i30', resistance: 100 }, wire('bp_26', 'j26')];
 
 // ── The cases ─────────────────────────────────────────────────────────────
 
@@ -415,18 +415,18 @@ test('each bank case fails a plausible wrong build, naming the right check', () 
 // check and nothing else.
 const WIRING = [
   // [case, what's wrong, build, exactly these failures]
-  ['BANK-01', 'a wire from tp to an empty strip (a10)',
-   () => [...inverting(), wire('tp_10', 'a10')], ['wiring.dangling']],
-  ['BANK-01', 'a second wire from tp to V+ (tp_29 → b30)',
-   () => [...inverting(), wire('tp_29', 'b30')], ['wiring.duplicate']],
-  ['BANK-12', '3 wires past the clean build\'s 4 (+2 allowed): a loop tp → a20, b20 → g20, h20 → tp',
-   () => [...buttonLed(), wire('tp_20', 'a20'), wire('b20', 'g20'), wire('h20', 'tp_25')], ['wiring.budget']],
-  ['BANK-12', 'a resistor with one leg in an empty strip (d15–d19)',
-   () => [...buttonLed(), { tool: 'place_resistor', holeA: 'd15', holeB: 'd19' }], ['wiring.idle']],
-  ['BANK-01', 'a multimeter with one probe wired (MM1.0 → j30)',
-   () => [...inverting(), { tool: 'place_multimeter' }, wire('MM1.0', 'j30')], ['wiring.idle']],
+  ['BANK-01', 'a wire from tp to an empty strip (j10)',
+   () => [...inverting(), wire('bp_10', 'j10')], ['wiring.dangling']],
+  ['BANK-01', 'a second wire from tp to V+ (bp_29 → i30)',
+   () => [...inverting(), wire('bp_29', 'i30')], ['wiring.duplicate']],
+  ['BANK-12', '3 wires past the clean build\'s 4 (+2 allowed): a loop tp → j20, i20 → d20, c20 → tp',
+   () => [...buttonLed(), wire('bp_20', 'j20'), wire('i20', 'd20'), wire('c20', 'bp_25')], ['wiring.budget']],
+  ['BANK-12', 'a resistor with one leg in an empty strip (g15–g19)',
+   () => [...buttonLed(), { tool: 'place_resistor', holeA: 'g15', holeB: 'g19' }], ['wiring.idle']],
+  ['BANK-01', 'a multimeter with one probe wired (MM1.0 → a30)',
+   () => [...inverting(), { tool: 'place_multimeter' }, wire('MM1.0', 'a30')], ['wiring.idle']],
   ['BANK-01', 'op-amp 2 half-wired: IN2− to COM, IN2+ and OUT2 touching nothing',
-   () => [...inverting(), wire('a32', 'tn_31')], ['wiring.idle']],
+   () => [...inverting(), wire('j32', 'bn_31')], ['wiring.idle']],
   ['BANK-01', 'V+ fed through 100 Ω, not from the + rail',
    () => vplusThroughResistor(inverting()), ['wiring.opamp']],
 ];
@@ -447,7 +447,7 @@ test('the TL072\'s unused second half is allowed: the clean op-amp builds leave 
 });
 
 test('no short and no warning: a + to COM wire fails "shorted", a Heads up in the reply fails noHeadsUp', () => {
-  const shorted = grade('BANK-12', [...buttonLed(), wire('tp_30', 'tn_30')]);
+  const shorted = grade('BANK-12', [...buttonLed(), wire('bp_30', 'bn_30')]);
   assert.ok(shorted.failed.includes('shorted'), JSON.stringify(shorted.failed));
   const warned = grade('BANK-01', inverting(), 'Built it.\n\nHeads up, this build has a problem:\n- something');
   assert.deepStrictEqual(warned.failed, ['noHeadsUp']);

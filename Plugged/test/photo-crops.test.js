@@ -68,7 +68,7 @@
 //       { id, error }, found true with fewer or more than 2 leads, or an id
 //       the Reading lacks → nothing changes for it ('leads' stays in unsure).
 //
-//   render(source, H, grid, win, rails) is browser-only: e2e/photo-crops.spec.js.
+//   render(source, H, grid, win, rails, box) is browser-only: e2e/photo-crops.spec.js.
 //
 // Expected numbers are worked out by hand from the rules above on a
 // 63-column grid (2040 × 710, pitch 30) unless a test says otherwise.

@@ -255,15 +255,16 @@ const byStrip = (a, b) => a.half.localeCompare(b.half) || a.col - b.col;
 const byRail  = (a, b) => a.row.localeCompare(b.row) || a.from - b.from;
 const sortedStrips = u => ({ strips: (u && u.strips || []).slice().sort(byStrip), rails: (u && u.rails || []).slice().sort(byRail) });
 
-// led.sparky, by hand: R1 b27–b31 and LED1 c33–c31 put legs in strips 27,
-// 31 and 33 (top); W3 joins tp27 to a27 and W4 a33 to tn33; W1 and W2 run
-// from BAT1's pins (off the board) to tp26 and tn35. So the + rail is used
-// from 26 to 27, the − rail from 33 to 35.
-test('usedStrips(led.sparky): strips 27, 31 and 33 (top), the + rail tp 26–27 and the − rail tn 33–35', () => {
+// led.sparky, by hand (Ruling 25: the hero's board is the T_A of the file it
+// was drawn from, rows a<->j ... tp<->bp, tn<->bn, columns kept): R1 i27–i31
+// and LED1 h33–h31 put legs in strips 27, 31 and 33 (bottom); W3 joins bp27 to
+// j27 and W4 j33 to bn33; W1 and W2 run from BAT1's pins (off the board) to
+// bp26 and bn35. So the + rail is used from 26 to 27, the − rail from 33 to 35.
+test('usedStrips(led.sparky): strips 27, 31 and 33 (bottom), the + rail bp 26–27 and the − rail bn 33–35', () => {
   assert.equal(typeof Hero.usedStrips, 'function', 'HeroModel.usedStrips(circuit)');
   assert.deepStrictEqual(sortedStrips(Hero.usedStrips(readDemo())), {
-    strips: [{ col: 27, half: 'top' }, { col: 31, half: 'top' }, { col: 33, half: 'top' }],
-    rails:  [{ row: 'tn', from: 33, to: 35 }, { row: 'tp', from: 26, to: 27 }],
+    strips: [{ col: 27, half: 'bottom' }, { col: 31, half: 'bottom' }, { col: 33, half: 'bottom' }],
+    rails:  [{ row: 'bn', from: 33, to: 35 }, { row: 'bp', from: 26, to: 27 }],
   });
 });
 

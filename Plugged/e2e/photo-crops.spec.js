@@ -14,7 +14,7 @@
 // The page the builder matches:
 //   - window.PhotoCrops       circuit3d/js/photo-crops.js (API in the header
 //                             of test/photo-crops.test.js), plus the
-//                             browser-only render(source, H, grid, win, rails)
+//                             browser-only render(source, H, grid, win, rails, box)
 //                             → a JPEG data URL of win.width × win.height: the
 //                             inner area warped with matrix(H, win) from the
 //                             downsized ORIGINAL photo and drawn at (padLeft,
@@ -296,7 +296,7 @@ const imageSize = (page, src) => page.evaluate(src => new Promise((resolve, reje
 //            flattened pixel are the same point by the contract's window mapping
 //   shifted  the same, with the flattened point half a pitch (15 px) to the
 //            right: what a crop drawn half a pitch off would score
-const cropCheck = (page, crop, flat, win) => page.evaluate(async ({ crop, flat, win }) => {
+const cropCheck = (page, crop, flat, win, fwin) => page.evaluate(async ({ crop, flat, win, fwin }) => {
   const load = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('no decode')); im.src = src; });
   const pixels = im => {
     const c = document.createElement('canvas');
@@ -307,6 +307,8 @@ const cropCheck = (page, crop, flat, win) => page.evaluate(async ({ crop, flat, 
   };
   const C = pixels(await load(crop)), F = pixels(await load(flat));
   const px = (img, x, y) => { const i = 4 * (y * img.width + x); return [img.data[i], img.data[i + 1], img.data[i + 2]]; };
+  // A4: the box round's image is the margin-labelled render; fwin maps flattened px to it.
+  const flatAt = (fx, fy) => px(F, Math.round(fwin.padLeft + (fx - fwin.x) * fwin.scale), Math.round(fwin.padTop + (fy - fwin.y) * fwin.scale));
   const ink = p => Math.min(...p) < 175;
   const count = (x0, y0, x1, y1) => {
     let n = 0;
@@ -321,13 +323,13 @@ const cropCheck = (page, crop, flat, win) => page.evaluate(async ({ crop, flat, 
   for (let fy = Math.ceil(win.y) + 2; fy < win.y + (H - 2 * pt) / s - 2; fy += 2) {
     for (let fx = Math.ceil(win.x) + 2; fx < win.x + (W - 2 * pl) / s - 2; fx += 2) {
       const at = px(C, Math.round(pl + (fx - win.x) * s), Math.round(pt + (fy - win.y) * s));
-      same += diff(at, px(F, fx, fy));
-      shifted += diff(at, px(F, fx + 15, fy));
+      same += diff(at, flatAt(fx, fy));
+      shifted += diff(at, flatAt(fx + 15, fy));
       n++;
     }
   }
   return { margins, corner: px(C, 3, 3), same: same / n, shifted: shifted / n, n };
-}, { crop, flat, win });
+}, { crop, flat, win, fwin });
 
 // ── The crop round ─────────────────────────────────────────────────────────
 
@@ -379,7 +381,8 @@ test('a box-round Reading → one /api/photo/leads request with a labelled JPEG 
   // R1's crop: labels in all four margins, white where there are none, and
   // its photo area is the flattened image's, point for point, by the window.
   const r1 = body.items[0];
-  const check = await cropCheck(page, r1.image, photoBody.image, r1.window);
+  expect(photoBody.window, '/api/photo carries the window of its margin-labelled image').toBeTruthy();
+  const check = await cropCheck(page, r1.image, photoBody.image, r1.window, photoBody.window);
   for (const side of ['top', 'bottom', 'left', 'right']) {
     expect(check.margins[side], `R1's crop has labels in its ${side} margin (${JSON.stringify(check.margins)})`).toBeGreaterThan(20);
   }
@@ -1018,4 +1021,89 @@ test('#177 bug: with the crops still out, an open colour dropdown (W1) and an op
     expect(await page.evaluate(() => window.PhotoConfirm.result), `${what}: the build is redone with her pick`).toEqual(await expectedBuild(page, r));
   }
   expect(errors).toEqual([]);
+});
+
+// ── Task A3: the crop carries a magenta outline of its box ─────────────────
+
+test('A3: each crop sent to /api/photo/leads has a thin magenta outline on its item\'s box (all four sides, thin)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openEditor(page);
+  const c = await sampleCentres(page, HOLES);
+  const reading = boxRound(c), ANSWERS = answers(c);
+  await page.route('**/api/photo', route => route.fulfill({ json: { reading, provider: 'gemini', model: 'gemini-robotics-er-2-preview', ms: 8200, key: KEY } }));
+  const leadsSent = [];
+  await page.route('**/api/photo/leads', async route => {
+    const body = route.request().postDataJSON();
+    leadsSent.push(body);
+    await fulfilLines(route, body.items.map(i => ANSWERS[i.id] || { id: i.id, error: 'AI_FAILED' }));
+  });
+  await openSample(page);
+  await expect.poll(() => leadsSent.length).toBeGreaterThan(0);
+
+  const r1 = leadsSent[0].items[0];
+  const box = reading.parts.find(p => p.id === r1.id).box;
+  const w = r1.window;
+  const got = await page.evaluate(async ({ src, box, w }) => {
+    const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('no decode')); i.src = src; });
+    const cv = document.createElement('canvas');
+    cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    const x = cv.getContext('2d');
+    x.drawImage(im, 0, 0);
+    const d = x.getImageData(0, 0, cv.width, cv.height);
+    const mag = (px, py) => { const i = 4 * (py * d.width + px); return d.data[i] > 170 && d.data[i + 1] < 120 && d.data[i + 2] > 170; };
+    const X0 = Math.round(w.padLeft + (box[0] - w.x) * w.scale), X1 = Math.round(w.padLeft + (box[2] - w.x) * w.scale);
+    const Y0 = Math.round(w.padTop + (box[1] - w.y) * w.scale), Y1 = Math.round(w.padTop + (box[3] - w.y) * w.scale);
+    // magenta pixels within 4 px of a horizontal line (x0..x1 at y) or a vertical one
+    const row = (y, xa, xb) => { let n = 0; for (let py = y - 4; py <= y + 4; py++) for (let px = xa; px <= xb; px++) if (mag(px, py)) n++; return n; };
+    const col = (xx, ya, yb) => { let n = 0; for (let px = xx - 4; px <= xx + 4; px++) for (let py = ya; py <= yb; py++) if (mag(px, py)) n++; return n; };
+    let total = 0;
+    for (let py = 0; py < d.height; py++) for (let px = 0; px < d.width; px++) if (mag(px, py)) total++;
+    return { top: row(Y0, X0, X1), bottom: row(Y1, X0, X1), left: col(X0, Y0, Y1), right: col(X1, Y0, Y1),
+      lenX: X1 - X0, lenY: Y1 - Y0, total };
+  }, { src: r1.image, box, w });
+  for (const side of ['top', 'bottom']) expect(got[side], `magenta along the box's ${side} edge (${JSON.stringify(got)})`).toBeGreaterThan(got.lenX * 0.5);
+  for (const side of ['left', 'right']) expect(got[side], `magenta along the box's ${side} edge (${JSON.stringify(got)})`).toBeGreaterThan(got.lenY * 0.5);
+  expect(got.total, 'thin: the outline is not a fill').toBeLessThan(2 * (got.lenX + got.lenY) * 12);
+});
+
+// A4 (the survey): the image /api/photo gets is the whole flattened board drawn
+// by PhotoCrops.render, so it carries the column-number / row-letter margin: a
+// white band round the board with dark label pixels in it. The render may scale
+// the image (2M px cap), so this checks pixels, not sizes: the outermost rows
+// and columns are white, and the top 12% of the image has dark label pixels.
+// Today's image is the bare warped board, whose edge is not white.
+test('A4: the image sent to /api/photo has the column-number and row-letter margin', async ({ page }) => {
+  test.setTimeout(60_000);
+  await openEditor(page);
+  let body = null;
+  await page.route('**/api/photo', route => {
+    body = route.request().postDataJSON();
+    return route.fulfill({ json: { reading: MOCK_READING, provider: 'fixture', model: 'fixture', ms: 10, key: KEY } });
+  });
+  await openSample(page);
+  await expect.poll(() => body, { message: 'the page posts /api/photo' }).not.toBeNull();
+
+  const m = await page.evaluate(async b => {
+    const im = new Image();
+    await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = b.image; });
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    const lightShare = (x, y, w, h) => {
+      const d = g.getImageData(x, y, w, h).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if ((d[i] + d[i + 1] + d[i + 2]) / 3 > 200) n++;
+      return n / (d.length / 4);
+    };
+    const top = Math.floor(c.height * 0.12), d = g.getImageData(0, 0, c.width, top).data;
+    let dark = 0;
+    for (let i = 0; i < d.length; i += 4) if ((d[i] + d[i + 1] + d[i + 2]) / 3 < 110) dark++;
+    return { w: c.width, h: c.height, topRow: lightShare(0, 0, c.width, 2), bottomRow: lightShare(0, c.height - 2, c.width, 2),
+             leftCol: lightShare(0, 0, 2, c.height), rightCol: lightShare(c.width - 2, 0, 2, c.height), dark };
+  }, body);
+  for (const edge of ['topRow', 'bottomRow', 'leftCol', 'rightCol']) {
+    expect(m[edge], `the ${edge} edge of the ${m.w}x${m.h} image is white margin`).toBeGreaterThan(0.85);
+  }
+  expect(m.dark, 'the top margin area carries dark label pixels (column numbers)').toBeGreaterThan(50);
 });

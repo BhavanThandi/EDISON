@@ -25,8 +25,8 @@
 // - place { kind: 'footprint', straddle: true, rotations [0, 180] }, legs as
 //   a DIP-8: pins 1–4 along one row, pins 5–8 back along the row across the
 //   gap (pin 5 opposite pin 4, pin 8 opposite pin 1), like seven_segment.js.
-//   The tests read every hole from Parts.footprintLegs, anchored at f30 (or
-//   e30 if that is the side the builder anchors on).
+//   The tests read every hole from Parts.footprintLegs, anchored at e30
+//   (pins 1–4 on row e, the row nearest the viewer; pins 5–8 on row f).
 // - elements: two E, one per op-amp: out [OUTn, V−], ctrl [INn+, INn−],
 //   rails [V−, V+], gain 200 000, rout 50 Ω, headroom 1.5 V, ilim 0.02 A.
 // - measure(r) → { vout1, mode1, iout1, vout2, mode2, iout2 } (extra fields
@@ -106,16 +106,14 @@ const MINUS = '[−-]';
 
 const place = (legs, holeMap = new Map()) => Parts.checkPlacement('tl072', legs, holeMap, BOARD);
 
-// The chip's legs at column 30, across the gap: anchored at f30 (as the
-// 7-segment display), or at e30 if the builder's footprint anchors there.
+// The chip's legs at column 30, across the gap: anchored at e30 (pin 1 on
+// row e, pin 8 on row f, as seven_segment.js).
 function chipLegs() {
   tl();
-  for (const anchor of ['f30', 'e30']) {
-    const legs = Parts.footprintLegs('tl072', anchor, 0);
-    if (legs && legs.every(l => l.hole) && place(legs).ok) return legs;
-  }
-  assert.fail(`no legs from Parts.footprintLegs('tl072', 'f30' | 'e30', 0) sit across the gap: ` +
-              JSON.stringify(Parts.footprintLegs('tl072', 'f30', 0)));
+  const legs = Parts.footprintLegs('tl072', 'e30', 0);
+  assert.ok(legs && legs.every(l => l.hole) && place(legs).ok,
+    `Parts.footprintLegs('tl072', 'e30', 0) must sit across the gap: ${JSON.stringify(legs)}`);
+  return legs;
 }
 
 // The i-th hole away from the gap in pin k's column (i = 1 is g or d).
@@ -182,8 +180,8 @@ function problemsOf(readings) {
 const errorsOf = list => list.filter(p => p.info !== true);
 const clippedRow = (list, lab) => list.find(p => p.info === true && p.labels.includes(lab) && /clip/i.test(p.why));
 
-// ── Circuits (with the chip at f30: OUT1 f30, IN1− f31, IN1+ f32, V− f33,
-//    IN2+ e33, IN2− e32, OUT2 e31, V+ e30) ─────────────────────
+// ── Circuits (with the chip at e30: OUT1 e30, IN1− e31, IN1+ e32, V− e33,
+//    IN2+ f33, IN2− f32, OUT2 f31, V+ f30) ─────────────────────
 
 // Inverting −10: PS2 (vin) → Rin 10 kΩ h20–IN1−; Rf 100 kΩ OUT1–IN1−;
 // IN1+ → COM. Half 2 parked unless `floating2`.
@@ -522,14 +520,14 @@ test('hover card over the chip (cardLines of Readings.part): Vout1 signed (−5.
 // ── 4. Positive feedback: the photoexample blinker (#18) ──────────
 //
 // docs/boards/README.md's board list for the op-amp blinker, with R4 moved to
-// i20–i23 and its ground wire j23 → bn_23 (the README's item 2: the sketch's
-// i18–i20 doesn't build), and pin 4 grounded by j17 → bn_17 (item 1).
-// U1 at f14: OUT1 f14, IN1− f15 (C1's + lead), IN1+ f16 (g16 → g20, the
+// b20–b23 and its ground wire a23 → tn_23 (the README's item 2: the sketch's
+// b18–b20 doesn't build), and pin 4 grounded by a17 → tn_17 (item 1).
+// U1 at e14: OUT1 e14, IN1− e15 (C1's + lead), IN1+ e16 (d16 → d20, the
 // thresholds); 9 V battery, so op-amp 1's rails are 7.5 V and 1.5 V.
 //   IN1+ = (9 V + 0 V + Vout1)/3 through R2, R4, R3 (10 kΩ each): 5.39 V with
 //   op1 high (7.17 V, its 50 Ω carrying ~6.5 mA into the LED and C1), 3.5 V low.
 //   C1 (100 µF) charges through RV1 (5 kΩ, half of 10 kΩ; the other half
-//   shorted by g10–g11) and R1 (1 kΩ): τ = 6 kΩ · 100 µF = 0.6 s.
+//   shorted by d10–d11) and R1 (1 kΩ): τ = 6 kΩ · 100 µF = 0.6 s.
 //   First edge (0 → 5.39 V toward 7.17 V): 0.6·ln(7.17/1.78) = 0.84 s.
 //   Up 3.5 → 5.39 V: 0.6·ln(3.67/1.78) = 0.43 s; down 5.39 → 3.5 V toward
 //   1.5 V: 0.6·ln(3.89/2.0) = 0.40 s; a period of ~0.83 s.
@@ -539,31 +537,31 @@ test('hover card over the chip (cardLines of Readings.part): Vout1 signed (−5.
 // round cap), and with no state returned every step after it is the same.
 const BLINKER = [
   { tool: 'place_battery' },
-  { tool: 'place_tl072', hole: 'f14', direction: 'right' },
-  { tool: 'place_potentiometer', hole: 'f9', direction: 'right', resistance: 10000 },
-  { tool: 'place_capacitor', holeA: 'g15', holeB: 'g13', capacitance: '100µF' },
-  { tool: 'place_resistor', holeA: 'i11', holeB: 'i15', resistance: 1000 },
-  { tool: 'place_resistor', holeA: 'e20', holeB: 'f20', resistance: 10000 },
-  { tool: 'place_resistor', holeA: 'h20', holeB: 'h24', resistance: 10000 },
-  { tool: 'place_resistor', holeA: 'i20', holeB: 'i23', resistance: 10000 },      // R4, moved (README item 2)
-  { tool: 'place_resistor', holeA: 'g24', holeB: 'g27', resistance: 1000 },
-  { tool: 'place_led', holeA: 'h28', holeB: 'h27', color: 'red' },
-  { tool: 'add_wire', from: 'BAT1.0', to: 'tp_1', color: 'red' },
-  { tool: 'add_wire', from: 'BAT1.1', to: 'tn_2', color: 'black' },
-  { tool: 'add_wire', from: 'tp_13', to: 'a14', color: 'red' },
-  { tool: 'add_wire', from: 'tn_18', to: 'a17', color: 'black' },
-  { tool: 'add_wire', from: 'tp_21', to: 'a20', color: 'red' },
-  { tool: 'add_wire', from: 'b15', to: 'b16', color: 'green' },
-  { tool: 'add_wire', from: 'tp_30', to: 'bp_30', color: 'red' },
-  { tool: 'add_wire', from: 'tn_29', to: 'bn_29', color: 'black' },
-  { tool: 'add_wire', from: 'g10', to: 'g11', color: 'green' },
-  { tool: 'add_wire', from: 'h9', to: 'h14', color: 'blue' },
-  { tool: 'add_wire', from: 'g16', to: 'g20' },
-  { tool: 'add_wire', from: 'j14', to: 'j24', color: 'blue' },
-  { tool: 'add_wire', from: 'j13', to: 'bn_14', color: 'black' },
-  { tool: 'add_wire', from: 'j23', to: 'bn_23', color: 'black' },                 // R4's ground (README item 2)
-  { tool: 'add_wire', from: 'j28', to: 'bn_27', color: 'black' },
-  { tool: 'add_wire', from: 'j17', to: 'bn_17', color: 'black' },                 // pin 4 to ground (README item 1)
+  { tool: 'place_tl072', hole: 'e14', direction: 'right' },
+  { tool: 'place_potentiometer', hole: 'e9', direction: 'right', resistance: 10000 },
+  { tool: 'place_capacitor', holeA: 'd15', holeB: 'd13', capacitance: '100µF' },
+  { tool: 'place_resistor', holeA: 'b11', holeB: 'b15', resistance: 1000 },
+  { tool: 'place_resistor', holeA: 'f20', holeB: 'e20', resistance: 10000 },
+  { tool: 'place_resistor', holeA: 'c20', holeB: 'c24', resistance: 10000 },
+  { tool: 'place_resistor', holeA: 'b20', holeB: 'b23', resistance: 10000 },      // R4, moved (README item 2)
+  { tool: 'place_resistor', holeA: 'd24', holeB: 'd27', resistance: 1000 },
+  { tool: 'place_led', holeA: 'c28', holeB: 'c27', color: 'red' },
+  { tool: 'add_wire', from: 'BAT1.0', to: 'bp_1', color: 'red' },
+  { tool: 'add_wire', from: 'BAT1.1', to: 'bn_2', color: 'black' },
+  { tool: 'add_wire', from: 'bp_13', to: 'j14', color: 'red' },
+  { tool: 'add_wire', from: 'bn_18', to: 'j17', color: 'black' },
+  { tool: 'add_wire', from: 'bp_21', to: 'j20', color: 'red' },
+  { tool: 'add_wire', from: 'i15', to: 'i16', color: 'green' },
+  { tool: 'add_wire', from: 'bp_30', to: 'tp_30', color: 'red' },
+  { tool: 'add_wire', from: 'bn_29', to: 'tn_29', color: 'black' },
+  { tool: 'add_wire', from: 'd10', to: 'd11', color: 'green' },
+  { tool: 'add_wire', from: 'c9', to: 'c14', color: 'blue' },
+  { tool: 'add_wire', from: 'd16', to: 'd20' },
+  { tool: 'add_wire', from: 'a14', to: 'a24', color: 'blue' },
+  { tool: 'add_wire', from: 'a13', to: 'tn_14', color: 'black' },
+  { tool: 'add_wire', from: 'a23', to: 'tn_23', color: 'black' },                 // R4's ground (README item 2)
+  { tool: 'add_wire', from: 'a28', to: 'tn_27', color: 'black' },
+  { tool: 'add_wire', from: 'a17', to: 'tn_17', color: 'black' },                 // pin 4 to ground (README item 1)
 ];
 const BLINK_DT = 0.002;                                            // 2 ms, the step the reviewer found it freezing at
 const C1_KEY = 'C1.c', OP1_KEY = 'U1.op1', OP2_KEY = 'U1.op2';    // result.state's keys on this board

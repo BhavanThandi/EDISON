@@ -48,15 +48,17 @@
 
   const isCurrent = record => !!record && record.v >= RECORD_VERSION;
 
+  // A null / non-object record is returned as it is (the loader turns it into
+  // a placeholder, as before the mirror).
   function migrateComponent(c) {
-    if (isCurrent(c)) return c;
+    if (!c || typeof c !== 'object' || isCurrent(c)) return c;
     const out = { ...c, v: RECORD_VERSION };
     if (Array.isArray(c.holeRefs)) out.holeRefs = c.holeRefs.map(mirrorRef);
     return out;
   }
 
   function migrateWire(w) {
-    if (isCurrent(w)) return w;
+    if (!w || typeof w !== 'object' || isCurrent(w)) return w;
     const out = { ...w, v: RECORD_VERSION };
     if (has(w, 'startHole')) out.startHole = mirrorRef(w.startHole);
     if (has(w, 'endHole'))   out.endHole   = mirrorRef(w.endHole);

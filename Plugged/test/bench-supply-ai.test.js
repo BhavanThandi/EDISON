@@ -111,7 +111,7 @@ test('guard (passes today): the other battery rules stay word for word', () => {
     '- Without BOTH battery wires the circuit WILL NOT WORK. ALWAYS include them.',
     '- Never wire BAT1.0 straight to BAT1.1, or tp to tn: that is a short circuit.',
     '- Battery wires go to the rails at the highest column, the end nearest the battery, so they drop straight in. In the recipes, N = the highest column in the board description (Columns 1-N).',
-    '- A second battery (two separate circuits) goes on the bottom rails, bp_N (+) and bn_N (−), nearest row j: BAT2.0 -> bp_{N} (red) and BAT2.1 -> bn_{N} (black). Its parts go in rows f–j, with its rail wires in row j. Never wire a second battery to the tp/tn rails.',
+    '- A second battery (two separate circuits) goes on the other rails, bp_N (+) and bn_N (−), beside row j: BAT2.0 -> bp_{N} (red) and BAT2.1 -> bn_{N} (black). Its parts go in rows f–j, with its rail wires in row j. Never wire a second battery to the tp/tn rails.',
   ];
   assert.deepStrictEqual(KEEP.filter(l => !lines.includes(l)), []);
 });
@@ -307,7 +307,7 @@ test('guard: two batteries on the same rails', () => {
     wire('BAT1.0', `tp_${N}`, 'red'), wire('BAT1.1', `tn_${N}`, 'black'),
     wire('BAT2.0', `tp_${N - 1}`, 'red'), wire('BAT2.1', `tn_${N - 1}`, 'black'),
     ...PLUS_LED,
-  ]), ['BAT1 and BAT2 are wired to the same rails (tp and tn), so they fight each other. Give the second battery the bottom rails (bp_N and bn_N), with its circuit in rows f–j.']);
+  ]), ['BAT1 and BAT2 are wired to the same rails (tp and tn), so they fight each other. Give the second battery the other rails (bp_N and bn_N), with its circuit in rows f–j.']);
 });
 
 // ── #77: "backwards" only for a part that really is reverse-biased ────────

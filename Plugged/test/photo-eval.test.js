@@ -22,7 +22,7 @@ const assert = require('node:assert');
 const fs     = require('node:fs');
 const path   = require('node:path');
 
-const { nodeOf, score, webRails, loadSet, parseArgs } = require('../scripts/photo-eval.js');
+const { nodeOf, score, webRails, loadSet, parseArgs, setsFor } = require('../scripts/photo-eval.js');
 const { railsOf, holeOf } = require('./fixtures/photo-web-rails.js');
 
 const EVAL = path.join(__dirname, 'fixtures/photo/eval');
@@ -32,7 +32,7 @@ const EVAL_PHOTOS = json(EVAL, 'photos.json'), EVAL_TRUTH = json(EVAL, 'truth.js
 const WEB_PHOTOS  = json(WEB, 'photos.json'),  WEB_TRUTH  = json(WEB, 'truth.json');
 
 const STRIPS = ['aOuter', 'aInner', 'jInner', 'jOuter'];
-const SCORED = ['resistor', 'led'];
+const SCORED = ['resistor', 'led'];   // the headline: resistor + LED only, so before/after numbers compare (P2)
 
 const EVAL_SET = loadSet('eval');
 const WEB_SET  = loadSet('web');
@@ -160,9 +160,9 @@ const reordered = t => {
 function fullMarks(t) {
   const scored = t.parts.filter(p => SCORED.includes(p.type));
   const located = list => list.filter(x => x.hole != null).length;
-  const legs  = located(scored.flatMap(p => p.leads));
+  const legs  = located(scored.flatMap(p => p.leads || []));
   const ends  = located(t.wires.flatMap(w => w.ends));
-  const anode = scored.filter(p => p.type === 'led' && p.leads.some(l => l.pin === 'anode' && l.hole != null)).length;
+  const anode = scored.filter(p => p.type === 'led' && (p.leads || []).some(l => l.pin === 'anode' && l.hole != null)).length;
   const rails = Object.values(t.rails || {}).filter(v => v === '+' || v === '-').length;
   return {
     parts: { truth: scored.length, found: scored.length, invented: 0 },
@@ -310,6 +310,13 @@ test.each(Object.keys(WEB_PHOTOS))('%s: loadSet(web) puts each spike rail end on
 });
 
 // ── (e) parseArgs ───────────────────────────────────────────────────────
+
+test('parseArgs takes --set online, and --set all runs the eval, web and online sets', () => {
+  assert.strictEqual(parseArgs(['--set', 'online']).set, 'online');
+  assert.deepStrictEqual(setsFor('all'), ['eval', 'web', 'online']);
+  assert.deepStrictEqual(setsFor('online'), ['online']);
+  assert.deepStrictEqual(setsFor('eval'), ['eval']);
+});
 
 test('parseArgs: the eval set once by default; a bad --set or --runs is refused', () => {
   const d = parseArgs([]);

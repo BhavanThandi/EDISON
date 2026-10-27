@@ -303,7 +303,7 @@ function holeRef(s) {
   return m[1] ? { col: Number(m[2]) - 1, row: m[1] } : { col: Number(m[4]) - 1, row: m[3] };
 }
 
-// U1's holes by pin name ({ out1: 'f30', … }), from the loaded starter.
+// U1's holes by pin name ({ out1: 'f33', … }), from the loaded starter.
 function chipHoles(board) {
   const u1 = board.components.find(c => c.label === 'U1');
   assert.ok(u1 && u1.type === 'tl072', `Lab 2's starter has the TL072 as U1: ${JSON.stringify(board.components.map(c => [c.label, c.type]))}`);
@@ -648,7 +648,7 @@ test('giveStep: steps 1–4 given on the Lab 2 starter (U1 seated) build the fix
   for (const g of given.slice(0, 4)) {
     for (const piece of [...g.parts, ...g.wires]) expect(piece.says, 'every piece says where it goes').toMatch(/\S/);
   }
-  expect(given[1].parts[0].says).toContain('i35');
+  expect(given[1].parts[0].says).toContain('i28');
 
   for (const g of given.slice(0, 4)) addGiven(board, g);
   expect(L.evaluate(s.steps[3].check, solve(board), board, {}), 'the meter\'s probes are on').toBe('passed');
@@ -696,17 +696,17 @@ test('answer check: step 6 passes once 6.1 holds a sentence (four words or more)
 });
 
 // Give me needs U1 seated as the lab lays it out (pins 1–4 in row f, pin 8
-// in row e) and every hole on the board: a chip turned round (180° at e33)
-// would put +12 V on OUT1's column, and one at f60 would put R1 at i65, off
-// the 63 columns. Both give nothing.
-test('giveStep gives nothing for a chip turned round (e33, 180°) or seated so a hole falls off the board (f60)', () => {
+// in row e) and every hole on the board: a chip turned round (e30 facing right,
+// pins 1–4 in row e) would put +12 V on OUT1's column, and one at f4 facing left
+// would put R1 at i-1, off the 63 columns. Both give nothing.
+test('giveStep gives nothing for a chip turned round (e30, right) or seated so a hole falls off the board (f4, left)', () => {
   const L = labSheets();
   const s = lab2Sheet(L);
   const legs = (at, rot) => Object.fromEntries(Parts.footprintLegs('tl072', at, rot).map(l => [l.pin, l.hole]));
-  const turned = legs('e33', 180), far = legs('f60', 0);
+  const turned = legs('e30', 0), far = legs('f4', 180);
   for (const n of [1, 2, 3]) expect(L.giveStep(s.steps[n - 1], turned, s.seat), `step ${n}, U1 turned round`).toBeNull();
-  expect(L.giveStep(s.steps[1], far, s.seat), 'step 2 at f60: R1 would reach i65').toBeNull();
-  expect(L.giveStep(s.steps[0], legs('f30', 0), s.seat), 'the starter\'s seat gives').not.toBeNull();
+  expect(L.giveStep(s.steps[1], far, s.seat), 'step 2 at f4 left: R1 would reach i-1').toBeNull();
+  expect(L.giveStep(s.steps[0], legs('f33', 180), s.seat), 'the starter\'s seat gives').not.toBeNull();
 });
 
 // Step 4's probes check, case 11's "the multimeter on the output": red on
@@ -729,6 +729,67 @@ test('probes check: the meter on the output (red on OUT1, black on ground) passe
   };
   const out = `g${chipHoles(lab2Starter()).out1.slice(1)}`;
   expect(dc(meterWith([['MM1.0', 'tn_59'], ['MM1.1', out]])), 'probes swapped').toBe('pending');
-  expect(dc(meterWith([['MM1.0', 'g31'], ['MM1.1', 'tn_59']])), 'red on pin 2, not the output').toBe('pending');
+  expect(dc(meterWith([['MM1.0', 'g32'], ['MM1.1', 'tn_59']])), 'red on pin 2, not the output').toBe('pending');
   expect(dc(meterWith([['MM1.0', out]])), 'black not wired').toBe('pending');
+});
+
+// ── Ruling 26: rails are named by the row they sit beside ─────────────────
+// The board is flipped: the + rail by the viewer is tp (beside row a), the far
+// ones are bp / bn (beside row j), so "top" and "bottom" rail now read
+// backwards. Student-facing text names a rail as in "the + rail beside row a
+// (tp)" and "the − rail beside row j (bn)".
+const RAIL_BESIDE = { tp: ['+', 'a'], tn: ['−', 'a'], bp: ['+', 'j'], bn: ['−', 'j'] };
+const stringsIn = (x, out = []) => {
+  if (typeof x === 'string') out.push(x);
+  else if (Array.isArray(x)) x.forEach(y => stringsIn(y, out));
+  else if (x && typeof x === 'object') Object.values(x).forEach(y => stringsIn(y, out));
+  return out;
+};
+
+test('no lab sheet text calls a rail "top" or "bottom" (steps, hints, Give me lines, the paper)', () => {
+  const L = labSheets();
+  const bad = [];
+  for (const id of L.ids()) {
+    for (const t of stringsIn(L.get(id))) {
+      const m = /\b(top|bottom)\b[^.;:]{0,12}\brails?\b|\brails?\b[^.;:]{0,12}\b(top|bottom)\b/i.exec(t);
+      if (m) bad.push(`${id}: "${t.slice(0, 140)}"`);
+    }
+  }
+  assert.deepStrictEqual(bad, []);
+});
+
+test('every Give me wire that lands on a rail and mentions "rail" names it by its row: "rail beside row a (tp)" / "rail beside row j (bn)"', () => {
+  const L = labSheets();
+  const bad = [];
+  let named = 0;
+  for (const id of L.ids()) {
+    for (const step of L.get(id).steps) {
+      for (const [from, to, says] of (step.give && step.give.wires) || []) {
+        if (!/\brail\b/i.test(says)) continue;
+        for (const end of [from, to]) {
+          const m = /^(tp|tn|bp|bn)_/.exec(end);
+          if (!m) continue;
+          const [sign, side] = RAIL_BESIDE[m[1]];
+          named++;
+          const want = new RegExp(`rail beside row ${side} \\(${m[1]}\\)`);
+          if (!want.test(says)) bad.push(`${id} step ${step.n}: ${from} -> ${to} says "${says}"; want "… rail beside row ${side} (${m[1]})" (${sign})`);
+        }
+      }
+    }
+  }
+  assert.ok(named >= 8, `sanity: ${named} rail ends seen`);
+  assert.deepStrictEqual(bad, []);
+});
+
+test('the wording the rest of the sheet carries: a step text or hint that mentions a rail says "beside row"', () => {
+  const L = labSheets();
+  const bad = [];
+  for (const id of L.ids()) {
+    for (const step of L.get(id).steps) {
+      for (const t of [step.text, step.hint]) {
+        if (/\brail\b/i.test(t || '') && !/beside row [aj]/.test(t)) bad.push(`${id} step ${step.n}: "${t}"`);
+      }
+    }
+  }
+  assert.deepStrictEqual(bad, []);
 });

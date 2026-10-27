@@ -1,0 +1,4110 @@
+{
+ "fl01_ne5532": {
+  "notes": "2-bit noise synth on a plain white full-size board, near top-down, sharp. No printed row letters; faint embossed column numbers at the left end read ...63 62 61... (upside down), so column 1 is the right-hand end and row a is taken as the top (a-e) half. The board has 64 hole columns: the leftmost column is outside the app's 63-column grid (nothing is in it), as in eval/e02. Taps: a1/j1 on the rightmost column, a63/j63 on the second column from the left. The rails are split in the middle (columns 34/31) and bridged by short loops. Rail signs are not printed; the supply leads at the right end suggest a-side outer -, inner +, j-side inner -, outer + (not used: rails left \"?\"). Many wires leave the frame (to the power supply and the controls); those ends are \"off\". LDRs, the jack and the slide switch hide their pins.",
+  "rails": {
+   "aOuter": "?",
+   "aInner": "?",
+   "jInner": "?",
+   "jOuter": "?"
+  },
+  "parts": [
+   {
+    "id": "U1",
+    "type": "ic",
+    "value": "NE5532",
+    "note": "NE5532P (TI), marking readable. Pin 1 = the moulded dimple at the lower left with the marking upright (f39); all 8 pins visible.",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f39",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "f38",
+      "conf": "high"
+     },
+     {
+      "pin": "3",
+      "hole": "f37",
+      "conf": "high"
+     },
+     {
+      "pin": "4",
+      "hole": "f36",
+      "conf": "high"
+     },
+     {
+      "pin": "5",
+      "hole": "e36",
+      "conf": "high"
+     },
+     {
+      "pin": "6",
+      "hole": "e37",
+      "conf": "high"
+     },
+     {
+      "pin": "7",
+      "hole": "e38",
+      "conf": "high"
+     },
+     {
+      "pin": "8",
+      "hole": "e39",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "U2",
+    "type": "ic",
+    "value": null,
+    "note": "ST 16-pin DIP (marking partly legible, \"74HC...\"): not an op-amp. Notch at the column-29 end, so pin 1 = f29.",
+    "expect": "flagged",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f29",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "f28",
+      "conf": "high"
+     },
+     {
+      "pin": "3",
+      "hole": "f27",
+      "conf": "high"
+     },
+     {
+      "pin": "4",
+      "hole": "f26",
+      "conf": "high"
+     },
+     {
+      "pin": "5",
+      "hole": "f25",
+      "conf": "high"
+     },
+     {
+      "pin": "6",
+      "hole": "f24",
+      "conf": "high"
+     },
+     {
+      "pin": "7",
+      "hole": "f23",
+      "conf": "high"
+     },
+     {
+      "pin": "8",
+      "hole": "f22",
+      "conf": "high"
+     },
+     {
+      "pin": "9",
+      "hole": "e22",
+      "conf": "high"
+     },
+     {
+      "pin": "10",
+      "hole": "e23",
+      "conf": "high"
+     },
+     {
+      "pin": "11",
+      "hole": "e24",
+      "conf": "high"
+     },
+     {
+      "pin": "12",
+      "hole": "e25",
+      "conf": "high"
+     },
+     {
+      "pin": "13",
+      "hole": "e26",
+      "conf": "high"
+     },
+     {
+      "pin": "14",
+      "hole": "e27",
+      "conf": "high"
+     },
+     {
+      "pin": "15",
+      "hole": "e28",
+      "conf": "high"
+     },
+     {
+      "pin": "16",
+      "hole": "e29",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "U3",
+    "type": "ic",
+    "value": "CD4093",
+    "note": "TI CD4093BE 14-pin quad NAND (marking faint): not an op-amp. Notch at the column-21 end, so pin 1 = f21.",
+    "expect": "flagged",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f21",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "f20",
+      "conf": "high"
+     },
+     {
+      "pin": "3",
+      "hole": "f19",
+      "conf": "high"
+     },
+     {
+      "pin": "4",
+      "hole": "f18",
+      "conf": "high"
+     },
+     {
+      "pin": "5",
+      "hole": "f17",
+      "conf": "high"
+     },
+     {
+      "pin": "6",
+      "hole": "f16",
+      "conf": "high"
+     },
+     {
+      "pin": "7",
+      "hole": "f15",
+      "conf": "high"
+     },
+     {
+      "pin": "8",
+      "hole": "e15",
+      "conf": "high"
+     },
+     {
+      "pin": "9",
+      "hole": "e16",
+      "conf": "high"
+     },
+     {
+      "pin": "10",
+      "hole": "e17",
+      "conf": "high"
+     },
+     {
+      "pin": "11",
+      "hole": "e18",
+      "conf": "high"
+     },
+     {
+      "pin": "12",
+      "hole": "e19",
+      "conf": "high"
+     },
+     {
+      "pin": "13",
+      "hole": "e20",
+      "conf": "high"
+     },
+     {
+      "pin": "14",
+      "hole": "e21",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "U4",
+    "type": "ic",
+    "value": "MC14093",
+    "note": "ON MC14093BCP 14-pin quad NAND: not an op-amp. Notch/dimple at the column-10 end, so pin 1 = f10.",
+    "expect": "flagged",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f10",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "f9",
+      "conf": "high"
+     },
+     {
+      "pin": "3",
+      "hole": "f8",
+      "conf": "high"
+     },
+     {
+      "pin": "4",
+      "hole": "f7",
+      "conf": "high"
+     },
+     {
+      "pin": "5",
+      "hole": "f6",
+      "conf": "high"
+     },
+     {
+      "pin": "6",
+      "hole": "f5",
+      "conf": "high"
+     },
+     {
+      "pin": "7",
+      "hole": "f4",
+      "conf": "high"
+     },
+     {
+      "pin": "8",
+      "hole": "e4",
+      "conf": "high"
+     },
+     {
+      "pin": "9",
+      "hole": "e5",
+      "conf": "high"
+     },
+     {
+      "pin": "10",
+      "hole": "e6",
+      "conf": "high"
+     },
+     {
+      "pin": "11",
+      "hole": "e7",
+      "conf": "high"
+     },
+     {
+      "pin": "12",
+      "hole": "e8",
+      "conf": "high"
+     },
+     {
+      "pin": "13",
+      "hole": "e9",
+      "conf": "high"
+     },
+     {
+      "pin": "14",
+      "hole": "e10",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R1",
+    "type": "resistor",
+    "value": "270",
+    "note": "upper of the pair over c41-c38; bands red-violet-brown (+ tolerance band)",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "c41",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "c38",
+      "conf": "low",
+      "note": "lead tip hidden under the short yellow wire: c38 (same node as R2's d38) or c37"
+     }
+    ]
+   },
+   {
+    "id": "R2",
+    "type": "resistor",
+    "value": "2.7k",
+    "note": "lower of the pair; bands red-violet-red",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "d42",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "d38",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R3",
+    "type": "resistor",
+    "value": "15k",
+    "note": "bands brown-green-orange",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "g47",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "g43",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R4",
+    "type": "resistor",
+    "value": "270",
+    "note": "diagonal over g41-i40; bands red-violet-brown read from the j39 end",
+    "value_conf": "low",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f42",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "j39",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R5",
+    "type": "resistor",
+    "value": "2.7k",
+    "note": "bands red-violet-red",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "i43",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "i39",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R6",
+    "type": "resistor",
+    "value": null,
+    "note": "lies above the a-side rails; long leads down into a34 and b28. bands red-green-red plus a brown end band; the value is unclear (2.5k or 1.2M depending on which end reads first)",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "a34",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "b28",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R7",
+    "type": "resistor",
+    "value": null,
+    "note": "lies over the a-side rails. bands red-green-red plus a brown end band; the value is unclear (2.5k or 1.2M depending on which end reads first)",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "a32",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "b27",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R8",
+    "type": "resistor",
+    "value": null,
+    "note": "diagonal across the channel over c28-e29. bands red-green-red plus a brown end band; the value is unclear (2.5k or 1.2M depending on which end reads first)",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f32",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "b25",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R9",
+    "type": "resistor",
+    "value": null,
+    "note": "bands brown-red-green-red (same family as R6-R8)",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f34",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "g29",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R10",
+    "type": "resistor",
+    "value": "270",
+    "note": "lies just above row a over columns 17-15; bands red-violet-brown",
+    "value_conf": "low",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "a18",
+      "conf": "low",
+      "note": "left lead disappears under the blue wire near a18/a17"
+     },
+     {
+      "pin": "2",
+      "hole": "a14",
+      "conf": "low",
+      "note": "right lead disappears under the white wire near a14"
+     }
+    ]
+   },
+   {
+    "id": "R11",
+    "type": "resistor",
+    "value": "270",
+    "note": "diagonal over i14-j13; bands red-violet-brown",
+    "value_conf": "low",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "h15",
+      "conf": "low",
+      "note": "lead tip lies over the white wires between h15 and i14"
+     },
+     {
+      "pin": "2",
+      "hole": "j12",
+      "conf": "low",
+      "note": "lead tip points down past j12"
+     }
+    ]
+   },
+   {
+    "id": "R12",
+    "type": "resistor",
+    "value": "27k",
+    "note": "bands red-violet-orange",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "g9",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "j8",
+      "conf": "low",
+      "note": "lower leads of R12 and R13 cross near j8/j7; which goes where is uncertain"
+     }
+    ]
+   },
+   {
+    "id": "R13",
+    "type": "resistor",
+    "value": "4.7k",
+    "note": "bands yellow-violet-red",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "g6",
+      "conf": "med",
+      "note": "top lead arcs right and down into g6"
+     },
+     {
+      "pin": "2",
+      "hole": "j7",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "C1",
+    "type": "capacitor",
+    "value": null,
+    "note": "orange ceramic standing over the a-side rails",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:aOuter:19",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "a19",
+      "conf": "low",
+      "note": "under the blue wire"
+     }
+    ]
+   },
+   {
+    "id": "C2",
+    "type": "capacitor",
+    "value": null,
+    "note": "orange ceramic standing over the a-side rails",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:aOuter:16",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "lower lead hidden under the blue wire W25 and R10 (a16 or a17; W25 also ends there)"
+     }
+    ]
+   },
+   {
+    "id": "C3",
+    "type": "capacitor",
+    "value": null,
+    "note": "small electrolytic; polarity stripe not readable",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "j20",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "rail:jInner:19",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "C4",
+    "type": "capacitor",
+    "value": null,
+    "note": "orange ceramic disc",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "j16",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "rail:jInner:17",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "C5",
+    "type": "capacitor",
+    "value": null,
+    "note": "small green ceramic lying over i5/j5",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "i6",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "i4",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "C6",
+    "type": "capacitor",
+    "value": null,
+    "note": "small orange disc lying flat over h49-h47",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "?",
+      "conf": "low",
+      "note": "legs under the body (probably h49)"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "legs under the body (probably h47)"
+     }
+    ]
+   },
+   {
+    "id": "C7",
+    "type": "capacitor",
+    "value": null,
+    "note": "small yellow ceramic across the j-side rails",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:jInner:49",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "rail:jOuter:49",
+      "conf": "low"
+     }
+    ]
+   },
+   {
+    "id": "C8",
+    "type": "capacitor",
+    "value": null,
+    "note": "large orange disc across the j-side rails near columns 50-52",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "?",
+      "conf": "low",
+      "note": "under the body"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "under the body"
+     }
+    ]
+   },
+   {
+    "id": "C9",
+    "type": "capacitor",
+    "value": null,
+    "note": "electrolytic can lying over the j-side rails near columns 52-55",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "?",
+      "conf": "low",
+      "note": "under the can"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "under the can"
+     }
+    ]
+   },
+   {
+    "id": "LED1",
+    "type": "led",
+    "value": null,
+    "note": "clear 5 mm LED glowing red/pink; polarity not visible",
+    "leads": [
+     {
+      "pin": "?",
+      "hole": "rail:aOuter:41",
+      "conf": "high"
+     },
+     {
+      "pin": "?",
+      "hole": "a41",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "LED2",
+    "type": "led",
+    "value": null,
+    "note": "clear 5 mm LED glowing red/pink; polarity not visible",
+    "leads": [
+     {
+      "pin": "?",
+      "hole": "j42",
+      "conf": "high"
+     },
+     {
+      "pin": "?",
+      "hole": "rail:jInner:42",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "LDR1",
+    "type": "other",
+    "note": "photoresistor",
+    "leads": [
+     {
+      "hole": "j47",
+      "conf": "low",
+      "note": "upper leg under the head"
+     },
+     {
+      "hole": "rail:jInner:47",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "LDR2",
+    "type": "other",
+    "note": "photoresistor over b20-d18",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "legs under the head, around b19-d18"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "second leg also under the head"
+     }
+    ]
+   },
+   {
+    "id": "LDR3",
+    "type": "other",
+    "note": "photoresistor over b17-d15",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "legs under the head, around b16-d15"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "second leg also under the head"
+     }
+    ]
+   },
+   {
+    "id": "LDR4",
+    "type": "other",
+    "note": "photoresistor over g21-i19",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "legs under the head, around g19-i20"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "second leg also under the head"
+     }
+    ]
+   },
+   {
+    "id": "LDR5",
+    "type": "other",
+    "note": "photoresistor over h18-j16",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "legs under the head, around h17-j18"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "second leg also under the head"
+     }
+    ]
+   },
+   {
+    "id": "J1",
+    "type": "other",
+    "note": "3.5 mm audio jack",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the jack body (around a50-c54)"
+     }
+    ]
+   },
+   {
+    "id": "SW1",
+    "type": "other",
+    "note": "slide switch",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the switch body (around h59-i63)"
+     }
+    ]
+   }
+  ],
+  "wires": [
+   {
+    "id": "W1",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:aOuter:52",
+      "conf": "high"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "other end under the jack body (may be soldered to the jack)"
+     }
+    ]
+   },
+   {
+    "id": "W2",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "d49",
+      "conf": "med",
+      "note": "upper end at the jack's corner"
+     },
+     {
+      "hole": "g49",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W3",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:40",
+      "conf": "med"
+     },
+     {
+      "hole": "a39",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W4",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "a36",
+      "conf": "high"
+     },
+     {
+      "hole": "h14",
+      "conf": "med"
+     }
+    ],
+    "note": "long loop above the board; the h14 end is a bare tip beside g15"
+   },
+   {
+    "id": "W5",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "b38",
+      "conf": "high"
+     },
+     {
+      "hole": "d37",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W6",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "e42",
+      "conf": "high"
+     },
+     {
+      "hole": "f43",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W7",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "g39",
+      "conf": "high"
+     },
+     {
+      "hole": "j38",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W8",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "j37",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W9",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "j36",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jInner:36",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W10",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "b32",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W11",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "c34",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W12",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:34",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:aInner:31",
+      "conf": "med"
+     }
+    ],
+    "note": "bridges the split a-side inner rail"
+   },
+   {
+    "id": "W13",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:aOuter:34",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:aOuter:31",
+      "conf": "med"
+     }
+    ],
+    "note": "bridges the split a-side outer rail"
+   },
+   {
+    "id": "W14",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "comes in from the top and disappears behind R6 near columns 31-30; its end is not visible"
+     }
+    ]
+   },
+   {
+    "id": "W15",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:29",
+      "conf": "med"
+     },
+     {
+      "hole": "a29",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W16",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "g34",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W17",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "h32",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W18",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:jInner:34",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jInner:31",
+      "conf": "med"
+     }
+    ],
+    "note": "bridges the split j-side inner rail"
+   },
+   {
+    "id": "W19",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:jOuter:34",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jOuter:31",
+      "conf": "med"
+     }
+    ],
+    "note": "bridges the split j-side outer rail"
+   },
+   {
+    "id": "W20",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:35",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W21",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:29",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W22",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:aOuter:24",
+      "conf": "med"
+     },
+     {
+      "hole": "a24",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W23",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:21",
+      "conf": "med"
+     },
+     {
+      "hole": "a21",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W24",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "a23",
+      "conf": "high"
+     },
+     {
+      "hole": "a7",
+      "conf": "high"
+     }
+    ],
+    "note": "long arc over the a-side rails"
+   },
+   {
+    "id": "W25",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "a20",
+      "conf": "high"
+     },
+     {
+      "hole": "a16",
+      "conf": "low",
+      "note": "right end curls down near a17/a16"
+     }
+    ]
+   },
+   {
+    "id": "W26",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "b18",
+      "conf": "low",
+      "note": "top end tucked behind LDR2 near a18/b18/b19"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W27",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "off",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aOuter:17",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W28",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "j22",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:22",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W29",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "j21",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jOuter:21",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W30",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "g19",
+      "conf": "med"
+     },
+     {
+      "hole": "f12",
+      "conf": "high"
+     }
+    ],
+    "note": "runs along under the chips' f-row pins; its tip shows in f12 past the purple wire"
+   },
+   {
+    "id": "W31",
+    "color": "purple",
+    "ends": [
+     {
+      "hole": "g18",
+      "conf": "med"
+     },
+     {
+      "hole": "g13",
+      "conf": "low"
+     }
+    ]
+   },
+   {
+    "id": "W32",
+    "color": "purple",
+    "ends": [
+     {
+      "hole": "b14",
+      "conf": "low",
+      "note": "upper end mostly hidden behind the white wire"
+     },
+     {
+      "hole": "i12",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W33",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "d15",
+      "conf": "high"
+     },
+     {
+      "hole": "h13",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W34",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "g16",
+      "conf": "med"
+     },
+     {
+      "hole": "j14",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W35",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "a6",
+      "conf": "med"
+     },
+     {
+      "hole": "j9",
+      "conf": "med"
+     }
+    ],
+    "note": "loops below the board edge between its two ends"
+   },
+   {
+    "id": "W36",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:10",
+      "conf": "med"
+     },
+     {
+      "hole": "a10",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W37",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "a5",
+      "conf": "high"
+     },
+     {
+      "hole": "d6",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W38",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "d9",
+      "conf": "high"
+     },
+     {
+      "hole": "g8",
+      "conf": "med",
+      "note": "end just below U4's f8 pin (f8 holds the chip pin), so g8"
+     }
+    ],
+    "note": "arches over U4"
+   },
+   {
+    "id": "W39",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "d8",
+      "conf": "high"
+     },
+     {
+      "hole": "g7",
+      "conf": "med",
+      "note": "end just below U4's f7 pin (f7 holds the chip pin), so g7"
+     }
+    ],
+    "note": "arches over U4"
+   },
+   {
+    "id": "W40",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "j15",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:15",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W41",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "j10",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jOuter:10",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W42",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "j5",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jOuter:5",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W43",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "j4",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:4",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W44",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:aOuter:3",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "supply lead"
+   },
+   {
+    "id": "W45",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:3",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "supply lead"
+   },
+   {
+    "id": "W46",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "a4",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W47",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "d4",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W48",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:jInner:3",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "supply lead"
+   },
+   {
+    "id": "W49",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:jOuter:3",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "supply lead"
+   },
+   {
+    "id": "W50",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "f59",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W51",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "f60",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W52",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "j61",
+      "conf": "med",
+      "note": "upper end under the slide switch"
+     },
+     {
+      "hole": "rail:jOuter:61",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W53",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "j60",
+      "conf": "med",
+      "note": "upper end under the slide switch"
+     },
+     {
+      "hole": "rail:jInner:60",
+      "conf": "high"
+     }
+    ]
+   }
+  ]
+ },
+ "fl02_lm358_top": {
+  "notes": "LM358 on a 30-column half board, near top-down with moderate perspective (camera over the near end). Printed labels: column 1 at the bottom, row a on the right, column 30 at the top. a1 sits just under the out-of-focus clip at the bottom right: that tap is placed from the visible grid (row 1 b-e and column a rows 2-5). Circuit: op-amp B wired as a follower (pins 6-7 bridged, red lead out from pin 7), its + input pulled to the + rail through R1; pin 8 to +, pin 4 to -.",
+  "rails": {
+   "aOuter": "+",
+   "aInner": "-",
+   "jInner": "+",
+   "jOuter": "-"
+  },
+  "parts": [
+   {
+    "id": "U1",
+    "type": "ic",
+    "value": "LM358",
+    "note": "LM358P (marking readable in fl03_lm358_oblique, same board; the uploader tagged it lm358). Pin 1 = the moulded dot at the f-row, column-26 corner; fl03 confirms it (the dot is at the lower left when the marking reads upright).",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f26",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "f25",
+      "conf": "high"
+     },
+     {
+      "pin": "3",
+      "hole": "f24",
+      "conf": "high"
+     },
+     {
+      "pin": "4",
+      "hole": "f23",
+      "conf": "high"
+     },
+     {
+      "pin": "5",
+      "hole": "e23",
+      "conf": "high"
+     },
+     {
+      "pin": "6",
+      "hole": "e24",
+      "conf": "high"
+     },
+     {
+      "pin": "7",
+      "hole": "e25",
+      "conf": "high"
+     },
+     {
+      "pin": "8",
+      "hole": "e26",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "R1",
+    "type": "resistor",
+    "value": null,
+    "note": "bands yellow-violet-black then an unclear 4th band: 47 ohm if it is gold, 4.7k if brown. The rail leg is in the + (outer) strip; its column (22 or 23) is approximate.",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "a23",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "rail:aOuter:22",
+      "conf": "med"
+     }
+    ]
+   }
+  ],
+  "wires": [
+   {
+    "id": "W1",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "h23",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:28",
+      "conf": "high"
+     }
+    ],
+    "note": "long arched jumper (black DuPont sleeves) from the pin-4 column to the a-side - rail"
+   },
+   {
+    "id": "W2",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "a26",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aOuter:26",
+      "conf": "med"
+     }
+    ],
+    "note": "short jumper, + rail to the pin-8 column"
+   },
+   {
+    "id": "W3",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "c25",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "lead from the box above (black sleeve end over c25)"
+   },
+   {
+    "id": "W4",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:aInner:30",
+      "conf": "med",
+      "note": "end hidden behind W1's sleeve in this view; fl03 shows two sleeve ends side by side in the a-side - rail at columns ~28-30"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W5",
+    "color": "bare",
+    "ends": [
+     {
+      "hole": "d25",
+      "conf": "med"
+     },
+     {
+      "hole": "d24",
+      "conf": "med"
+     }
+    ],
+    "note": "short bare-wire U hook bridging columns 25 and 24 (op-amp B output to its - input: a follower)"
+   },
+   {
+    "id": "W6",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "j7",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:7",
+      "conf": "high"
+     }
+    ],
+    "note": "short jumper from the j-side + rail; nothing else in column 7"
+   },
+   {
+    "id": "W7",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "rail:aOuter:6",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "brown lead from the clip/plug at the near end hooks into the a-side + rail near column 5-6; a second brown strand runs alongside and its end is not visible (under the out-of-focus clip)"
+   }
+  ]
+ },
+ "fl03_lm358_oblique": {
+  "notes": "Same board and circuit as fl02_lm358_top, shot at a strong ~45 deg oblique: a perspective stress test. Printed labels: column 1 at the right, row a at the top. The near end (columns 1-10) is out of focus; the far end and the chip are sharp. The LM358P marking is readable here.",
+  "rails": {
+   "aOuter": "+",
+   "aInner": "-",
+   "jInner": "+",
+   "jOuter": "-"
+  },
+  "parts": [
+   {
+    "id": "U1",
+    "type": "ic",
+    "value": "LM358",
+    "note": "LM358P (marking readable in fl03_lm358_oblique, same board; the uploader tagged it lm358). Pin 1 = the moulded dot at the f-row, column-26 corner; fl03 confirms it (the dot is at the lower left when the marking reads upright). The e-row pins are behind the body in this view: set by the DIP footprint.",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f26",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "f25",
+      "conf": "high"
+     },
+     {
+      "pin": "3",
+      "hole": "f24",
+      "conf": "high"
+     },
+     {
+      "pin": "4",
+      "hole": "f23",
+      "conf": "high"
+     },
+     {
+      "pin": "5",
+      "hole": "e23",
+      "conf": "med"
+     },
+     {
+      "pin": "6",
+      "hole": "e24",
+      "conf": "med"
+     },
+     {
+      "pin": "7",
+      "hole": "e25",
+      "conf": "med"
+     },
+     {
+      "pin": "8",
+      "hole": "e26",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R1",
+    "type": "resistor",
+    "value": null,
+    "note": "bands yellow-violet-black then an unclear 4th band: 47 ohm if it is gold, 4.7k if brown. The rail leg is in the + (outer) strip; its column (22 or 23) is approximate.",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "a23",
+      "conf": "high"
+     },
+     {
+      "pin": "2",
+      "hole": "rail:aOuter:22",
+      "conf": "med"
+     }
+    ]
+   }
+  ],
+  "wires": [
+   {
+    "id": "W1",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "h23",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:28",
+      "conf": "med"
+     }
+    ],
+    "note": "long arched jumper (black DuPont sleeves) from the pin-4 column to the a-side - rail"
+   },
+   {
+    "id": "W2",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "a26",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aOuter:26",
+      "conf": "med"
+     }
+    ],
+    "note": "short jumper, + rail to the pin-8 column"
+   },
+   {
+    "id": "W3",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "c25",
+      "conf": "high"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "lead from the box above (black sleeve end over c25)"
+   },
+   {
+    "id": "W4",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "rail:aInner:30",
+      "conf": "med",
+      "note": "one of the two sleeve ends in the a-side - rail at columns ~28-30 (which sleeve is W1 vs W4 is from fl02)"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W5",
+    "color": "bare",
+    "ends": [
+     {
+      "hole": "d25",
+      "conf": "med"
+     },
+     {
+      "hole": "d24",
+      "conf": "med"
+     }
+    ],
+    "note": "short bare-wire U hook bridging columns 25 and 24 (op-amp B output to its - input: a follower)"
+   },
+   {
+    "id": "W6",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "j7",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:7",
+      "conf": "med"
+     }
+    ],
+    "note": "short jumper from the j-side + rail; nothing else in column 7"
+   },
+   {
+    "id": "W7",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "rail:aOuter:6",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "brown lead from the clip/plug at the near end hooks into the a-side + rail near column 5-6; a second brown strand runs alongside and its end is not visible (under the out-of-focus clip)"
+   }
+  ]
+ },
+ "fl06_ne555_neg": {
+  "notes": "\"Traffic Lights\": two NE555 timers on a transparent 30-column half board, near top-down, sharp but very cluttered (about 17 flexible jumpers with black boots). Printed labels: column 1 at the right, row a on top. The taps are on the visible hole slots (a transparent board: the slots read a little inboard of the printed numbers at the ends). a30 is under the red and blue wires: its tap is placed from the visible grid (b30-e30 and row a 27-29). NEGATIVE CASE: both chips are 555 timers and must not be built as a TL072. Most wire ends are boots whose pin is hidden; each boot end is read from where the boot stands (conf low/med). The blue wires cross in a tangle round the red LED (columns 3-12): their far ends could not be paired, so those wires are listed with one end and \"?\".",
+  "rails": {
+   "aOuter": "+",
+   "aInner": "-",
+   "jInner": "+",
+   "jOuter": "-"
+  },
+  "parts": [
+   {
+    "id": "U1",
+    "type": "ic",
+    "value": "NE555",
+    "note": "ST NE555N (\"CHN 555N J928\" readable). Pin 1 = the moulded dot at the lower left with the marking upright (f25). e-row pins are visible; the f-row pins are under wire boots.",
+    "expect": "flagged",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "f25",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "f24",
+      "conf": "med"
+     },
+     {
+      "pin": "3",
+      "hole": "f23",
+      "conf": "med"
+     },
+     {
+      "pin": "4",
+      "hole": "f22",
+      "conf": "med"
+     },
+     {
+      "pin": "5",
+      "hole": "e22",
+      "conf": "high"
+     },
+     {
+      "pin": "6",
+      "hole": "e23",
+      "conf": "high"
+     },
+     {
+      "pin": "7",
+      "hole": "e24",
+      "conf": "high"
+     },
+     {
+      "pin": "8",
+      "hole": "e25",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "U2",
+    "type": "ic",
+    "value": null,
+    "note": "second 8-pin DIP; marking not legible. Taken as the second NE555 of this two-timer traffic-light build (the uploader's title; not a dual op-amp). Pin 1 = the half-moon notch and dot at the left end, lower side (f5). Review: the notch is not legible in the photo, so its orientation is left unknown (it is flagged either way).",
+    "expect": "flagged",
+    "leads": [
+     {
+      "hole": "f5",
+      "conf": "med"
+     },
+     {
+      "hole": "f4",
+      "conf": "med"
+     },
+     {
+      "hole": "f3",
+      "conf": "med"
+     },
+     {
+      "hole": "f2",
+      "conf": "med"
+     },
+     {
+      "hole": "e2",
+      "conf": "high"
+     },
+     {
+      "hole": "e3",
+      "conf": "high"
+     },
+     {
+      "hole": "e4",
+      "conf": "high"
+     },
+     {
+      "hole": "e5",
+      "conf": "high"
+     }
+    ],
+    "orientation": "unknown"
+   },
+   {
+    "id": "LED1",
+    "type": "led",
+    "value": "green",
+    "note": "lit green 5 mm LED over f19-h20; polarity not visible",
+    "leads": [
+     {
+      "pin": "?",
+      "hole": "e18",
+      "conf": "med",
+      "note": "thin lead bent up from the LED across the channel into e18"
+     },
+     {
+      "pin": "?",
+      "hole": "?",
+      "conf": "low",
+      "note": "second leg hidden under the lit LED (around f19-g20)"
+     }
+    ]
+   },
+   {
+    "id": "LED2",
+    "type": "led",
+    "value": "yellow",
+    "note": "yellow LED at the centre channel near column 15, mostly hidden",
+    "leads": [
+     {
+      "pin": "?",
+      "hole": "e15",
+      "conf": "low",
+      "note": "a lead rises from the LED to about e15, behind the red and teal wires"
+     },
+     {
+      "pin": "?",
+      "hole": "?",
+      "conf": "low",
+      "note": "other leg hidden behind the red wire"
+     }
+    ]
+   },
+   {
+    "id": "LED3",
+    "type": "led",
+    "value": "red",
+    "note": "red LED over f10-g11; both legs hidden",
+    "leads": [
+     {
+      "pin": "?",
+      "hole": "?",
+      "conf": "low",
+      "note": "legs hidden under the LED and the blue wires"
+     },
+     {
+      "pin": "?",
+      "hole": "?",
+      "conf": "low",
+      "note": "legs hidden"
+     }
+    ]
+   },
+   {
+    "id": "R1",
+    "type": "resistor",
+    "value": null,
+    "note": "tan body with a red band near e19/a20; lower lead loops left and comes back into d18",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "d18",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "upper lead runs behind the teal wire toward the top rail (column ~18); its hole is hidden"
+     }
+    ]
+   },
+   {
+    "id": "R2",
+    "type": "resistor",
+    "value": "220",
+    "note": "bands red-red-brown",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:aInner:14",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "e15",
+      "conf": "low",
+      "note": "lower lead runs down behind the blue/teal wires; ends at about e15 where the yellow LED lead also arrives"
+     }
+    ]
+   },
+   {
+    "id": "R3",
+    "type": "resistor",
+    "value": "470",
+    "note": "bands yellow-violet-brown; top lead hooks over into the + (outer) rail",
+    "value_conf": "low",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:aOuter:10",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "c10",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R4",
+    "type": "resistor",
+    "value": null,
+    "note": "bottom-left; left lead loops round under the body into i30, right lead runs up into h25",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "i30",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "h25",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R5",
+    "type": "resistor",
+    "value": null,
+    "note": "bottom-right, body standing near h1-i1; both leads run left: the upper one down into j4, the lower one round into j3",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "j4",
+      "conf": "med"
+     },
+     {
+      "pin": "2",
+      "hole": "j3",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "C1",
+    "type": "capacitor",
+    "value": null,
+    "note": "electrolytic lying over the bottom-left rail",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "j24",
+      "conf": "med",
+      "note": "long lead up from the cap into j24"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "other lead under the cap body (bottom rail area)"
+     }
+    ]
+   },
+   {
+    "id": "C2",
+    "type": "capacitor",
+    "value": null,
+    "note": "electrolytic lying over the bottom-right rail",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "i3",
+      "conf": "low",
+      "note": "long lead up from the cap ends near i3/i4"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "other lead under the cap body"
+     }
+    ]
+   }
+  ],
+  "wires": [
+   {
+    "id": "W1",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aOuter:25",
+      "conf": "med"
+     },
+     {
+      "hole": "d25",
+      "conf": "med"
+     }
+    ],
+    "note": "+ rail boot at the top left to a boot leaning into column 25 (555 pin 8 column)"
+   },
+   {
+    "id": "W2",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aOuter:24",
+      "conf": "med"
+     },
+     {
+      "hole": "g22",
+      "conf": "low",
+      "note": "boot at the 555's lower-right corner, g22 or h22"
+     }
+    ],
+    "note": "long loop over the board and under the green LED"
+   },
+   {
+    "id": "W3",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aOuter:6",
+      "conf": "med"
+     },
+     {
+      "hole": "h2",
+      "conf": "low",
+      "note": "lying boot; its pin end is between g2 and h2 (column 2 likely, column 1 possible)"
+     }
+    ]
+   },
+   {
+    "id": "W4",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aOuter:1",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "stripped end of the supply lead from the right"
+   },
+   {
+    "id": "W5",
+    "color": "black",
+    "ends": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "supply lead from the lower right; its end is under the right capacitor (bottom rail)"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W6",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "b3",
+      "conf": "low",
+      "note": "boot over b3/b4"
+     },
+     {
+      "hole": "h15",
+      "conf": "low",
+      "note": "boot over h14/h15/i15"
+     }
+    ]
+   },
+   {
+    "id": "W7",
+    "color": "teal",
+    "ends": [
+     {
+      "hole": "h30",
+      "conf": "med"
+     },
+     {
+      "hole": "a4",
+      "conf": "med"
+     }
+    ],
+    "note": "long wire across the whole board"
+   },
+   {
+    "id": "W8",
+    "color": "teal",
+    "ends": [
+     {
+      "hole": "h24",
+      "conf": "low",
+      "note": "boot seen end-on between h23/h24/i24; its centre is nearer column 24 (23 possible)"
+     },
+     {
+      "hole": "g2",
+      "conf": "low",
+      "note": "wire ends inside a boot over f2/g2 (f2 holds U2 pin 4, so g2); column 3 possible"
+     }
+    ]
+   },
+   {
+    "id": "W9",
+    "color": "teal",
+    "ends": [
+     {
+      "hole": "b17",
+      "conf": "low",
+      "note": "tall leaning boot; pin end near b17"
+     },
+     {
+      "hole": "d5",
+      "conf": "med"
+     }
+    ],
+    "note": "big loop over the top-left; the pairing of these two ends is traced through crossings (uncertain)"
+   },
+   {
+    "id": "W10",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "rail:jOuter:28",
+      "conf": "med"
+     },
+     {
+      "hole": "d23",
+      "conf": "med"
+     }
+    ],
+    "note": "outer left loop; boot lying along the bottom - rail"
+   },
+   {
+    "id": "W11",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "f26",
+      "conf": "low",
+      "note": "boot beside the 555's pin-1 corner: f26 or g25/26"
+     },
+     {
+      "hole": "g25",
+      "conf": "low",
+      "note": "boot at g25/g24"
+     }
+    ]
+   },
+   {
+    "id": "W12",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "boot in the bottom rail near column 16; inner (+) or outer (-) row not clear"
+     },
+     {
+      "hole": "j20",
+      "conf": "low",
+      "note": "end hidden under the green LED, about j20"
+     }
+    ]
+   },
+   {
+    "id": "W13",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "f24",
+      "conf": "med"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "runs right into the blue tangle; far end not traceable"
+     }
+    ]
+   },
+   {
+    "id": "W14",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "g5",
+      "conf": "med"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "from the blue tangle; far end not traceable"
+     }
+    ]
+   },
+   {
+    "id": "W15",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "i10",
+      "conf": "med"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "teardrop loop round the red LED; far end not traceable"
+     }
+    ]
+   },
+   {
+    "id": "W16",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "d3",
+      "conf": "low",
+      "note": "boot over d2/d3"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "from the blue tangle; far end not traceable"
+     }
+    ]
+   },
+   {
+    "id": "W17",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "rail:jOuter:6",
+      "conf": "med"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "from the blue tangle; far end not traceable"
+     }
+    ]
+   }
+  ]
+ },
+ "wm03_oscillator": {
+  "notes": "\"Final product Oscillator\": a 63-column board lying lengthwise in the frame. The file is stored sideways (EXIF orientation 6, raw 2592x1936): labelled in the upright 1936x2592 frame the browser shows (Chrome applies EXIF on decode; the page taps in img.naturalWidth/Height, which are the oriented size). Printed labels: column 1 at the bottom, column 63 at the top, row a on the right, row j on the left. Chips are small in frame and blurred: no pin-1 notch or dot is readable on any of them, and no marking. Two 14-pin DIPs (columns 46-40 and 32-26) and one 8-pin DIP (columns 19-16); the manifest guessed two 8-pin and one 14-pin, but counting the pins gives two 14-pin. Most short jumpers follow the pre-cut kit colour code by length (red 2, orange 3...). Rail columns are approximate (the rail holes sit between body columns and the rails have gaps every 5); only the strip counts for scoring.",
+  "rails": {
+   "aOuter": "+",
+   "aInner": "-",
+   "jInner": "+",
+   "jOuter": "-"
+  },
+  "parts": [
+   {
+    "id": "U1",
+    "type": "ic",
+    "value": null,
+    "note": "14-pin DIP across the channel, columns 46-40; marking and notch not legible. Not a dual op-amp (14 pins), so the app must not build it as a TL072.",
+    "orientation": "unknown",
+    "expect": "flagged",
+    "leads": [
+     {
+      "hole": "f46",
+      "conf": "med"
+     },
+     {
+      "hole": "f45",
+      "conf": "med"
+     },
+     {
+      "hole": "f44",
+      "conf": "med"
+     },
+     {
+      "hole": "f43",
+      "conf": "med"
+     },
+     {
+      "hole": "f42",
+      "conf": "med"
+     },
+     {
+      "hole": "f41",
+      "conf": "med"
+     },
+     {
+      "hole": "f40",
+      "conf": "med"
+     },
+     {
+      "hole": "e40",
+      "conf": "med"
+     },
+     {
+      "hole": "e41",
+      "conf": "med"
+     },
+     {
+      "hole": "e42",
+      "conf": "med"
+     },
+     {
+      "hole": "e43",
+      "conf": "med"
+     },
+     {
+      "hole": "e44",
+      "conf": "med"
+     },
+     {
+      "hole": "e45",
+      "conf": "med"
+     },
+     {
+      "hole": "e46",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "U2",
+    "type": "ic",
+    "value": null,
+    "note": "14-pin DIP across the channel, columns 32-26 (the column-32 pins are under the yellow wire); marking and notch not legible. Not a dual op-amp.",
+    "orientation": "unknown",
+    "expect": "flagged",
+    "leads": [
+     {
+      "hole": "f32",
+      "conf": "med"
+     },
+     {
+      "hole": "f31",
+      "conf": "med"
+     },
+     {
+      "hole": "f30",
+      "conf": "med"
+     },
+     {
+      "hole": "f29",
+      "conf": "med"
+     },
+     {
+      "hole": "f28",
+      "conf": "med"
+     },
+     {
+      "hole": "f27",
+      "conf": "med"
+     },
+     {
+      "hole": "f26",
+      "conf": "med"
+     },
+     {
+      "hole": "e26",
+      "conf": "med"
+     },
+     {
+      "hole": "e27",
+      "conf": "med"
+     },
+     {
+      "hole": "e28",
+      "conf": "med"
+     },
+     {
+      "hole": "e29",
+      "conf": "med"
+     },
+     {
+      "hole": "e30",
+      "conf": "med"
+     },
+     {
+      "hole": "e31",
+      "conf": "med"
+     },
+     {
+      "hole": "e32",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "U3",
+    "type": "ic",
+    "value": null,
+    "note": "8-pin DIP across the channel, columns 19-16; marking and notch not legible (could be a dual op-amp, part number unknown). Pin names left out: pin 1 is not identifiable.",
+    "orientation": "unknown",
+    "leads": [
+     {
+      "hole": "f19",
+      "conf": "med"
+     },
+     {
+      "hole": "f18",
+      "conf": "med"
+     },
+     {
+      "hole": "f17",
+      "conf": "med"
+     },
+     {
+      "hole": "f16",
+      "conf": "med"
+     },
+     {
+      "hole": "e16",
+      "conf": "med"
+     },
+     {
+      "hole": "e17",
+      "conf": "med"
+     },
+     {
+      "hole": "e18",
+      "conf": "med"
+     },
+     {
+      "hole": "e19",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R1",
+    "type": "resistor",
+    "value": null,
+    "note": "dark brown body with red bands lying over the j-side rails at columns ~21-23; bands not readable",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:jInner:16",
+      "conf": "low",
+      "note": "left lead loops down beside the j-side rails and ends near column 16; inner (+) vs outer (-) strip not clear"
+     },
+     {
+      "pin": "2",
+      "hole": "g17",
+      "conf": "med",
+      "note": "right lead loops round past U3 pin f19 and ends in g17"
+     }
+    ]
+   },
+   {
+    "id": "R2",
+    "type": "resistor",
+    "value": "22k",
+    "note": "tan body over the j-side rails at columns ~11-14, bands red-red-orange-gold",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "i17",
+      "conf": "med",
+      "note": "top lead runs right to i17 (h17 possible; same node)"
+     },
+     {
+      "pin": "2",
+      "hole": "g9",
+      "conf": "low",
+      "note": "bottom lead crosses R3's lead; it ends in g9 or j9 (both column 9 f-j)"
+     }
+    ]
+   },
+   {
+    "id": "R3",
+    "type": "resistor",
+    "value": null,
+    "note": "tan body over the j-side rails at columns ~4-7; bands yellow/red/brown order unclear (470 or 120k?)",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "j9",
+      "conf": "low",
+      "note": "top lead crosses R2's lead; j9 or g9 (both column 9 f-j)"
+     },
+     {
+      "pin": "2",
+      "hole": "i2",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "C1",
+    "type": "capacitor",
+    "value": "1nF",
+    "note": "ceramic disc marked \".001\" standing near a23-a25",
+    "value_conf": "med",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "c10",
+      "conf": "med",
+      "note": "long bare leg from the disc at a23-a25 down to c10"
+     },
+     {
+      "pin": "2",
+      "hole": "rail:aInner:10",
+      "conf": "med",
+      "note": "long bare leg down the a-side rails to about column 10"
+     }
+    ]
+   },
+   {
+    "id": "RV1",
+    "type": "potentiometer",
+    "value": null,
+    "note": "blue square trimmer covering about b4-e7; no pin visible",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the blue trimmer body"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the body"
+     },
+     {
+      "pin": "3",
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the body"
+     }
+    ]
+   },
+   {
+    "id": "X1",
+    "type": "other",
+    "note": "black rectangular block over i57-h62 with a copper strip along its g-side edge (a pin header, relay or similar); not identified",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the body"
+     }
+    ]
+   }
+  ],
+  "wires": [
+   {
+    "id": "W1",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "g61",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "from the alligator clip at the top of the frame"
+   },
+   {
+    "id": "W2",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "rail:aInner:61",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "from the other alligator clip at the top; into the a-side - strip"
+   },
+   {
+    "id": "W3",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "a62",
+      "conf": "med"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ],
+    "note": "short stub held by the black alligator clip at the right"
+   },
+   {
+    "id": "W4",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "c62",
+      "conf": "high"
+     },
+     {
+      "hole": "h43",
+      "conf": "low",
+      "note": "insulation ends between h44 and h43; the lead is hidden"
+     }
+    ]
+   },
+   {
+    "id": "W5",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "j57",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:52",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W6",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "g58",
+      "conf": "low",
+      "note": "starts at the corner of the black block X1: g58 or h58"
+     },
+     {
+      "hole": "b54",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W7",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "e54",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:53",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W8",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "e52",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:jInner:51",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W9",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "a52",
+      "conf": "med"
+     },
+     {
+      "hole": "a44",
+      "conf": "med"
+     }
+    ],
+    "note": "lies along row a over a51-a45"
+   },
+   {
+    "id": "W10",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "d46",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:46",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W11",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "g44",
+      "conf": "low",
+      "note": "left end next to U1, under the white wire W12"
+     },
+     {
+      "hole": "rail:aInner:45",
+      "conf": "med"
+     }
+    ],
+    "note": "crosses over U1 and sags onto the board near d45-b45 before arcing to the rail; it may instead be two wires (g44-d45 and d45-rail)"
+   },
+   {
+    "id": "W12",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "left end hidden where it crosses U1 on top of W11 (around g44/h44)"
+     },
+     {
+      "hole": "rail:aInner:43",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W13",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "g42",
+      "conf": "med"
+     },
+     {
+      "hole": "d40",
+      "conf": "med"
+     }
+    ],
+    "note": "arches over U1"
+   },
+   {
+    "id": "W14",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "d42",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:42",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W15",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "d41",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:40",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W16",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "j40",
+      "conf": "high"
+     },
+     {
+      "hole": "f36",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W17",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:jInner:37",
+      "conf": "med"
+     },
+     {
+      "hole": "e38",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W18",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "b38",
+      "conf": "med"
+     },
+     {
+      "hole": "b30",
+      "conf": "med"
+     }
+    ],
+    "note": "lies along row b"
+   },
+   {
+    "id": "W19",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "j36",
+      "conf": "med"
+     },
+     {
+      "hole": "j29",
+      "conf": "med"
+     }
+    ],
+    "note": "lies along row j"
+   },
+   {
+    "id": "W20",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "rail:aInner:34",
+      "conf": "med"
+     },
+     {
+      "hole": "g30",
+      "conf": "med",
+      "note": "end curls down beside U2: g30 (g31 possible)"
+     }
+    ]
+   },
+   {
+    "id": "W21",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "d32",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:aInner:33",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W22",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "d31",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:aInner:31",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W23",
+    "color": "blue/white",
+    "ends": [
+     {
+      "hole": "d28",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:aInner:29",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W24",
+    "color": "pink/white",
+    "ends": [
+     {
+      "hole": "d27",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:aInner:28",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W25",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "g28",
+      "conf": "high"
+     },
+     {
+      "hole": "d26",
+      "conf": "high"
+     }
+    ],
+    "note": "crosses over U2"
+   },
+   {
+    "id": "W26",
+    "color": "grey",
+    "ends": [
+     {
+      "hole": "j26",
+      "conf": "high"
+     },
+     {
+      "hole": "e20",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W27",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:jInner:23",
+      "conf": "med"
+     },
+     {
+      "hole": "e22",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W28",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "left end under R1's body (j22 or the j-side rail)"
+     },
+     {
+      "hole": "e21",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W29",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "b22",
+      "conf": "high"
+     },
+     {
+      "hole": "b19",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W30",
+    "color": "red",
+    "ends": [
+     {
+      "hole": "a20",
+      "conf": "med"
+     },
+     {
+      "hole": "a18",
+      "conf": "med"
+     }
+    ],
+    "note": "short red piece: most likely a 0.2-inch pre-cut jumper (kit colour code); could be a small axial part"
+   },
+   {
+    "id": "W31",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "a16",
+      "conf": "high"
+     },
+     {
+      "hole": "rail:aInner:16",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W32",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "b17",
+      "conf": "med"
+     },
+     {
+      "hole": "a10",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W33",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "i18",
+      "conf": "high"
+     },
+     {
+      "hole": "i4",
+      "conf": "low",
+      "note": "insulation ends over i5; lead into i4 (i5 possible)"
+     }
+    ]
+   },
+   {
+    "id": "W34",
+    "color": "yellow",
+    "ends": [
+     {
+      "hole": "rail:jInner:12",
+      "conf": "med"
+     },
+     {
+      "hole": "g16",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W35",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "h4",
+      "conf": "med"
+     },
+     {
+      "hole": "e6",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W36",
+    "color": "grey",
+    "ends": [
+     {
+      "hole": "g2",
+      "conf": "med"
+     },
+     {
+      "hole": "e5",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W37",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "d10",
+      "conf": "med"
+     },
+     {
+      "hole": "e7",
+      "conf": "med"
+     }
+    ]
+   }
+  ]
+ },
+ "wm04_50hz_osc": {
+  "notes": "\"50 Hz Oscillator\": a 63-column board standing upright in the frame, top-down but small (the board is ~440 px wide in a 1536x2048 photo) and soft: holes are ~25 px apart, so most ends are med or low. Printed labels: column 1 at the top, row a on the left, row j on the right; rail signs printed: a side outer +, inner -; j side inner +, outer -. Three DIPs (8-pin at columns 16-19, 14-pin at 26-32 and 40-46), markings and notches not legible. Many short jumpers run from the a-side - rail to row d next to the chips.",
+  "rails": {
+   "aOuter": "+",
+   "aInner": "-",
+   "jInner": "+",
+   "jOuter": "-"
+  },
+  "parts": [
+   {
+    "id": "U1",
+    "type": "ic",
+    "value": null,
+    "note": "8-pin DIP across the channel, columns 16-19; marking and notch hidden under wires. Part number unknown (may be a dual op-amp), so it is neither flagged nor pin-named.",
+    "orientation": "unknown",
+    "leads": [
+     {
+      "hole": "f16",
+      "conf": "med"
+     },
+     {
+      "hole": "f17",
+      "conf": "med"
+     },
+     {
+      "hole": "f18",
+      "conf": "med"
+     },
+     {
+      "hole": "f19",
+      "conf": "med"
+     },
+     {
+      "hole": "e19",
+      "conf": "med"
+     },
+     {
+      "hole": "e18",
+      "conf": "med"
+     },
+     {
+      "hole": "e17",
+      "conf": "med"
+     },
+     {
+      "hole": "e16",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "U2",
+    "type": "ic",
+    "value": null,
+    "note": "14-pin DIP, columns 26-32; marking not legible. 14 pins: not a TL072 footprint.",
+    "orientation": "unknown",
+    "expect": "flagged",
+    "leads": [
+     {
+      "hole": "f26",
+      "conf": "med"
+     },
+     {
+      "hole": "f27",
+      "conf": "med"
+     },
+     {
+      "hole": "f28",
+      "conf": "med"
+     },
+     {
+      "hole": "f29",
+      "conf": "med"
+     },
+     {
+      "hole": "f30",
+      "conf": "med"
+     },
+     {
+      "hole": "f31",
+      "conf": "med"
+     },
+     {
+      "hole": "f32",
+      "conf": "med"
+     },
+     {
+      "hole": "e32",
+      "conf": "med"
+     },
+     {
+      "hole": "e31",
+      "conf": "med"
+     },
+     {
+      "hole": "e30",
+      "conf": "med"
+     },
+     {
+      "hole": "e29",
+      "conf": "med"
+     },
+     {
+      "hole": "e28",
+      "conf": "med"
+     },
+     {
+      "hole": "e27",
+      "conf": "med"
+     },
+     {
+      "hole": "e26",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "U3",
+    "type": "ic",
+    "value": null,
+    "note": "14-pin DIP, columns 40-46 (row extent read from the body, the pins are under wires); not a TL072 footprint.",
+    "orientation": "unknown",
+    "expect": "flagged",
+    "leads": [
+     {
+      "hole": "f40",
+      "conf": "low"
+     },
+     {
+      "hole": "f41",
+      "conf": "low"
+     },
+     {
+      "hole": "f42",
+      "conf": "low"
+     },
+     {
+      "hole": "f43",
+      "conf": "low"
+     },
+     {
+      "hole": "f44",
+      "conf": "low"
+     },
+     {
+      "hole": "f45",
+      "conf": "low"
+     },
+     {
+      "hole": "f46",
+      "conf": "low"
+     },
+     {
+      "hole": "e46",
+      "conf": "low"
+     },
+     {
+      "hole": "e45",
+      "conf": "low"
+     },
+     {
+      "hole": "e44",
+      "conf": "low"
+     },
+     {
+      "hole": "e43",
+      "conf": "low"
+     },
+     {
+      "hole": "e42",
+      "conf": "low"
+     },
+     {
+      "hole": "e41",
+      "conf": "low"
+     },
+     {
+      "hole": "e40",
+      "conf": "low"
+     }
+    ]
+   },
+   {
+    "id": "R1",
+    "type": "resistor",
+    "value": "2.2k",
+    "note": "black body with red-red-red bands and a silver band, standing over the j-side rails at columns 3-7; could be an axial inductor rather than a resistor",
+    "value_conf": "low",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:jInner:3",
+      "conf": "low",
+      "note": "top lead loops over into the j-side + rail near column 3"
+     },
+     {
+      "pin": "2",
+      "hole": "j8",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "R2",
+    "type": "resistor",
+    "value": null,
+    "note": "grey-green body standing diagonally over h7-h10; bands not readable (red band visible)",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "j6",
+      "conf": "low",
+      "note": "top lead tip near i6/j6"
+     },
+     {
+      "pin": "2",
+      "hole": "g11",
+      "conf": "low",
+      "note": "bottom lead curls toward g11/g10"
+     }
+    ]
+   },
+   {
+    "id": "R3",
+    "type": "resistor",
+    "value": null,
+    "note": "light body with red/pink bands lying on top of the trimmer over b9-e10",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "?",
+      "conf": "low",
+      "note": "left lead hidden under the body / pot"
+     },
+     {
+      "pin": "2",
+      "hole": "f12",
+      "conf": "low",
+      "note": "right lead bends down across the channel near f11/f12"
+     }
+    ]
+   },
+   {
+    "id": "RV1",
+    "type": "potentiometer",
+    "value": null,
+    "note": "blue square trimmer over b9-e12",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the trimmer"
+     },
+     {
+      "pin": "2",
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the trimmer"
+     },
+     {
+      "pin": "3",
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the trimmer"
+     }
+    ]
+   },
+   {
+    "id": "C1",
+    "type": "capacitor",
+    "value": null,
+    "note": "small brown ceramic (drop shape) lying over c11-e13",
+    "leads": [
+     {
+      "pin": "1",
+      "hole": "rail:aInner:13",
+      "conf": "low",
+      "note": "thin dark lead from the cap to the a-side - rail (may be a separate brown wire)"
+     },
+     {
+      "pin": "2",
+      "hole": "d13",
+      "conf": "low",
+      "note": "lower lead hidden under the body"
+     }
+    ]
+   },
+   {
+    "id": "X1",
+    "type": "other",
+    "note": "black rectangular block over i57-j62 with a copper strip along it (same kind of part as in wm03); not identified",
+    "leads": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "pins under the block"
+     }
+    ]
+   }
+  ],
+  "wires": [
+   {
+    "id": "W1",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "a10",
+      "conf": "med"
+     },
+     {
+      "hole": "c17",
+      "conf": "low",
+      "note": "end tucked beside U1, c17/d17"
+     }
+    ]
+   },
+   {
+    "id": "W2",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "a11",
+      "conf": "low"
+     },
+     {
+      "hole": "g18",
+      "conf": "low"
+     }
+    ],
+    "note": "crosses over U1; both ends partly hidden"
+   },
+   {
+    "id": "W3",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:aInner:16",
+      "conf": "med"
+     },
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "runs over U1; far end not traceable"
+     }
+    ]
+   },
+   {
+    "id": "W4",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "d17",
+      "conf": "med"
+     },
+     {
+      "hole": "g26",
+      "conf": "med"
+     }
+    ],
+    "note": "dark blue; crosses the channel below U1"
+   },
+   {
+    "id": "W5",
+    "color": "light blue",
+    "ends": [
+     {
+      "hole": "c19",
+      "conf": "low",
+      "note": "end beside U1: b19/c19"
+     },
+     {
+      "hole": "rail:jInner:22",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W6",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "g16",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jInner:17",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W7",
+    "color": "white/pink",
+    "ends": [
+     {
+      "hole": "j9",
+      "conf": "low"
+     },
+     {
+      "hole": "i19",
+      "conf": "low"
+     }
+    ],
+    "note": "runs down the j side from column 9 to column 19"
+   },
+   {
+    "id": "W8",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "d26",
+      "conf": "high"
+     },
+     {
+      "hole": "g28",
+      "conf": "med"
+     }
+    ],
+    "note": "crosses over U2"
+   },
+   {
+    "id": "W9",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:aInner:28",
+      "conf": "med"
+     },
+     {
+      "hole": "d27",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W10",
+    "color": "blue/white",
+    "ends": [
+     {
+      "hole": "rail:aInner:29",
+      "conf": "med"
+     },
+     {
+      "hole": "d28",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W11",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "d30",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jInner:29",
+      "conf": "low"
+     }
+    ],
+    "note": "crosses under/over U2's lower end and arcs to the j-side + rail"
+   },
+   {
+    "id": "W12",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:aInner:31",
+      "conf": "med"
+     },
+     {
+      "hole": "d31",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W13",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "rail:aInner:33",
+      "conf": "med"
+     },
+     {
+      "hole": "d32",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W14",
+    "color": "pink",
+    "ends": [
+     {
+      "hole": "rail:aInner:35",
+      "conf": "med"
+     },
+     {
+      "hole": "g33",
+      "conf": "low",
+      "note": "crosses the channel; end near g33"
+     }
+    ]
+   },
+   {
+    "id": "W15",
+    "color": "light blue",
+    "ends": [
+     {
+      "hole": "g29",
+      "conf": "low"
+     },
+     {
+      "hole": "g40",
+      "conf": "med"
+     }
+    ],
+    "note": "runs down the f-j side between U2 and U3"
+   },
+   {
+    "id": "W16",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "d40",
+      "conf": "med"
+     },
+     {
+      "hole": "g42",
+      "conf": "low",
+      "note": "end curls down between g42 and g43"
+     }
+    ],
+    "note": "crosses over U3"
+   },
+   {
+    "id": "W17",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "rail:aInner:40",
+      "conf": "med"
+     },
+     {
+      "hole": "d41",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W18",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "rail:aInner:42",
+      "conf": "med"
+     },
+     {
+      "hole": "d42",
+      "conf": "med"
+     }
+    ]
+   },
+   {
+    "id": "W19",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:aInner:44",
+      "conf": "med"
+     },
+     {
+      "hole": "g44",
+      "conf": "low",
+      "note": "dark-red stripped tip beside U3, between f44/g44 and g45"
+     }
+    ],
+    "note": "runs under W20 and across U3"
+   },
+   {
+    "id": "W20",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "d44",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jInner:42",
+      "conf": "med"
+     }
+    ],
+    "note": "white wire with a purple end: from d44 down round the bottom of U3, across the f-j side and up into the j-side + rail"
+   },
+   {
+    "id": "W21",
+    "color": "brown",
+    "ends": [
+     {
+      "hole": "rail:aInner:45",
+      "conf": "low"
+     },
+     {
+      "hole": "d46",
+      "conf": "low"
+     }
+    ]
+   },
+   {
+    "id": "W22",
+    "color": "green",
+    "ends": [
+     {
+      "hole": "rail:aInner:47",
+      "conf": "low"
+     },
+     {
+      "hole": "d47",
+      "conf": "low",
+      "note": "green and brown (W21) both run into d46/d47 under the white wire; brown taken as d46, green as d47"
+     }
+    ]
+   },
+   {
+    "id": "W23",
+    "color": "orange",
+    "ends": [
+     {
+      "hole": "g43",
+      "conf": "low",
+      "note": "top end beside U3 at g43 (g44 possible)"
+     },
+     {
+      "hole": "e62",
+      "conf": "low",
+      "note": "insulation stops near e59; a thin bare lead continues to about e62/d62"
+     }
+    ]
+   },
+   {
+    "id": "W24",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "rail:aInner:58",
+      "conf": "med"
+     },
+     {
+      "hole": "g58",
+      "conf": "low"
+     }
+    ]
+   },
+   {
+    "id": "W25",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "g56",
+      "conf": "med"
+     },
+     {
+      "hole": "rail:jInner:55",
+      "conf": "med"
+     }
+    ],
+    "note": "white wire with a purple end, crossing over X1 and hooking up into the j-side + rail"
+   },
+   {
+    "id": "W26",
+    "color": "white",
+    "ends": [
+     {
+      "hole": "rail:aInner:62",
+      "conf": "low"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   },
+   {
+    "id": "W27",
+    "color": "blue",
+    "ends": [
+     {
+      "hole": "?",
+      "conf": "low",
+      "note": "starts under the black block X1"
+     },
+     {
+      "hole": "off",
+      "conf": "high"
+     }
+    ]
+   }
+  ]
+ }
+}

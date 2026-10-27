@@ -14,13 +14,14 @@ async function openEditor(page, reply = { reply: '', actions: [] }) {
   await page.waitForFunction(() => window.App && App.state && App.state.breadboard && App.renderer);
 }
 
-// The battery sits 2.5 past the board's right end, right behind the top rails
-// (midpoint of tp and tn). The board's size comes from board-geometry.js
-// (issue #22): 63 columns, 26.6 wide, so x 15.8, z -3.15.
+// The battery sits 2.5 past the board's right end, level with the tp and tn
+// rails (their midpoint), the rails nearest the viewer on the flipped board.
+// The board's size comes from board-geometry.js (issue #22): 63 columns,
+// 26.6 wide, so x 15.8, z +3.15.
 const GEOMETRY = require('../circuit3d/js/board-geometry.js');
 const SPOT = { x: GEOMETRY.BOARD_W / 2 + 2.5, z: (GEOMETRY.ROW_Z.tp + GEOMETRY.ROW_Z.tn) / 2 };
 
-test('the AI battery preview and the accepted battery land on the same spot, behind the top rails', async ({ page }) => {
+test('the AI battery preview and the accepted battery land on the same spot, beside the tp and tn rails', async ({ page }) => {
   await openEditor(page, batteryBuild);
   expect(SPOT.x).toBeCloseTo(15.8, 5);
   expect(await page.evaluate(() => App.batterySpot())).toEqual({ x: expect.closeTo(SPOT.x, 2), z: expect.closeTo(SPOT.z, 2) });

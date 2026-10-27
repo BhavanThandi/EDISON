@@ -24,9 +24,9 @@
     return `## Breadboard topology (always true)
 - Columns 1-${COLS}. Holes ${t0}1-${t1}1 share one node; ${b0}1-${b1}1 share another node (center channel divides them).
 - Same rule for every column: ${t0}-${t1} connected together, ${b0}-${b1} connected together.
-- To connect top half (${t0}-${t1}) to bottom half (${b0}-${b1}) of the SAME column, you MUST add a wire.
-- tp = positive top rail (+), tn = negative top rail (GND).
-- bp = positive bottom rail (+), bn = negative bottom rail (−).
+- To connect the ${t0}-${t1} half to the ${b0}-${b1} half of the SAME column, you MUST add a wire.
+- tp = positive rail beside row ${t0} (+), tn = negative rail beside row ${t0} (GND).
+- bp = positive rail beside row ${b1} (+), bn = negative rail beside row ${b1} (−).
 - Rails are NOT connected to body rows — you must wire from rail to a body hole explicitly.
 - ${GEOMETRY.TOTAL_HOLES} holes total: ${COLS} columns × ${ALL_ROWS.length} rows.`;
   };
@@ -78,10 +78,10 @@
 
     // Body row Y extents (with a little padding)
     const PAD    = 26;  // px
-    const topY1  = wz(ROW_Z.a) - PAD;
-    const topY2  = wz(ROW_Z.e) + PAD;
-    const botY1  = wz(ROW_Z.f) - PAD;
-    const botY2  = wz(ROW_Z.j) + PAD;
+    // Each band spans its two end rows whichever has the smaller canvas Y.
+    const band   = (r1, r2) => [Math.min(wz(ROW_Z[r1]), wz(ROW_Z[r2])) - PAD, Math.max(wz(ROW_Z[r1]), wz(ROW_Z[r2])) + PAD];
+    const [topY1, topY2] = band('a', 'e');
+    const [botY1, botY2] = band('f', 'j');
 
     // ── 1. Board base ────────────────────────────────────────
     ctx.fillStyle = '#e5e0d2';

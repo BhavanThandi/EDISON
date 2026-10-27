@@ -115,6 +115,12 @@ function parseLooseJSON(text) {
   throw failed('the JSON in the reply is cut off');
 }
 
+// Keeps a render window only when it is a usable one.
+function framed(win) {
+  const w = obj(win);
+  return ['x', 'y', 'scale', 'padLeft', 'padTop', 'width', 'height'].every(k => Number.isFinite(w[k])) && w.scale > 0 && w.width > 0 && w.height > 0 ? w : null;
+}
+
 const round1 = v => Math.round(v * 10) / 10;
 
 // A resistor's value guess in Ω: 470, "470", "4.7k", "1M". Else 0.
@@ -128,35 +134,56 @@ function ohms(v) {
 // over the flattened image → a pixel box [x0, y0, x1, y1]; the 2 legs (or
 // wire ends) start at the midpoints of its short edges, hole '?', and
 // 'leads' goes in unsure: placeholders the page and the next step replace.
-function boxesToReading(answer, grid) {
+//
+// The survey (A4): an item may carry leads [{pin, point:[y,x]}] on the same
+// 0–1000 scale; they replace the placeholders (hole still '?', the page snaps
+// them; a point off the board is kept and snaps to 'off'). The type is kept
+// for ic, capacitor, potentiometer, diode and button; an ic also keeps
+// pins, notch and label. win (optional) is the page's render window when the
+// image carries the label margin: points and boxes are then on the margined
+// image and map back to flattened pixels.
+function boxesToReading(answer, grid, win) {
   const items = Array.isArray(answer) ? answer : obj(answer).items;
   if (!Array.isArray(items)) throw failed('the reply has no items');
   const parts = [], wires = [], count = {};
   const nextId = prefix => `${prefix}${(count[prefix] = (count[prefix] || 0) + 1)}`;
 
+  const w = framed(win);
+  const fx = n => (w ? (n / 1000 * w.width - w.padLeft) / w.scale + w.x : n / 1000 * grid.width);
+  const fy = n => (w ? (n / 1000 * w.height - w.padTop) / w.scale + w.y : n / 1000 * grid.height);
+
   for (const it of items.map(obj)) {
     const b = it.box_2d;
     if (!Array.isArray(b) || b.length !== 4 || !b.every(Number.isFinite)) continue;
-    const x0 = round1(Math.min(b[1], b[3]) / 1000 * grid.width),  x1 = round1(Math.max(b[1], b[3]) / 1000 * grid.width);
-    const y0 = round1(Math.min(b[0], b[2]) / 1000 * grid.height), y1 = round1(Math.max(b[0], b[2]) / 1000 * grid.height);
+    const x0 = round1(Math.min(fx(b[1]), fx(b[3]))),  x1 = round1(Math.max(fx(b[1]), fx(b[3])));
+    const y0 = round1(Math.min(fy(b[0]), fy(b[2]))),  y1 = round1(Math.max(fy(b[0]), fy(b[2])));
     const mx = round1((x0 + x1) / 2), my = round1((y0 + y1) / 2);
     const ends = x1 - x0 >= y1 - y0 ? [[x0, my], [x1, my]] : [[mx, y0], [mx, y1]];
     const type = str(it.type).trim().toLowerCase();
+    const said_leads = list(it.leads).map(obj).filter(l => Array.isArray(l.point) && l.point.length === 2 && l.point.every(Number.isFinite));
+    const all   = said_leads.slice(0, MAX_LEADS).map(l => ({ pin: l.pin === undefined || l.pin === null ? '' : String(l.pin), pt: [round1(fx(l.point[1])), round1(fy(l.point[0]))] }));
+    // Points count only at the type's expected number; else the box-end placeholders stay (and the crop round fills them).
+    const want  = type === 'wire' ? 2 : LEAD_COUNT[type];
+    const spots = all.length && (want === undefined || all.length === want) ? all : [];
     const said  = typeof it.value === 'number' ? String(it.value) : str(it.value).trim();
     const guess = /^null$/i.test(said) ? '' : said;
 
     if (type === 'wire') {
-      wires.push({ id: nextId('W'), color: '', ends: ends.map(pt => ({ hole: '?', pt })), box: [x0, y0, x1, y1],
+      const wEnds = spots.length === 2 ? spots.map(q => q.pt) : ends;
+      wires.push({ id: nextId('W'), color: '', ends: wEnds.map(pt => ({ hole: '?', pt })), box: [x0, y0, x1, y1],
                    confidence: num(it.conf), unsure: ['leads'] });
       continue;
     }
-    const kind = type === 'resistor' || type === 'led' ? type : 'other';
-    parts.push({
-      id: nextId({ resistor: 'R', led: 'LED', other: 'X' }[kind]), type: kind,
+    const kind = PART_TYPES.includes(type) ? type : 'other';
+    const part = {
+      id: nextId(ID_PREFIX[kind]), type: kind,
       what: guess ? `${guess} ${type || 'part'}` : type || 'part', value: kind === 'resistor' ? ohms(it.value) : 0,
-      bands: [], color: '', leads: ends.map(pt => ({ hole: '?', pt, role: 'unknown' })),
+      bands: [], color: '', leads: spots.length ? spots.map(q => ({ hole: '?', pt: q.pt, role: 'unknown', ...(q.pin ? { pin: q.pin } : {}) }))
+                                               : ends.map(pt => ({ hole: '?', pt, role: 'unknown' })),
       box: [x0, y0, x1, y1], confidence: num(it.conf), unsure: ['leads'],
-    });
+    };
+    if (kind === 'ic') Object.assign(part, chipFacts(it));
+    parts.push(part);
   }
 
   const rails = obj(obj(answer).rails);
@@ -180,15 +207,34 @@ function retryDelayMs(text) {
   }
 }
 
-// POSTs JSON; a non-2xx throws, fatal on 400/401/403 (a bad request or key),
+// The per-request usage tally: every HTTP request sent to Gemini, the 429s
+// and the tokens its replies report (usageMetadata; a missing field adds 0).
+const USAGE_KEYS = ['calls', 'http429', 'promptTokens', 'outputTokens', 'thoughtTokens'];
+function newTally() { return { retries: 0, calls: 0, http429: 0, promptTokens: 0, outputTokens: 0, thoughtTokens: 0 }; }
+function usageOf(tally) {
+  const t = tally || {};
+  return Object.fromEntries(USAGE_KEYS.map(k => [k, Number(t[k]) || 0]));
+}
+function tallyUsage(tally, data) {
+  const u = obj(obj(data).usageMetadata);
+  const n = v => (Number.isFinite(v) && v > 0 ? v : 0);
+  tally.promptTokens  += n(u.promptTokenCount);
+  tally.outputTokens  += n(u.candidatesTokenCount);
+  tally.thoughtTokens += n(u.thoughtsTokenCount);
+}
+
+// POSTs JSON (ctx.tally, when given, counts the request, a 429 and the usage); a non-2xx throws, fatal on 400/401/403 (a bad request or key),
 // with a 429's retryDelay as retryAfterMs. No error quotes the upstream
 // body: they end up in the logs.
 async function postJSON(ctx, signal, who, url, headers, body) {
+  const tally = ctx.tally && Object.assign(ctx.tally, Object.fromEntries(USAGE_KEYS.filter(k => !(k in ctx.tally)).map(k => [k, 0])));
+  if (tally) tally.calls++;
   const res = await ctx.fetch(url, { method: 'POST', signal, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
   if (!res.ok) {
     const e = failed(`${who} ${res.status}`);
     if ([400, 401, 403].includes(res.status)) e.fatal = true;
     if (res.status === 429) {
+      if (tally) tally.http429++;
       let text = '';
       try { text = await res.text(); } catch { /* no body: the usual wait */ }
       e.retryAfterMs = retryDelayMs(text);
@@ -196,7 +242,10 @@ async function postJSON(ctx, signal, who, url, headers, body) {
     throw e;
   }
   const text = await res.text();
-  try { return JSON.parse(text); } catch { throw failed(`${who}: the reply is not JSON`); }
+  let data;
+  try { data = JSON.parse(text); } catch { throw failed(`${who}: the reply is not JSON`); }
+  if (tally) tallyUsage(tally, data);   // counted even if the reply is then rejected: the tokens were spent
+  return data;
 }
 
 // ── Gemini's retry rule (#172), for both photo rounds ────────
@@ -214,8 +263,8 @@ async function postJSON(ctx, signal, who, url, headers, body) {
 // opts.signal aborts the race (the deadline); opts.slot(run, kind) runs run()
 // once a call may go out (the crop round's cap; kind is 'first', 'retry' or
 // 'resend') and run returns the call's promise, or null when the race ended
-// while it waited. stats ({ calls,
-// retries, resent, why }) is kept up to date, opts.stats when given.
+// while it waited. stats ({ retries, resent, why }) is kept up to date,
+// opts.stats when given (calls are counted by postJSON, in ctx.tally).
 // Returns { result, stop(reason), stats }. result rejects with the last
 // error (.fatal, or .spent when every call failed) or the abort's reason.
 const BOX_MAX_CALLS = 4;
@@ -225,7 +274,7 @@ function raceGemini(call, opts = {}) {
   const hedge  = opts.hedgeMs > 0 ? opts.hedgeMs : photoHedgeMs();
   const parent = opts.signal;
   const slot   = opts.slot || (run => run());   // (run, kind)
-  const stats  = Object.assign(opts.stats || {}, { calls: 0, retries: 0, resent: false, why: '' });
+  const stats  = Object.assign(opts.stats || {}, { retries: 0, resent: false, why: '' });
   const sent   = [];   // { ctrl, live, hedge }
   let settled = false, waiting = false, hedged = false, retry = null, resolve, reject;
   const result = new Promise((res, rej) => { resolve = res; reject = rej; });
@@ -250,7 +299,6 @@ function raceGemini(call, opts = {}) {
       if (settled) return null;
       const c = { ctrl: new AbortController(), live: true };
       sent.push(c);
-      stats.calls++;
       if (kind === 'retry') stats.retries++;
       if (kind === 'resend') stats.resent = true;
       c.hedge = setTimeout(() => stalled(c), hedge);
@@ -363,6 +411,24 @@ function withFallback(er, startFallback, signal) {
   });
 }
 
+// PHOTO_THINKING = default | minimal | low | medium | high. default (or unset)
+// sends nothing: the model's own level. Else generationConfig.thinkingConfig.thinkingLevel.
+const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
+let warnedThinking = '';
+function thinkingLevel() {
+  const raw = String(process.env.PHOTO_THINKING || '').trim().toLowerCase();
+  if (THINKING_LEVELS.includes(raw)) return raw;
+  if (raw && raw !== 'default' && warnedThinking !== raw) {
+    warnedThinking = raw;
+    console.warn(`photo: PHOTO_THINKING=${raw} is not default|minimal|low|medium|high; sending no thinking level`);
+  }
+  return 'default';
+}
+function thinkingConfig() {
+  const v = thinkingLevel();
+  return v === 'default' ? {} : { thinkingConfig: { thinkingLevel: v } };
+}
+
 const geminiProvider = {
   name: 'gemini',
   read: async (input, ctx) => {
@@ -371,12 +437,14 @@ const geminiProvider = {
     const model = photoGeminiModel();
     const body  = {
       contents: [{ role: 'user', parts: [{ text: PHOTO_PROMPT }, geminiImagePart(input.image)] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_SCHEMA, temperature: 1, maxOutputTokens: 32768 },
+      generationConfig: { responseMimeType: 'application/json', responseSchema: PHOTO_SCHEMA, temperature: 1, maxOutputTokens: 32768, ...thinkingConfig() },
     };
     const once = m => async signal => {
       const who  = `gemini ${m}`;
-      const data = await postJSON(ctx, signal, who, `${GEMINI_BASE}${m}:generateContent`, { 'x-goog-api-key': apiKey }, body);
-      return { reading: boxesToReading(parseLooseJSON(geminiText(data, who)), input.grid), model: m };
+      // The thinking level is for the photo model only, never the fallback.
+      const sent = m === model ? body : { ...body, generationConfig: { ...body.generationConfig, thinkingConfig: undefined } };
+      const data = await postJSON(ctx, signal, who, `${GEMINI_BASE}${m}:generateContent`, { 'x-goog-api-key': apiKey }, sent);
+      return { reading: boxesToReading(parseLooseJSON(geminiText(data, who)), input.grid, input.window), model: m };
     };
     // No per-call cap: Gemini gets the whole deadline (#172).
     const er     = raceGemini(once(model), { maxCalls: BOX_MAX_CALLS, signal: ctx.signal, deadlineAt: ctx.deadlineAt, stats: ctx.tally });
@@ -410,7 +478,7 @@ const deepseekProvider = {
     const data = await postJSON(ctx, ctx.signal, DEEPSEEK_PHOTO_MODEL, DEEPSEEK_URL, { Authorization: `Bearer ${apiKey}` }, body);
     const text = str(obj(obj(list(obj(data).choices)[0]).message).content);
     if (!text.trim()) throw failed(`${DEEPSEEK_PHOTO_MODEL}: empty reply`);
-    return { reading: boxesToReading(parseLooseJSON(text), input.grid), model: DEEPSEEK_PHOTO_MODEL };
+    return { reading: boxesToReading(parseLooseJSON(text), input.grid, input.window), model: DEEPSEEK_PHOTO_MODEL };
   },
 };
 
@@ -419,7 +487,12 @@ const PROVIDERS = { fixture: fixtureProvider, gemini: geminiProvider, deepseek: 
 
 // ── Reading v1 ───────────────────────────────────────────────
 const RAIL_SIGNS  = ['+', '-', '?'];
-const PART_TYPES  = ['resistor', 'led', 'other'];
+// Reading v1.1: the survey's types are kept (v1 had resistor, led, other).
+const PART_TYPES  = ['resistor', 'led', 'capacitor', 'ic', 'button', 'diode', 'potentiometer', 'other'];
+const ID_PREFIX   = { resistor: 'R', led: 'LED', capacitor: 'C', ic: 'U', button: 'SW', diode: 'D', potentiometer: 'RV', other: 'X' };
+const MAX_LEADS   = 16;
+const LEAD_COUNT  = { resistor: 2, led: 2, capacitor: 2, diode: 2, button: 2, potentiometer: 3, ic: 2 };   // other: any
+const NOTCHES     = ['left', 'right', 'unsure'];
 const LEAD_ROLES  = ['anode', 'cathode', 'none', 'unknown'];
 const POWER_KINDS = ['battery_9v', 'bench_supply', 'unknown'];
 const HOLE        = /^(?:[a-j]\d{1,2}|rail:(?:aOuter|aInner|jInner|jOuter):\d{1,2}|gap|off|\?)$/;
@@ -432,6 +505,14 @@ const oneOf  = (v, list, other) => (list.includes(v) ? v : other);
 const obj    = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const list   = v => (Array.isArray(v) ? v : []);
 const hole   = v => (typeof v === 'string' && HOLE.test(v) ? v : '?');
+// An ic's survey facts: pins (count), notch, label (text or null).
+function chipFacts(it) {
+  const out = {};
+  if (Number.isFinite(it.pins) && it.pins > 0) out.pins = Math.round(it.pins);
+  if (NOTCHES.includes(it.notch)) out.notch = it.notch;
+  if (typeof it.label === 'string' && it.label.trim()) out.label = it.label.trim();
+  return out;
+}
 const endOf  = v => ({ hole: hole(obj(v).hole), pt: nums(obj(v).pt, 2) });
 
 // Coerces raw to Reading v1 (unknown enum → other/unknown/?, missing number
@@ -455,8 +536,10 @@ function validateReading(raw) {
     parts.push({
       id: str(p.id), type: oneOf(p.type, PART_TYPES, 'other'), what: str(p.what), value: num(p.value),
       bands: strs(p.bands), color: str(p.color),
-      leads: p.leads.map(l => ({ ...endOf(l), role: oneOf(obj(l).role, LEAD_ROLES, 'unknown') })),
+      leads: p.leads.slice(0, MAX_LEADS).map(l => ({ ...endOf(l), role: oneOf(obj(l).role, LEAD_ROLES, 'unknown'),
+                                                     ...(typeof obj(l).pin === 'string' ? { pin: l.pin } : {}) })),
       box: nums(p.box, 4), confidence: num(p.confidence), unsure: strs(p.unsure),
+      ...chipFacts(p), ...(typeof p.pin1 === 'string' && HOLE.test(p.pin1) ? { pin1: p.pin1 } : {}),
     });
   }
 
@@ -497,15 +580,15 @@ async function readPhoto(input, opts = {}) {
   const key         = fixtureKey(input);
   const replayOnly  = names.length === 1 && (names[0] === 'fixture' || names[0] === fixtureProvider);
   const deadlineMs  = opts.deadlineMs || photoTimeoutMs();
-  const tally       = { retries: 0 };
+  const tally       = newTally();
   const ctxBase     = { fetch: opts.fetch || globalThis.fetch, fixturesDir, key, tally, deadlineAt: Date.now() + deadlineMs };
-  const counted     = e => Object.assign(e, { retries: tally.retries });
+  const counted     = e => Object.assign(e, { retries: tally.retries, usage: usageOf(tally) });
 
   const fromFixture = fallback => {
     const file = loadFixture(fixturesDir, key);
     if (!file) return null;
     const { reading, notes } = validateReading(file.reading);
-    return { reading, provider: 'fixture', model: file.model, fallback, notes, key, retries: tally.retries };
+    return { reading, provider: 'fixture', model: file.model, fallback, notes, key, retries: tally.retries, usage: usageOf(tally) };
   };
 
   // Use sample photo (the demo's photo beat, and the button on every photo
@@ -525,7 +608,7 @@ async function readPhoto(input, opts = {}) {
         try {
           const got = await p.read(input, { ...ctxBase, signal });
           const { reading, notes } = validateReading(got && got.reading);
-          return { reading, provider: p.name, model: got.model, fallback: i > 0 || got.fallback === true, notes, key, retries: tally.retries };
+          return { reading, provider: p.name, model: got.model, fallback: i > 0 || got.fallback === true, notes, key, retries: tally.retries, usage: usageOf(tally) };
         } catch (e) {
           console.warn(`photo: ${p.name} failed: ${e.message}`);
           if (signal.aborted) throw e;
@@ -556,6 +639,6 @@ async function readPhoto(input, opts = {}) {
 module.exports = {
   readPhoto, validateReading, parseLooseJSON, PROVIDERS, isSafeId,
   // Shared with photo-leads.js (#159, #172).
-  GEMINI_BASE, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini,
+  GEMINI_BASE, thinkingConfig, thinkingLevel, photoGeminiModel, photoProviders, photoHedgeMs, geminiImagePart, geminiText, postJSON, raceGemini, newTally, usageOf,
   loadFixture, failed, num, obj, list,
 };

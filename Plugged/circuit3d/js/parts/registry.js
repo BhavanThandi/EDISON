@@ -708,7 +708,7 @@
 
   // A footprint part's legs from an anchor hole (pin 0) and a rotation, one
   // { pin, col, row, hole } per pin in pin order. Offsets turn clockwise as
-  // seen on the board (+col right, +row toward j): 0 (dc, dr), 90 (−dr, dc),
+  // seen on the board (+col right, +row toward a, i.e. down the screen): 0 (dc, dr), 90 (−dr, dc),
   // 180 (−dc, −dr), 270 (dr, −dc). Legs off the board still come back, so
   // checkPlacement can say why: a column outside the board as it is, a row
   // past a or j as row null. hole is null for a leg left of column 1 or
@@ -728,7 +728,7 @@
     if (r0 < 0 || !Number.isInteger(at.col)) return null;
     return def.place.legs.map(([dc, dr], i) => {
       const [c, r] = TURN[rotation](dc, dr);
-      const col = at.col + c, row = BODY_ROWS[r0 + r] || null;
+      const col = at.col + c, row = BODY_ROWS[r0 - r] || null;
       return { pin: def.pins[i], col, row, hole: row && col >= 0 ? holeName(col, row) : null };
     });
   }

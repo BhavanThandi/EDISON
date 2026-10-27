@@ -131,10 +131,10 @@ test('Lab 2 (case 11) end to end with Give me: it opens on step 1; steps 1–4 (
     await step(n).locator('.lab-step-give').click();
     await expect(tag(n), `Give me on step ${n} confirms it, no Run`).toHaveText(/passed/i);
   }
-  await expect(step(2).locator('.lab-step-given'), 'Give me says where R1 went').toContainText('R1 (Rin, 10 kΩ) from i35 to i31');
+  await expect(step(2).locator('.lab-step-given'), 'Give me says where R1 went').toContainText('R1 (Rin, 10 kΩ) from i28 to i32');
   expect(await page.evaluate(() => App.simRunning), 'nothing has run yet').toBeFalsy();
 
-  await expect(step(4).locator('.lab-step-given'), 'Give me says where the meter\'s probes went').toContainText('MM1 red probe to pin 1\'s column (g30)');
+  await expect(step(4).locator('.lab-step-given'), 'Give me says where the meter\'s probes went').toContainText('MM1 red probe to pin 1\'s column (g33)');
   await step(5).locator('.lab-step-give').click();
   await expect(tag(5), 'the run confirms the peak').toHaveText(/passed/i, { timeout: 90_000 });
   const meter = page.locator('.lab-paper-data tr').nth(4).locator('.lab-paper-sim');
@@ -170,7 +170,7 @@ test('Hint shows the step\'s hint; Explain asks Edison about the step (explain: 
   expect(asks[0].explain, 'an explain ask, not an edit').toBe(true);
   expect(JSON.stringify(asks[0]), 'it names step 1').toContain('step 1 of LAB-02');
 
-  // The student wires PS1 + to the top + rail by hand, then asks for the rest.
+  // The student wires PS1 + to the + rail beside row a (tp) by hand, then asks for the rest.
   await page.evaluate(() => {
     const pm = App.state.components.find(c => c.label === 'PS1').pinMeshes[0];
     const { col, row } = App.parseHole('tp_63'); const h = App.state.breadboard.getHole(col, row);
@@ -180,7 +180,12 @@ test('Hint shows the step\'s hint; Explain asks Edison about the step (explain: 
   const before = await page.evaluate(() => App.state.wires.length);
   await step2.locator('.lab-step-give').click();
   expect(await page.evaluate(() => App.state.wires.length) - before, 'the 5 wires not already there').toBe(5);
-  await expect(step2.locator('.lab-step-given')).toContainText('Skipped (a hole is already in use): PS1 + (+12 V) to the top + rail');
+  await expect(step2.locator('.lab-step-given')).toContainText('Skipped (a hole is already in use): PS1 + (+12 V) to the + rail beside row a (tp)');
+  // Ruling 26: rails are named by the row they sit beside; "top" and "bottom"
+  // read backwards on the flipped board, so none remains in the sheet's text.
+  const sheetText = (await page.locator('#lab-sheet').textContent()) || '';
+  expect(sheetText, 'the sheet names the rails by their row').toMatch(/rail beside row [aj] \((tp|tn|bp|bn)\)/);
+  expect(sheetText, 'no "top rail" / "bottom rail" wording in the lab sheet').not.toMatch(/\b(top|bottom)\b[^.;:]{0,12}\brails?\b/i);
   await expect(step2.locator('.lab-step-status'), 'the supply is wired: step 1 confirms').toHaveText(/passed/i);
   expect(errors).toEqual([]);
 });
@@ -239,7 +244,8 @@ test('the current step is pinned at the top of the paper with its Give me, Hint 
   await bar.locator('.lab-now-give').click();
   await expect(bar.locator('.lab-now-step'), 'step 1 confirmed: the bar moves on').toHaveText('Step 2 of 6');
   await expect(bar.locator('.lab-now-last')).toContainText('Give me, step 1');
-  await expect(bar.locator('.lab-now-last')).toContainText('The +12 V rail to pin 8 (V+), hole a30');
+  await expect(bar.locator('.lab-now-last')).toContainText('The + rail beside row a (tp) to pin 8 (V+), hole a33');
+  await expect(bar.locator('.lab-now-last')).toContainText('The − rail beside row j (bn) to pin 4 (V−), hole j30');
   await expect(bar.locator('.lab-now-hint'), 'the new step\'s hint starts folded').toBeHidden();
   expect(errors).toEqual([]);
 });

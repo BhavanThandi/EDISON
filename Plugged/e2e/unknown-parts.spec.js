@@ -15,24 +15,24 @@ const h = (col, row) => ({ col, row });
 const OP_AMP = {
   type: 'op_amp', id: 'op_amp_0', label: 'U1', values: { gain: 100000 },
   holeRefs: [h(11, 'e'), h(12, 'e'), h(13, 'e'), h(11, 'f'), h(12, 'f'), h(13, 'f')],
-  position: { x: 0, z: 0 }, foo: 'bar',
+  position: { x: 0, z: 0 }, foo: 'bar', v: 2,
 };
 // The op-amp's output pin (index 2 in the list) wired to hole a20.
 const OP_AMP_WIRE = { startHole: null, endHole: h(19, 'a'), startCompIdx: 2, startPinIdx: 2,
-                      endCompIdx: -1, endPinIdx: -1, color: 0x22c55e };
+                      endCompIdx: -1, endPinIdx: -1, color: 0x22c55e, v: 2 };
 
 const CIRCUIT = {
   id: 'unknown-parts-e2e', name: 'Op-amp from a newer build',
   components: [
-    { type: 'battery',  id: 'battery_0',  label: 'BAT1', values: { voltage: 9 }, holeRefs: null, position: { x: -20, z: 0 } },
-    { type: 'resistor', id: 'resistor_0', label: 'R1', values: { resistance: 470 }, holeRefs: [h(1, 'a'), h(5, 'a')], position: { x: 0, z: 0 } },
+    { type: 'battery',  id: 'battery_0',  label: 'BAT1', values: { voltage: 9 }, holeRefs: null, position: { x: -20, z: 0 }, v: 2 },
+    { type: 'resistor', id: 'resistor_0', label: 'R1', values: { resistance: 470 }, holeRefs: [h(1, 'a'), h(5, 'a')], position: { x: 0, z: 0 }, v: 2 },
     OP_AMP,
-    { type: 'led',      id: 'led_0',      label: 'LED1', values: { color: 'red' }, holeRefs: [h(8, 'a'), h(5, 'a')], position: { x: 0, z: 0 } },
+    { type: 'led',      id: 'led_0',      label: 'LED1', values: { color: 'red' }, holeRefs: [h(8, 'a'), h(5, 'a')], position: { x: 0, z: 0 }, v: 2 },
   ],
   wires: [
-    { startHole: null, endHole: h(1, 'tp'), startCompIdx: 0, startPinIdx: 0, endCompIdx: -1, endPinIdx: -1, color: 0xef4444 },
-    { startHole: null, endHole: h(1, 'tn'), startCompIdx: 0, startPinIdx: 1, endCompIdx: -1, endPinIdx: -1, color: 0x111111 },
-    { startHole: h(2, 'tp'), endHole: h(1, 'a'), startCompIdx: -1, startPinIdx: -1, endCompIdx: -1, endPinIdx: -1, color: 0xef4444 },
+    { startHole: null, endHole: h(1, 'tp'), startCompIdx: 0, startPinIdx: 0, endCompIdx: -1, endPinIdx: -1, color: 0xef4444, v: 2 },
+    { startHole: null, endHole: h(1, 'tn'), startCompIdx: 0, startPinIdx: 1, endCompIdx: -1, endPinIdx: -1, color: 0x111111, v: 2 },
+    { startHole: h(2, 'tp'), endHole: h(1, 'a'), startCompIdx: -1, startPinIdx: -1, endCompIdx: -1, endPinIdx: -1, color: 0xef4444, v: 2 },
     OP_AMP_WIRE,
   ],
 };
@@ -174,12 +174,12 @@ test('known parts that fail to rebuild are dropped, and Run/Stop work with the u
     ...CIRCUIT,
     id: 'unknown-parts-broken-known-e2e',
     components: CIRCUIT.components.concat([
-      { type: 'led',     id: 'led_1',     label: 'LED2', values: { color: 'green' }, holeRefs: [h(99, 'a'), h(98, 'a')], position: { x: 0, z: 0 } },
-      { type: 'battery', id: 'battery_1', label: 'BAT2', values: { voltage: 9 }, holeRefs: null },
+      { type: 'led',     id: 'led_1',     label: 'LED2', values: { color: 'green' }, holeRefs: [h(99, 'a'), h(98, 'a')], position: { x: 0, z: 0 }, v: 2 },
+      { type: 'battery', id: 'battery_1', label: 'BAT2', values: { voltage: 9 }, holeRefs: null, v: 2 },
     ]),
     // Close the series loop: LED1's cathode column (a9) to the - rail.
     wires: CIRCUIT.wires.concat([
-      { startHole: h(8, 'b'), endHole: h(2, 'tn'), startCompIdx: -1, startPinIdx: -1, endCompIdx: -1, endPinIdx: -1, color: 0x111111 },
+      { startHole: h(8, 'b'), endHole: h(2, 'tn'), startCompIdx: -1, startPinIdx: -1, endCompIdx: -1, endPinIdx: -1, color: 0x111111, v: 2 },
     ]),
   };
   await openSaved(page, broken);

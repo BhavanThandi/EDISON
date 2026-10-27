@@ -109,7 +109,7 @@
   const where   = e => grid.holeCentre(e.hole) || e.pt;
   const powerAt = id => /^power:(\d+)$/.exec(id);
   const aTop    = () => !!(grid && grid.aTop);   // the board's letters printed a on top (B5)
-  const reframe = h => (aTop() ? Mirror.mirrorHoleName(h) : h);   // printed ↔ Edison's hole (T_A is its own inverse)
+  const reframe = h => (aTop() ? PhotoImport.flipHole(h) : h);   // printed ↔ Edison's hole (T_A is its own inverse), as the build reads it
   const current = id => {   // the item in C.reading now, by id ('power:N' a battery)
     const m = powerAt(id);
     return m ? C.reading.power[+m[1]] : C.reading.parts.find(p => p.id === id) || C.reading.wires.find(w => w.id === id);

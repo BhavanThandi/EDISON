@@ -1206,7 +1206,7 @@ test('B4 off-board: both ends off is today\'s behaviour (position, skipped), not
 // rows a↔j … e↔f; rail strips aOuter↔jOuter and aInner↔jInner keeping their
 // printed signs), builds, and adds a board flag `flipped`. Same circuit; the
 // built hole names are Edison's, not the printed ones.
-const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit; the hole names on screen won't match your board's letters.";
+const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit. This screen uses your board's letters; the built board uses Edison's.";
 const T_A  = { a: 'j', b: 'i', c: 'h', d: 'g', e: 'f', f: 'e', g: 'd', h: 'c', i: 'b', j: 'a' };
 const STRIP = { aOuter: 'jOuter', jOuter: 'aOuter', aInner: 'jInner', jInner: 'aInner' };
 const flipHole = h => {
@@ -1312,4 +1312,65 @@ test('B5 the flip never mutates the Reading it is given', () => {
   const copy = JSON.parse(JSON.stringify(rd));
   buildTop(rd);
   assert.deepStrictEqual(rd, copy);
+});
+
+// ── B5a: on an a-on-top board every user-facing why speaks the PRINTED frame ─
+// Actions, flag.hole and labels stay in Edison's frame.
+
+test('B5a offboard: a wire from printed c14 to off says "column 14 (a–e)" while flag.hole is Edison\'s h14', () => {
+  const rd = topBoard();
+  rd.wires.push(wire('W4', 'yellow', 'off', 'c14'));
+  const f = buildTop(rd).flags.find(x => x.kind === 'offboard');
+  assert.ok(f, 'an offboard flag');
+  assert.match(f.why, /column 14 \(a–e\)/, f.why);
+  assert.doesNotMatch(f.why, /f–j/);
+  assert.strictEqual(f.hole, 'h14');
+});
+
+test('B5a moved: a wire end that moves within its strip names printed holes (a–e), not Edison\'s (f–j)', () => {
+  const rd = reading({
+    parts: [resistor('R1', 'a10', 'a14')],
+    wires: [wire('W1', 'black', 'a14', 'rail:aInner:14')],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const out = buildTop(rd);
+  const f = out.flags.find(x => x.kind === 'moved' && x.id === 'W1');
+  assert.ok(f, JSON.stringify(kinds(out)));
+  assert.match(f.why, /\b[a-e]14\b/, f.why);
+  assert.doesNotMatch(f.why, /\b[f-j]\d+\b/, f.why);
+});
+
+test('B5a moved: a bridged / displaced part names printed holes', () => {
+  const rd = reading({
+    parts: [resistor('R1', 'a10', 'a14'), led('LED1', 'a14', 'a17')],
+    power: [battery('rail:aOuter:3', 'rail:aInner:3')],
+  });
+  const f = buildTop(rd).flags.find(x => x.kind === 'moved' && x.id === 'LED1');
+  assert.ok(f, 'a moved flag for LED1');
+  assert.doesNotMatch(f.why, /\b[f-j]\d+\b/, f.why);
+  assert.match(f.why, /\b[a-e]\d+\b/, f.why);
+});
+
+test('B5a rails: printed j-side signs unread -> the rails flag names the j-side, not the a-side', () => {
+  const rd = reading({
+    rails: { aOuter: '+', aInner: '-', jInner: '?', jOuter: '?' },
+    parts: [resistor('R1', 'a10', 'a14')],
+    wires: [wire('W1', 'red', 'a5', 'rail:jInner:5')],
+  });
+  const f = buildTop(rd).flags.find(x => x.kind === 'rails');
+  assert.ok(f, 'a rails flag');
+  assert.match(f.why, /j-side/, f.why);
+  assert.doesNotMatch(f.why, /a-side/, f.why);
+});
+
+test('B5a the bp flag (supply12, printed a-side + rail in use) is in printed terms: no "j-side", no "bp"; the flag keeps rail bp', () => {
+  const rd = reading({
+    parts: [ic('U1', [['1', 'f30'], ['4', 'f33']], { pins: 8, notch: 'left', label: 'TL072CP' })],
+    wires: [wire('W1', 'red', 'rail:aOuter:9', 'h31')],
+  });
+  const out = buildTop(rd);
+  assert.strictEqual(out.power, 'supply12');
+  const f = out.flags.find(x => x.kind === 'source' && x.rail === 'bp');
+  assert.ok(f, JSON.stringify(out.flags));
+  assert.doesNotMatch(f.why, /j-side|\(bp\)/, f.why);
 });

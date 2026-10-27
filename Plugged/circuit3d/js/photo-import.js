@@ -10,11 +10,14 @@
 //  RULES
 //  ─────
 //  - aTop (photo fix B5; PhotoGrid's grid.aTop: the board's letters printed
-//    a on top): first, a copy of the Reading through T_A (body holes by
-//    BoardMirror.mirrorHoleName, a↔j … e↔f; the strips aOuter↔jOuter and
-//    aInner↔jInner, each keeping its printed sign; an ic's pin1), flagged
-//    flipped (id null); '?', gap, off and pts as they are. Everything below
-//    builds that copy; the Reading given is never changed.
+//    a on top): first, a copy of the Reading through T_A (flipHole: body
+//    holes by BoardMirror.mirrorHoleName, a↔j … e↔f; the strips
+//    aOuter↔jOuter and aInner↔jInner, each keeping its printed sign; an
+//    ic's pin1), flagged flipped (id null); '?', gap, off and pts as they
+//    are. Everything below builds that copy; the Reading given is never
+//    changed. Every why speaks her board's printed letters (Ruling B5a:
+//    holes, halves, sides and rails through T_A again, by `shown`), while
+//    actions, labels and an offboard flag's hole stay Edison's.
 //  - A lead's node is its column + half (a–e / f–j) or a rail. Every lead
 //    keeps its node; rows inside a half and a rail's column are free.
 //  - Rails by side and printed sign: a-side + → tp, − → tn; j-side + → bp,
@@ -67,6 +70,7 @@
 //  ───────
 //  Browser: window.PhotoImport
 //  Node:    module.exports
+//    build(reading, options), flipHole(hole)
 // ─────────────────────────────────────────────────────────────
 
 (function (root, factory) {
@@ -107,12 +111,13 @@
   // pin (PS1.0 +, PS1.1 COM, PS1.2 −), colour.
   const POWERS     = ['auto', 'supply12', 'battery9'];
   const SUPPLY     = [['tp', 0, 'red'], ['tn', 1, 'black'], ['bn', 2, 'blue']];
-  const SUPPLY_WHY = 'The board is powered by a ±12 V bench supply (+12 V on tp, ground on tn, −12 V on bn), as in the ENSC 220 lab. Change it above.';
-  const BP_WHY     = "The j-side + rail (bp) isn't connected: the ±12 V supply powers tp, tn and bn.";
+  // The supply's whys name the rails as `r` shows them (Ruling B5a).
+  const SUPPLY_WHY = r => `The board is powered by a ±12 V bench supply (+12 V on ${r('tp')}, ground on ${r('tn')}, −12 V on ${r('bn')}), as in the ENSC 220 lab. Change it above.`;
+  const BP_WHY     = r => `The ${RAIL_SAID[r('bp')]} rail (${r('bp')}) isn't connected: the ±12 V supply powers ${r('tp')}, ${r('tn')} and ${r('bn')}.`;
 
   // aTop (photo fix B5): T_A's strip map, and the board flag's why.
   const FLIP_STRIP  = { aOuter: 'jOuter', jOuter: 'aOuter', aInner: 'jInner', jInner: 'aInner' };
-  const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit; the hole names on screen won't match your board's letters.";
+  const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit. This screen uses your board's letters; the built board uses Edison's.";
 
   const list   = v => (Array.isArray(v) ? v : []);
   const sign   = s => (s === '+' ? '+' : s === '-' || s === '−' ? '-' : '?');
@@ -153,8 +158,9 @@
     return { kind: 'rail', strip, rail, col, node: 'rail:' + rail, hole: rail + '_' + col };
   }
 
-  // A Reading endpoint through T_A: "f30" → "e30", "rail:aOuter:5" →
-  // "rail:jOuter:5"; '?', 'gap', 'off' or anything else as it is.
+  // A Reading endpoint through T_A: "f30" (or " F30") → "e30",
+  // "rail:aOuter:5" → "rail:jOuter:5"; '?', 'gap', 'off' or anything else
+  // as it is. Exported: the confirm screen's ⇄ reads holes the same way.
   function flipHole(hole) {
     const s = typeof hole === 'string' ? hole.trim() : '';
     if (/^[a-j]\d+$/i.test(s)) return Mirror.mirrorHoleName(s.toLowerCase());
@@ -209,9 +215,6 @@
     return rows.slice().sort((p, q) => Math.abs(rows.indexOf(p) - i) - Math.abs(rows.indexOf(q) - i)).map(r => r + at.col);
   }
 
-  // "column 14 (a–e)", "the a-side + rail".
-  const said = at => (at.kind === 'rail' ? `the ${RAIL_SAID[at.rail]} rail` : `column ${at.col} (${at.half === 'top' ? 'a–e' : 'f–j'})`);
-
   // Why a part can't sit on its own two nodes (it needs the bridge), or null.
   function bridgeWhy(A, B, def) {
     const { min, max } = def.place.span;
@@ -224,14 +227,14 @@
   }
 
   // An LED's leads as [cathode, anode], from the confirmed roles only.
-  // Neither known: the first dot is the anode, flagged.
-  function ledOrder(x, flag) {
+  // Neither known: the first dot is the anode, flagged (its hole as `shown`).
+  function ledOrder(x, flag, shown) {
     const [l0, l1] = x.leads;
     const role = l => (l.role === 'anode' || l.role === 'cathode' ? l.role : null);
     const r0 = role(l0), r1 = role(l1);
     if ((r0 === 'cathode' && r1 !== 'cathode') || (r1 === 'anode' && r0 !== 'anode')) return [l0, l1];
     if ((r1 === 'cathode' && r0 !== 'cathode') || (r0 === 'anode' && r1 !== 'anode')) return [l1, l0];
-    flag('polarity', x.id, `${x.id}: which lead is the anode wasn't marked, so the first dot (${l0.at.hole}) is taken as the anode. Check it.`);
+    flag('polarity', x.id, `${x.id}: which lead is the anode wasn't marked, so the first dot (${shown(l0.at.hole)}) is taken as the anode. Check it.`);
     return [l1, l0];
   }
 
@@ -284,6 +287,12 @@
     const at       = hole => { const e = endpoint(hole, rails.map); if (e && e.strip) used.add(e.strip); return e; };
     const claim    = ends => { for (const e of ends) if (e.at) claims.push(e); };
     if (aTop) flag('flipped', null, FLIPPED_WHY);
+    // Her screen's words (Ruling B5a): a hole ("e30", "tp_5"), row or rail
+    // as every why names it, on an aTop board her printed one (T_A again:
+    // "f30", "bp_5"); "column 14 (a–e)", "the a-side + rail".
+    const shown    = x => (aTop ? Mirror.MIRROR_ROW[x] || Mirror.mirrorHoleName(x) : x);
+    const said     = at => (at.kind === 'rail' ? `the ${RAIL_SAID[shown(at.rail)]} rail`
+                                               : `column ${at.col} (${TOP.includes(shown(at.row)) ? 'a–e' : 'f–j'})`);
 
     // An ic → its seat in `chips` (its 8 holes claimed), or not built, its
     // photo holes claimed as any unbuilt part's (the RULES' order).
@@ -367,7 +376,8 @@
 
     for (const side of SIDES) {
       if (rails.guessed[side.name] && (used.has(side.outer) || used.has(side.inner))) {
-        flag('rails', null, `The ${side.name} rails' + and − signs couldn't be read, so the outer strip is taken as + and the inner as −. Check them.`);
+        const name = SIDES.find(x => x.plus === shown(side.plus)).name;   // her side's name
+        flag('rails', null, `The ${name} rails' + and − signs couldn't be read, so the outer strip is taken as + and the inner as −. Check them.`);
       }
     }
 
@@ -527,15 +537,15 @@
       for (const [r, pin, color] of SUPPLY) {
         if (inUse.has(r)) pending.push({ id: null, by: 'The bench supply', color, ends: [{ pin: ps + '.' + pin }, rail(r)] });
       }
-      flag('source', null, SUPPLY_WHY);
-      if (inUse.has('bp')) flag('source', null, BP_WHY, { rail: 'bp' });
+      flag('source', null, SUPPLY_WHY(shown));
+      if (inUse.has('bp')) flag('source', null, BP_WHY(shown), { rail: 'bp' });
     } else if (!power.length && inUse.size) {
       const plus = ['tp', 'bp'].filter(r => inUse.has(r)), minus = ['tn', 'bn'].filter(r => inUse.has(r));
       actions.push({ tool: 'place_battery', voltage: 9 });
       const bat = label('battery');
       for (const r of plus)  pending.push({ id: null, by: 'The battery', color: 'red',   ends: [{ pin: bat + '.0' }, rail(r)] });
       for (const r of minus) pending.push({ id: null, by: 'The battery', color: 'black', ends: [{ pin: bat + '.1' }, rail(r)] });
-      const on = plus.concat(minus).map(r => RAIL_SAID[r]);
+      const on = plus.concat(minus).map(r => RAIL_SAID[shown(r)]);
       flag('source', null, `No battery in the photo, so a 9 V battery is assumed on the ${on.join(' and ')} rail${on.length > 1 ? 's' : ''}.`);
     }
 
@@ -543,7 +553,7 @@
     for (const c of chips) {
       const def = Parts.get(CHIP), hit = c.legs.find(l => taken.has(l.hole));
       if (!Parts.checkPlacement(CHIP, c.legs, taken, BOARD).ok) {
-        notBuilt(c.id, 'ic', 'mismatch', `${c.id} would share ${hit ? `${hit.hole} with ${taken.get(hit.hole).label}` : 'its holes with another part'}, so it isn't built. Add it by hand.`);
+        notBuilt(c.id, 'ic', 'mismatch', `${c.id} would share ${hit ? `${shown(hit.hole)} with ${taken.get(hit.hole).label}` : 'its holes with another part'}, so it isn't built. Add it by hand.`);
         continue;
       }
       actions.push({ tool: toolOf(def), hole: c.hole, direction: c.direction });
@@ -551,11 +561,11 @@
       c.legs.forEach(l => taken.set(l.hole, { label: lab, pin: l.pin }));
     }
     for (const x of parts) {
-      const [lA, lB] = x.type === 'led' ? ledOrder(x, flag) : x.leads;   // → holeA, holeB
+      const [lA, lB] = x.type === 'led' ? ledOrder(x, flag, shown) : x.leads;   // → holeA, holeB
       const A = lA.at, B = lB.at, shorted = A.node === B.node;
       const full = [lA, lB].find(l => l.at.kind === 'body' && room(l.at) < (shorted ? 2 : 1));
       if (full) {
-        notBuilt(x.id, x.type, 'position', `${x.id}: ${said(full.at)} already holds five leads, so its lead in ${full.at.hole} has no hole; it isn't built.`);
+        notBuilt(x.id, x.type, 'position', `${x.id}: ${said(full.at)} already holds five leads, so its lead in ${shown(full.at.hole)} has no hole; it isn't built.`);
         continue;
       }
       const why = bridgeWhy(A, B, x.def);
@@ -575,7 +585,7 @@
       } else if (jumpers.length) {
         flag('moved', x.id, `${lab} (${x.id}) is drawn with a jumper (${why || 'no row has both its holes free'}): on your board it runs from ${said(A)} to ${said(B)}. Same circuit.`);
       } else if (holes[0] !== A.hole || holes[1] !== B.hole) {
-        flag('moved', x.id, `${lab} (${x.id}) sits in ${holes[0]} and ${holes[1]}: the same strips as ${lA.at.hole} and ${lB.at.hole} in the photo.`);
+        flag('moved', x.id, `${lab} (${x.id}) sits in ${shown(holes[0])} and ${shown(holes[1])}: the same strips as ${shown(lA.at.hole)} and ${shown(lB.at.hole)} in the photo.`);
       }
     }
 
@@ -591,7 +601,7 @@
       }
       holes.forEach((h, k) => { if (w.holes || !w.ends[k].pin) taken.set(h, { wire: actions.length }); });
       if (!w.holes && w.ends.some((e, k) => !e.pin && !e.assumed && holes[k] !== e.at.hole)) {
-        flag('moved', w.id, `${w.id}: an end moved to another hole of the same strip (${holes.filter(h => !/\./.test(h)).join(', ')}).`);
+        flag('moved', w.id, `${w.id}: an end moved to another hole of the same strip (${holes.filter(h => !/\./.test(h)).map(shown).join(', ')}).`);
       }
       actions.push({ tool: 'add_wire', from: holes[0], to: holes[1], color: w.color });
       wireN++;
@@ -601,5 +611,5 @@
     return { actions, labels, flags, skipped, power: choice };
   }
 
-  return { build };
+  return { build, flipHole };
 });

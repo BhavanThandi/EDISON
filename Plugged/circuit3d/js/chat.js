@@ -323,7 +323,8 @@
   // question + context exactly as the question alone. So the ±12 V bench
   // supply reads "12 V rails assumed (…)", its unpowered bp "the bp rail
   // left unconnected", an off-board lead "c14 is not open (…off the
-  // board)", and a chip asked about "the photo's U1 not added (…)" (photo fix B4).
+  // board)", and a chip asked about "the photo's U1 not added (…)" (photo fix B4);
+  // an a-on-top board "rows flipped (my board's row letters …)" (photo fix B5).
   const UNSURE = { polarity: 'direction', value: 'value', moved: 'holes', shorted: 'shorted',
                    source: 'kind', position: 'holes', mismatch: 'holes', type: 'kind' };
   function photoContext(result) {
@@ -338,6 +339,7 @@
         if (f.rail) return `the ${f.rail} rail left unconnected`;
         return supply ? '12 V rails assumed (+12 V on tp, ground on tn, −12 V on bn)' : 'no cell seen, a 9 V one assumed';
       }
+      if (f.kind === 'flipped') return "rows flipped (my board's row letters are printed a on top: my a is row j here)";
       if (f.id == null)       return f.kind;
       if (f.kind === 'chip')  return `the photo's ${f.id} not added (its label unread)`;
       if (f.kind === 'pin1')  return `the photo's ${f.id} not added (which end is pin 1 unsure)`;

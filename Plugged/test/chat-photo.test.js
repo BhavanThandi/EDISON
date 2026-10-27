@@ -175,3 +175,24 @@ test('B4 the context for the ±12 V supply, an unlabelled chip and an unsure pin
   assert.match(pin1, /pin 1/i, 'pin1 reads as "pin 1": ' + pin1);
   for (const c of [supply, chip, pin1]) assert.deepStrictEqual(keywordsIn(c), [], c);
 });
+
+// ── B5: an a-on-top board reads in plain words ────────────────────────────
+
+test('B5 the context for a flipped (a-on-top) board says the row letters were flipped, with no part keyword, NEW_BUILD word or "fix"', () => {
+  const r = withChip(opamp({ pins: 8 }));
+  const result = PhotoImport.build(r, { components: [], aTop: true });
+  assert.ok(result.flags.some(f => f.kind === 'flipped'), 'the fixture raises flipped');
+  const ctx = context(result);
+  assert.ok(ctx.startsWith(PREFIX), ctx);
+  assert.match(ctx, /row letters/i, ctx);
+  assert.match(ctx, /flipped/i, ctx);
+  assert.deepStrictEqual(keywordsIn(ctx), [], ctx);
+  assert.strictEqual(Server.NEW_BUILD.test(ctx), false, ctx);
+  assert.strictEqual(isFixRequest(ctx), false, ctx);
+  for (const q of QUESTIONS) {
+    const msg = q + '\n\n' + ctx;
+    for (const types of BOARDS) assert.deepStrictEqual(toolNames(msg, types), toolNames(q, types));
+    assert.strictEqual(Server.NEW_BUILD.test(msg), Server.NEW_BUILD.test(q));
+    assert.strictEqual(isFixRequest(msg), isFixRequest(q));
+  }
+});

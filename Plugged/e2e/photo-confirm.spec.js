@@ -1199,7 +1199,7 @@ test('B4: power picker, the rehearsed ensc-lab sample (it has its own board) hid
 // Reading's named leads stay in the PRINTED names (f30/f33 notch left turns to
 // e33/e30, the T_A image of Edison's f33/f30).
 
-const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit; the hole names on screen won't match your board's letters.";
+const FLIPPED_WHY = "Your board's row letters are printed the other way (a on top), so Edison flips the rows to build it the right way round: your a is Edison's j, b is i, … Same circuit. This screen uses your board's letters; the built board uses Edison's.";
 
 // The demo sample's four corners, re-tapped as a1 top-left … j1 bottom-left.
 async function useATopTaps(page) {
@@ -1257,5 +1257,40 @@ test('B5: a j-on-top photo has no flipped warning (the sample\'s own grid)', asy
   await openConfirm(page, chipReading({ notch: 'left' }));
   expect(await page.evaluate(() => window.PhotoCapture.grid.aTop)).toBe(false);
   expect(await page.evaluate(() => window.PhotoConfirm.result.flags.filter(f => f.kind === 'flipped'))).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('B5a: ⇄ on an ASKED a-on-top chip (printed f30 / f33, notch unsure): e33 / e30 and f33 left; ⇄ again f30 / f33 and e30 right', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await useATopTaps(page);
+  const r = aTopChipReading();
+  r.parts.find(p => p.id === 'U1').notch = 'unsure';
+  await openConfirm(page, r);
+
+  expect(await tl072(page), 'asked, not built').toEqual([]);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('pin1');
+  const swap = rowOf(page, 'U1').locator('.photo-swap');
+  await expect(swap).toHaveCount(1);
+  await swap.click();
+  expect(leadHoles(await u1(page))).toEqual({ 1: 'e33', 4: 'e30' });
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'f33', direction: 'left' }]);
+  await swap.click();
+  expect(leadHoles(await u1(page))).toEqual({ 1: 'f30', 4: 'f33' });
+  expect(await tl072(page)).toEqual([{ tool: 'place_tl072', hole: 'e30', direction: 'right' }]);
+  expect(errors).toEqual([]);
+});
+
+test('B5a: an a-on-top chip with upper-case / padded lead holes (" F30", "F33") still offers ⇄', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await useATopTaps(page);
+  const r = aTopChipReading();
+  const u = r.parts.find(p => p.id === 'U1');
+  u.notch = 'unsure';
+  u.leads[0].hole = ' F30';
+  u.leads[1].hole = 'F33';
+  await openConfirm(page, r);
+  await expect(rowOf(page, 'U1').locator('.photo-swap'), 'a seat can be derived, so ⇄ is offered').toHaveCount(1);
   expect(errors).toEqual([]);
 });

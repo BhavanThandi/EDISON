@@ -11,3 +11,4 @@ node_modules/
 .claude/tdd-guard/data/*.json
 test-results/
 playwright-report/
+.env*.local

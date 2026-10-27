@@ -422,6 +422,11 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
     return { reply: fix.reply, actions: JSON.parse(JSON.stringify(fix.actions || [])) };
   }
 
+  // The Firebase ID token when signed in (auth-ui.js), else null: the editor works signed out.
+  async function authToken() {
+    try { return window.EdisonAuth ? await window.EdisonAuth.token() : null; } catch { return null; }
+  }
+
   // explain (issue #169): an answer only, so the server offers the AI no tools.
   async function askSparky(markdown, userMsg, history, board, explain) {
     const canned = cannedAnswer(userMsg);
@@ -431,9 +436,10 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
     const timer = setTimeout(() => controller.abort(), Chat.ASK_TIMEOUT_MS);
     let res, data = null;
     try {
+      const token = await authToken();
       res = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
         body: JSON.stringify({ markdown, message: userMsg, history, board, ...(explain ? { explain: true } : {}) }),
         signal: controller.signal,
       });
@@ -443,6 +449,9 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
       throw e;
     } finally {
       clearTimeout(timer);
+    }
+    if (data && (res.status === 401 || res.status === 429) && /^(SIGN_IN|DAILY_LIMIT)/.test(data.code || '')) {
+      throw Object.assign(new Error(data.message || 'Please try again later.'), { code: data.code });
     }
     if (!res.ok || !data) {
       console.error('/api/ask failed:', res.status, data);
@@ -692,7 +701,7 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
   // { context }: a line added to the message sent (and kept in the history),
   // never shown in her bubble (the photo build's, issue #143).
   // { explain }: this one ask wants an answer, not an edit (issue #169).
-  async function sparkyAsk(overrideMsg, { context, explain } = {}) {
+  async function sparkyAsk(overrideMsg, { context, explain, retried } = {}) {
     const input = document.getElementById('sparky-input');
     const msg   = (overrideMsg !== undefined) ? overrideMsg : input.value.trim();
     if (!msg) return;
@@ -724,7 +733,18 @@ if (typeof window !== 'undefined') (function (App, Chat, Parts) {
       }
     } catch (err) {
       typingEl.remove();
-      sparkyAddMsg('⚠️ ' + err.message, 'system');
+      const el = sparkyAddMsg('⚠️ ' + err.message, 'system');
+      if (err.code === 'SIGN_IN' && !retried) {
+        // D4: offer Google sign-in, then re-send this question once.
+        el.insertAdjacentHTML('beforeend', '<br><button class="btn-simulate chat-signin">Sign in with Google</button>');
+        const btn = el.querySelector('.chat-signin');
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try { await window.EdisonAuth.signIn(); } catch (e) { btn.disabled = false; sparkyAddMsg('⚠️ ' + (e && e.message || 'Sign-in did not finish.'), 'system'); return; }
+          btn.remove();
+          sparkyAsk(msg, { context, explain, retried: true });
+        });
+      }
     }
   }
 

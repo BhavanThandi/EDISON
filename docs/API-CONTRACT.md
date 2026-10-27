@@ -725,6 +725,10 @@ A confirmed Reading → the legal actions that rebuild it. Pure: uses `Parts`, `
 ```
 
 ### Page additions (photo; #140, #143)
+- **Sign-in (D4):** `circuit3d/js/auth-ui.js` defines `window.EdisonAuth = { token(): Promise<string|null>, signIn(): Promise<void>, user(): {email}|null }` only if absent. Firebase Auth (compat 10.12.0 from gstatic, `firebase-config.js`, Google popup) loads lazily; if it can't load, `token()` resolves `null` and the editor works signed out. The header shows `#auth-chip` (email initial) and `#auth-signout` while signed in.
+  - `chat.js` (`/api/ask`) and `photo.js` (`/api/photo`, `/api/photo/leads`) send `Authorization: Bearer <token>` when `token()` returns one, else no header. Welcome demos and canned answers make no request.
+  - **401 `SIGN_IN`:** the chat shows the server's `message` and a `.chat-signin` "Sign in with Google" button; after a successful `signIn()` the same question is re-sent once. The photo overlay shows the message, the same button (retries `/api/photo` once signed in) and the sample offer.
+  - **429 `DAILY_LIMIT` / `DAILY_LIMIT_GLOBAL`:** the message shows, no button, no re-send; the photo overlay also offers `#photo-error-sample`.
 - **Welcome demos (D2):** the welcome card's buttons fire `welcome:demo` (`detail.demo` = `build` | `photo` | `run`); `welcome.js` hides the card and runs it with no login and no `/api/ask` or `/api/photo` call. `build`: `window.DemoCanned = { reply, actions }` (the recorded LED answer) then `sparkyAsk('Build me an LED circuit')`; `chat.js` `askSparky` returns it once after the 1.2 s typing delay, so it previews with Accept. `photo`: `window.PhotoDemo('thandi-blinker')` (`photo.js`), the rehearsed sample's canned-board path straight away (no corner taps, no `/api/photo`), with its credit and canned explain/fix. `run`: loads `../demo.sparky` if the board is empty, then `App.runSimulation()`.
 - **`SparkyChat.applyBuild(actions)`** (browser half of `chat.js`) → `{ applied, failed }` from `Chat.acceptBuild`. It:
   1. clears any pending AI preview;

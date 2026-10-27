@@ -1014,3 +1014,52 @@ test('B3 chip row: the chip\'s two dots are labelled with their pin names (1 and
   expect(d[0].label).toMatch(/(^|[^A-Za-z0-9])1$/);
   expect(d[1].label).toMatch(/(^|[^A-Za-z0-9])4$/);
 });
+
+// Ruling B3c: an unreadable-label chip always shows Yes / No, the current
+// answer marked aria-pressed="true"; she can change her answer; clicking the
+// pressed one changes nothing. A readable op-amp label shows neither.
+test('B3c chip row, label unreadable: Yes/No stay visible with aria-pressed; Yes builds, No skips with a type flag, Yes again builds; a readable TL072 label shows neither', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: null, notch: 'left' }));
+
+  const row = rowOf(page, 'U1'), yes = row.locator('.photo-chip-yes'), no = row.locator('.photo-chip-no');
+  await expect(yes).toHaveAttribute('aria-pressed', 'false');
+  await expect(no).toHaveAttribute('aria-pressed', 'false');
+
+  await yes.click();
+  let acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+  await expect(yes).toBeVisible();
+  await expect(no).toBeVisible();
+  await expect(yes).toHaveAttribute('aria-pressed', 'true');
+  await expect(no).toHaveAttribute('aria-pressed', 'false');
+
+  await yes.click();   // already pressed: nothing changes
+  expect((await u1(page)).isOpAmp).toBe(true);
+  expect(await tl072(page)).toHaveLength(1);
+  await expect(yes).toHaveAttribute('aria-pressed', 'true');
+
+  await no.click();
+  expect((await u1(page)).isOpAmp).toBe(false);
+  expect(await tl072(page)).toEqual([]);
+  expect((await skippedOf(page, 'U1')).length).toBe(1);
+  expect((await flagsOf(page, 'U1')).map(f => f.kind)).toContain('type');
+  await expect(no).toHaveAttribute('aria-pressed', 'true');
+  await expect(yes).toHaveAttribute('aria-pressed', 'false');
+
+  await yes.click();
+  expect((await u1(page)).isOpAmp).toBe(true);
+  acts = await tl072(page);
+  expect(acts).toHaveLength(1);
+  expect(acts[0]).toMatchObject({ hole: 'e30', direction: 'right' });
+  await expect(yes).toHaveAttribute('aria-pressed', 'true');
+
+  await openEditor(page);
+  await openConfirm(page, chipReading({ label: 'TL072', notch: 'left' }));
+  await expect(rowOf(page, 'U1')).toHaveCount(1);
+  await expect(rowOf(page, 'U1').locator('.photo-chip-yes')).toHaveCount(0);
+  await expect(rowOf(page, 'U1').locator('.photo-chip-no')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

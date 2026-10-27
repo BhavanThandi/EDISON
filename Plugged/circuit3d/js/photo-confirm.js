@@ -19,7 +19,8 @@
 //    tap a dot (selected) → tap anywhere → it moves to grid.snap(point).hole
 //    ⇄ swaps an LED's legs (or picks its + when unknown) · × deletes
 //    a chip (an `ic` row, "U1 · TL072", "U1 · chip" unread; photo fix B3):
-//      flag chip → Yes / No (isOpAmp true / false)
+//      label unreadable (PhotoChips.identify unknown, 8 pins) → Yes / No,
+//      always, her answer aria-pressed (isOpAmp true / false; Ruling B3c)
 //      flag pin1 → "Pin 1 is right" (pin1Confirmed)
 //      flag pin1, or built → ⇄ turns it end for end (Ruling B3a): its seat
 //      (the built place_tl072, else PhotoChips' rule) → named leads 1 and
@@ -41,8 +42,8 @@
 //    and "Placing legs N/M…" shows above the list. Each crop's line →
 //    place(id, entry): the id leaves `placing`; unless she has touched that
 //    item since open() (moved a dot, ⇄, ×, a value, colour or volts, a
-//    chip's Yes / No / Pin 1 is right), the entry is merged (PhotoCrops.merge;
-//    found false drops the item), its '?' snapped, rebuilt and redrawn.
+//    chip's answer), the entry is merged (PhotoCrops.merge; found false
+//    drops the item), its '?' snapped, rebuilt and redrawn.
 //    stopPlacing() clears it all (done, a timeout, an error, a close).
 //    #177: a landing line never replaces the control she is using: the row
 //    holding the focused input or select stays the same element (its typed
@@ -457,14 +458,25 @@
     return li;
   }
 
-  // A chip's row (B3): "U1 · TL072". While the build asks (its flags):
-  // chip → Yes / No, it is (isn't) a dual op-amp; pin1 → "Pin 1 is right".
-  // ⇄ while it has a seat to turn (asked, or built).
+  // A chip's row (B3): "U1 · TL072". An unreadable label (an 8-pin chip
+  // PhotoChips can't name) always has Yes / No, it is (isn't) a dual
+  // op-amp, her answer pressed so she can change it (Ruling B3c); flag
+  // pin1 → "Pin 1 is right". ⇄ while it has a seat to turn (asked, or built).
   function chipRow(p, name) {
     const kinds = C.result.flags.filter(f => f.id === name).map(f => f.kind);
-    const answer = (key, v) => () => { set(p.id, key, v); edited(); };
-    const ask = kinds.includes('chip') ? [button('photo-chip-yes', 'Yes', 'Yes: a dual op-amp like a TL072', answer('isOpAmp', true)),
-                                          button('photo-chip-no', 'No', 'No: another chip', answer('isOpAmp', false))] : [];
+    const answer = (key, v) => () => {   // her answer again changes nothing
+      const q = current(p.id);
+      if (!q || q[key] === v) return;
+      set(p.id, key, v);
+      edited();
+    };
+    const yesNo = (cls, text, title, v) => {
+      const b = button(cls, text, title, answer('isOpAmp', v));
+      b.setAttribute('aria-pressed', String(p.isOpAmp === v));
+      return b;
+    };
+    const ask = PhotoChips.identify(p.label) === 'unknown' && (Number(p.pins) || 8) === 8
+      ? [yesNo('photo-chip-yes', 'Yes', 'Yes: a dual op-amp like a TL072', true), yesNo('photo-chip-no', 'No', 'No: another chip', false)] : [];
     if (kinds.includes('pin1')) ask.push(button('photo-pin1-ok', 'Pin 1 is right', 'The 1 dot is on pin 1', answer('pin1Confirmed', true)));
     const turn = seatOf(p) && button('photo-swap', '⇄', 'Turn the chip round: pin 1 to the other end', () => turnChip(p.id));
     return row(p.id, name, `· ${String(p.label == null ? '' : p.label).trim() || 'chip'}`, turn, null, ask);

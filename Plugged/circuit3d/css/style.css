@@ -330,6 +330,7 @@ html, body {
 #photo-parts button:hover { border-color: var(--accent); }
 /* A chip's answers (photo fix B3): ⇄'s look, sized to their words. */
 #photo-parts .photo-chip-yes, #photo-parts .photo-chip-no, #photo-parts .photo-pin1-ok { width: auto; padding: 0 8px; font-size: 11px; }
+#photo-parts button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }   /* her answer (B3c), as .comp-item.active */
 #photo-parts li { flex-wrap: wrap; }
 #photo-parts select, .photo-volts { max-width: 82px; font-family: inherit; font-size: 11px; }
 .photo-volts { width: 48px; }

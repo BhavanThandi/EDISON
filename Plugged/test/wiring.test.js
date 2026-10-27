@@ -683,3 +683,14 @@ test('the 📷 button sits in the chat input row', () => {
   assert.match(row, /<button\b[^>]*\bid="photo-btn"[^>]*>[\s\S]*?📷[\s\S]*?<\/button>/,
     '#sparky-input-row holds <button id="photo-btn">📷</button>');
 });
+
+// Order picked from the brief ("a small circuit3d/js/welcome.js" beside chat.js):
+// the card is a DOM layer that may use the chat, so it loads after chat.js and
+// stays inside the body's script run (before </body>).
+test('the editor loads js/welcome.js after js/chat.js, before the end of body', () => {
+  const html = read('circuit3d/index.html');
+  const order = scriptOrder(html);
+  assert.ok(order.includes('js/welcome.js'), 'circuit3d/index.html must load js/welcome.js');
+  assert.ok(order.indexOf('js/welcome.js') > order.indexOf('js/chat.js'), 'welcome.js must load after chat.js: ' + order.join(', '));
+  assert.ok(html.indexOf('js/welcome.js') < html.lastIndexOf('</body>'), 'welcome.js must be inside <body>');
+});

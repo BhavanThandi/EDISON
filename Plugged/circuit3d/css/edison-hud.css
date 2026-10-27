@@ -196,3 +196,28 @@ html[data-ui="edison"] #sidebar kbd {
   html[data-ui="edison"] .comp-group::after { display: none; }
   html[data-ui="edison"] .comp-item { padding: 4px 8px; }
 }
+
+/* ── Welcome card (D1): top centre, so the Run button and the chat input stay clear ── */
+html[data-ui="edison"] #welcome-card:not([hidden]) {
+  display: block; position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 50;
+  width: min(440px, calc(100vw - 32px)); padding: 16px 18px 18px; box-sizing: border-box;
+  background: #101010; border: 1px solid #242424; color: #F4F4F4;
+  font-family: 'DM Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+html[data-ui="edison"] #welcome-card .welcome-title {
+  margin: 0 0 8px; font-size: 11px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: #F4F4F4;
+}
+html[data-ui="edison"] #welcome-card .welcome-line { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #D6D6D6; }
+html[data-ui="edison"] #welcome-card .welcome-actions { display: flex; flex-direction: column; gap: 6px; }
+html[data-ui="edison"] #welcome-card .welcome-actions button {
+  font: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; text-align: left;
+  padding: 9px 12px; background: transparent; color: #F4F4F4; border: 1px solid #676767; border-radius: 0; cursor: pointer;
+}
+html[data-ui="edison"] #welcome-card .welcome-actions button:hover,
+html[data-ui="edison"] #welcome-card .welcome-actions button:focus-visible { border-color: #FF6A1A; color: #FF6A1A; outline: none; }
+html[data-ui="edison"] #welcome-card .welcome-close {
+  position: absolute; top: 6px; right: 8px; width: 28px; height: 28px; padding: 0; font: inherit; font-size: 18px;
+  background: transparent; color: #8A8A8A; border: 0; cursor: pointer;
+}
+html[data-ui="edison"] #welcome-card .welcome-close:hover,
+html[data-ui="edison"] #welcome-card .welcome-close:focus-visible { color: #FF6A1A; outline: none; }

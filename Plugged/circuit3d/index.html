@@ -354,6 +354,17 @@
 <script src="js/bench.js"></script>
 <script src="js/app.js"></script>
 <script src="js/chat.js"></script>
+<div id="welcome-card" role="dialog" aria-label="Welcome to Edison" hidden>
+  <button type="button" class="welcome-close" aria-label="Close">×</button>
+  <h2 class="welcome-title">Edison</h2>
+  <p class="welcome-line">An AI agent that builds working circuits — and rebuilds a real breadboard from a photo.</p>
+  <nav class="welcome-actions" aria-label="Demos">
+    <button type="button" data-demo="build">Build me an LED circuit</button>
+    <button type="button" data-demo="photo">Rebuild a breadboard from a photo</button>
+    <button type="button" data-demo="run">Run it</button>
+  </nav>
+</div>
+<script src="js/welcome.js"></script>
 <script src="samples/samples.js"></script>
 <script src="js/photo-confirm.js"></script>
 <script src="js/photo.js"></script>

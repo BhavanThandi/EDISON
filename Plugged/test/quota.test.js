@@ -33,6 +33,8 @@ const uniq = p => `${p}-${process.pid}-${++n}`;
 beforeEach(() => {
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.KV_REST_API_URL;
+  delete process.env.KV_REST_API_TOKEN;
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -135,4 +137,32 @@ test.each([
   const third = await take(k, 2, { now: D1 });
   assert.equal(third.ok, false, 'a down store must not mean unlimited');
   assert.equal(third.limit, 2);
+});
+
+test('Vercel names: KV_REST_API_URL / KV_REST_API_TOKEN work when the UPSTASH_* pair is absent (same pipeline request)', async () => {
+  process.env.KV_REST_API_URL = 'https://kv.example.test';
+  process.env.KV_REST_API_TOKEN = 'kv-tok';
+  const k = uniq('u:kv:ask');
+  const calls = [];
+  vi.stubGlobal('fetch', vi.fn(async (url, opts) => { calls.push({ url: String(url), opts, body: JSON.parse(opts.body) }); return reply(200, [{ result: 2 }, { result: 1 }]); }));
+  const out = await Quota().take(k, 5, { now: D1 });
+  assert.deepStrictEqual(out, { ok: true, used: 2, limit: 5 });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://kv.example.test/pipeline');
+  const headers = Object.fromEntries(Object.entries(calls[0].opts.headers).map(([h, v]) => [h.toLowerCase(), v]));
+  assert.equal(headers.authorization, 'Bearer kv-tok');
+  const dated = `${k}:${date(D1())}`;
+  assert.deepStrictEqual(calls[0].body[0], ['INCR', dated]);
+  assert.deepStrictEqual(calls[0].body[1].map(String), ['EXPIRE', dated, '172800']);
+});
+
+test('UPSTASH_* wins when both pairs are set', async () => {
+  process.env.KV_REST_API_URL = 'https://kv.example.test';
+  process.env.KV_REST_API_TOKEN = 'kv-tok';
+  const calls = upstash(() => reply(200, [{ result: 1 }, { result: 1 }]));
+  await Quota().take(uniq('u:both:ask'), 5, { now: D1 });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://fake-redis.example.test/pipeline');
+  const headers = Object.fromEntries(Object.entries(calls[0].opts.headers).map(([h, v]) => [h.toLowerCase(), v]));
+  assert.equal(headers.authorization, 'Bearer tok-123');
 });

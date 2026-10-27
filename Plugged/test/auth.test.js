@@ -122,3 +122,12 @@ test('certs are cached: two verifications within max-age call fetchCerts once', 
 test('a failing fetchCerts refuses the token (never lets it through)', async () => {
   await refused(sign(keys.privateKey), 'a token while the cert fetch fails', { fetchCerts: async () => { throw new Error('offline'); } });
 });
+
+test('only Google sign-in counts: firebase.sign_in_provider must be google.com (anonymous, password, missing are refused)', async () => {
+  const ok = await verify(sign(keys.privateKey, { payload: { firebase: { sign_in_provider: 'google.com' } } }));
+  assert.equal(ok.uid, 'user-1');
+  await refused(sign(keys.privateKey, { payload: { firebase: { sign_in_provider: 'anonymous' } } }), 'an anonymous sign-in');
+  await refused(sign(keys.privateKey, { payload: { firebase: { sign_in_provider: 'password' } } }), 'a password sign-in');
+  await refused(sign(keys.privateKey, { payload: { firebase: {} } }), 'a firebase claim with no provider');
+  await refused(sign(keys.privateKey, { payload: { firebase: undefined } }), 'no firebase claim');
+});

@@ -10,13 +10,13 @@
  *                          (Accept application/x-ndjson: a line per item as it settles, then { done, … })
  * POST /api/voice/stt      { audio } (a base64 audio data URL)  →  { text }
  * POST /api/voice/tts      { text } (1–600 characters)          →  audio/mpeg, streamed
- * GET  /api/health                                         →  { status, model, voice }
+ * GET  /api/health                                         →  { status, model, voice, auth, counters }
  * POST /api/course/canvas/sync                             →  { ok, demo, syncedAt }  (Edison demo, no real Canvas)
  * GET  anything else       the app's static files
  *
- * REQUIRE_AUTH=1 (deploy): /api/ask, /api/photo and /api/photo/leads need a Firebase
- * ID token (auth.js), and /api/ask and /api/photo keep daily limits (quota.js);
- * a recorded sample photo needs neither.
+ * REQUIRE_AUTH on (deploy): /api/ask, /api/photo, /api/photo/leads and /api/voice/* need
+ * a Firebase ID token from a Google sign-in (auth.js), and /api/ask and /api/photo keep
+ * daily limits (quota.js); a recorded sample photo needs neither.
  */
 
 const http = require('http');
@@ -1778,13 +1778,14 @@ function readBody(req, res, max, tooLarge) {
 }
 
 // ── Sign-in and daily allowances (deploy D3) ─────────────────
-// Only with REQUIRE_AUTH=1 (read per request; unset or anything else is
-// off, and nothing below runs). /api/ask and /api/photo then need a
-// Firebase ID token (`Authorization: Bearer …`) and take one from the user's
-// day and one from the day's global pool, in that order; /api/photo/leads
-// needs the token only (it belongs to its photo), and a recorded sample
-// photo needs neither (D3c). The texts are the contract's
-// (docs/API-CONTRACT.md), with the configured numbers.
+// On when REQUIRE_AUTH is set to anything but '', '0', 'false', 'off' or
+// 'no' (read per request, trimmed, any case), so a misspelt "on" never
+// leaves it open; unset is off and nothing below runs. /api/ask and
+// /api/photo then need a Firebase ID token (`Authorization: Bearer …`) from
+// a Google sign-in and take one from the user's day and one from the day's
+// global pool, in that order; /api/photo/leads and /api/voice/* need the
+// token only, and a recorded sample photo needs neither (D3c). The texts
+// are the contract's (docs/API-CONTRACT.md), with the configured numbers.
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const LIMIT_REPLY = {
   SIGN_IN:      n => `Sign in with Google to ask your own questions (${n} a day).`,
@@ -1797,7 +1798,16 @@ const DAY_LIMITS = {
   ask:   { user: ['ASK_PER_USER_DAY', 5],   global: ['ASK_GLOBAL_DAY', 100],  userReply: LIMIT_REPLY.ASK_USER,   globalReply: LIMIT_REPLY.ASK_GLOBAL },
   photo: { user: ['PHOTO_PER_USER_DAY', 1], global: ['PHOTO_GLOBAL_DAY', 15], userReply: LIMIT_REPLY.PHOTO_USER, globalReply: LIMIT_REPLY.PHOTO_GLOBAL },
 };
-const authRequired = () => process.env.REQUIRE_AUTH === '1';
+const AUTH_OFF = new Set(['', '0', 'false', 'off', 'no']);
+const authRequired = () => !AUTH_OFF.has(String(process.env.REQUIRE_AUTH || '').trim().toLowerCase());
+// Said once per instance: with no Upstash the daily counts are this instance's alone.
+let memoryNoted = false;
+function noteMemoryCounters() {
+  if (memoryNoted || !authRequired() || Quota.storeName() !== 'memory') return;
+  memoryNoted = true;
+  console.warn('[quota] in-memory counters (no Upstash): daily limits are per server instance');
+}
+noteMemoryCounters();
 // A whole number ≥ 0 from env, else the default (never unlimited).
 const dayLimit = ([name, dflt]) => { const v = String(process.env[name] || '').trim(); return /^\d+$/.test(v) ? Number(v) : dflt; };
 const limitBody = (code, message, extra) => ({ reply: message, ...extra, code, message });
@@ -1821,6 +1831,7 @@ async function signedInUser(req, res, extra) {
 // of the day's global pool. Answers 429 and returns its code on the first
 // refusal; null when the request may go on.
 async function overDayLimit(res, uid, route, extra) {
+  noteMemoryCounters();
   const L = DAY_LIMITS[route];
   const mine = dayLimit(L.user);
   if (!(await Quota.take(`u:${uid}:${route}`, mine)).ok) {
@@ -1884,7 +1895,7 @@ async function handlePhoto(req, res) {
   if (!isPhotoGrid(grid))     return fail('BAD_GRID');
   const photoIn = { image, grid, sample, window: frame };
 
-  // REQUIRE_AUTH=1 (D3c): a sample id with a recording is replayed with no
+  // Auth on (D3c): a sample id with a recording is replayed with no
   // token and no allowance, by the fixture reader alone, so it can never
   // reach a live AI (the image is ignored). Anything else (no sample, or one
   // with no recording) signs in and takes the allowance before any reader.
@@ -2004,8 +2015,10 @@ function voiceField(raw, key) {
   } catch { return undefined; }
 }
 
+// With auth on (D3e) both voice routes need a token, after the rate limit; no allowance.
 async function handleVoiceStt(req, res) {
   if (rateLimited(req, voiceHits, VOICE_MAX_PER_WINDOW)) return sendJSON(res, 429, VOICE_RATE);
+  if (authRequired() && (await signedInUser(req, res)) === null) return;
   const raw = await readBody(req, res, MAX_VOICE_BYTES, { reply: 'That recording is too long.', code: 'TOO_LARGE' });
   if (raw === null) return;
   const clip = Voice.parseAudioDataUrl(voiceField(raw, 'audio'));
@@ -2025,6 +2038,7 @@ async function handleVoiceStt(req, res) {
 
 async function handleVoiceTts(req, res) {
   if (rateLimited(req, voiceHits, VOICE_MAX_PER_WINDOW)) return sendJSON(res, 429, VOICE_RATE);
+  if (authRequired() && (await signedInUser(req, res)) === null) return;
   const raw = await readBody(req, res, MAX_TTS_BYTES, { reply: 'That reply is too long to speak.', code: 'TOO_LARGE' });
   if (raw === null) return;
   const said = voiceField(raw, 'text');
@@ -2072,7 +2086,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && req.url === '/api/health') {
-    return sendJSON(res, 200, { status: 'ok', model: MODEL_NAME, voice: Voice.voiceMode() });
+    return sendJSON(res, 200, { status: 'ok', model: MODEL_NAME, voice: Voice.voiceMode(), auth: authRequired(), counters: Quota.storeName() });
   }
 
   // The Edison course hub's Canvas dummy: a sync that worked, marked as a demo. No real Canvas.

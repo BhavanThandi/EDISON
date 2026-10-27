@@ -4,9 +4,11 @@
 //  ('u:<uid>:ask', 'g:photo'); the UTC date is appended, so every count
 //  starts again at 1 each UTC day. A refused take still counts.
 //  The store is Upstash Redis over REST (one pipeline: INCR, EXPIRE 48 h)
-//  when UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are both set
-//  (read per call), else this process's memory. A store error counts in
-//  memory instead: the limit still holds per instance, never unlimited.
+//  when UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are both set,
+//  else KV_REST_API_URL and KV_REST_API_TOKEN (the names Vercel's Upstash
+//  integration sets; read per call), else this process's memory. A URL
+//  without its own token is no store. A store error counts in memory
+//  instead: the limit still holds per instance, never unlimited.
 //  Node built-ins only: the global fetch.
 // ─────────────────────────────────────────────────────────────
 const KEY_TTL_S        = 172800;   // 2 days: a dated key outlives its day, then Redis drops it
@@ -35,14 +37,21 @@ function remember(dated, date, n) {
   day.set(dated, Math.max(day.get(dated) || 0, n));
 }
 
-const upstashOn = () => !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+// { url, token } of the Upstash REST store, or null. Each pair only with its own token.
+function upstashConfig(env = process.env) {
+  if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) return { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN };
+  if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) return { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN };
+  return null;
+}
+// 'upstash' or 'memory': where take() counts right now (for /api/health).
+const storeName = () => (upstashConfig() ? 'upstash' : 'memory');
 
 // The key's new count from Upstash; throws on any failure (no count, no 200, no answer in time).
-async function upstashIncr(dated) {
-  const base = String(process.env.UPSTASH_REDIS_REST_URL).replace(/\/+$/, '');
+async function upstashIncr(dated, { url, token }) {
+  const base = String(url).replace(/\/+$/, '');
   const res = await fetch(`${base}/pipeline`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify([['INCR', dated], ['EXPIRE', dated, KEY_TTL_S]]),
     signal: AbortSignal.timeout(STORE_TIMEOUT_MS),
   });
@@ -67,7 +76,8 @@ async function take(key, limit, { store, now = Date.now } = {}) {
   if (!Number.isFinite(ms)) ms = Date.now();
   const date  = new Date(ms).toISOString().slice(0, 10);
   const dated = `${key}:${date}`;
-  const incr  = store ? k => store.incr(k) : upstashOn() ? upstashIncr : null;
+  const conf  = store ? null : upstashConfig();
+  const incr  = store ? k => store.incr(k) : conf ? k => upstashIncr(k, conf) : null;
   let used;
   if (incr) {
     try {
@@ -84,4 +94,4 @@ async function take(key, limit, { store, now = Date.now } = {}) {
   return { ok: used <= limit, used, limit };
 }
 
-module.exports = { take, resetMemory };
+module.exports = { take, resetMemory, storeName };

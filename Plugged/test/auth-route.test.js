@@ -52,7 +52,7 @@ beforeAll(() => new Promise(r => Server.server.listen(0, '127.0.0.1', () => { po
 afterAll(() => new Promise(r => Server.server.close(r)));
 
 let deepseekCalls;
-const ENV = ['REQUIRE_AUTH', 'ASK_PER_USER_DAY', 'PHOTO_PER_USER_DAY', 'ASK_GLOBAL_DAY', 'PHOTO_GLOBAL_DAY', 'PHOTO_PROVIDERS'];
+const ENV = ['VOICE_PROVIDER', 'ELEVENLABS_API_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'REQUIRE_AUTH', 'ASK_PER_USER_DAY', 'PHOTO_PER_USER_DAY', 'ASK_GLOBAL_DAY', 'PHOTO_GLOBAL_DAY', 'PHOTO_PROVIDERS'];
 beforeEach(() => {
   deepseekCalls = 0;
   for (const k of ENV) delete process.env[k];
@@ -96,6 +96,19 @@ function post(path, body, { token, accept } = {}) {
   });
 }
 const ask = (opts, message = 'hi') => post('/api/ask', { markdown: '', message, history: [] }, opts);
+
+function get(path) {
+  return new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path }, res => {
+      let out = '';
+      res.on('data', c => { out += c; });
+      res.on('end', () => { let json = null; try { json = JSON.parse(out); } catch { /* */ } resolve({ status: res.statusCode, json, raw: out }); });
+    }).on('error', reject);
+  });
+}
+const CLIP = `data:audio/webm;base64,${Buffer.alloc(64, 1).toString('base64')}`;
+const stt = opts => post('/api/voice/stt', { audio: CLIP }, opts);
+const tts = opts => post('/api/voice/tts', { text: 'hello there' }, opts);
 
 const GRID = { cols: 63, pitch: 30, x0: 90, y0: 190, width: 2040, height: 710 };
 const IMG = `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(2048, 'a')]).toString('base64')}`;
@@ -241,6 +254,77 @@ describe('REQUIRE_AUTH=1', () => {
       assert.notEqual(r.status, 429, `leads call ${i + 2}: ${r.raw.slice(0, 200)}`);
       assert.notEqual(r.status, 401);
     }
+  });
+});
+
+describe('voice routes with REQUIRE_AUTH=1 (D3e)', () => {
+  beforeEach(() => { process.env.REQUIRE_AUTH = '1'; });
+
+  test.each([['stt', stt], ['tts', tts]])('/api/voice/%s without a token → 401 SIGN_IN and no ElevenLabs call', async (_, send) => {
+    process.env.VOICE_PROVIDER = 'elevenlabs';
+    process.env.ELEVENLABS_API_KEY = 'not-a-real-key';
+    let elevenCalls = 0;
+    const inner = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url, ...rest) => { if (/elevenlabs/.test(String(url))) { elevenCalls++; throw new Error('should not be called'); } return inner(url, ...rest); });
+    const res = await send({});
+    assert.equal(res.status, 401, res.raw.slice(0, 200));
+    assert.equal(res.json.code, 'SIGN_IN');
+    assert.equal(res.json.message, SIGN_IN);
+    const bad = await send({ token: 'garbage' });
+    assert.equal(bad.status, 401);
+    assert.equal(elevenCalls, 0);
+  });
+
+  test('with a valid token both routes reach the (fixture) provider, and take no allowance', async () => {
+    process.env.VOICE_PROVIDER = 'fixture';
+    process.env.ASK_PER_USER_DAY = '1';
+    const token = tokenFor('voice-user');
+    for (let i = 0; i < 3; i++) {
+      const a = await stt({ token });
+      assert.equal(a.status, 200, a.raw.slice(0, 200));
+      assert.equal(typeof a.json.text, 'string');
+      assert.equal((await tts({ token })).status, 200);
+    }
+    assert.equal((await ask({ token })).status, 200, 'the single ask is still there');
+  });
+});
+
+describe('REQUIRE_AUTH spelling (D3e)', () => {
+  test.each(['1', 'true', ' 1', '1\n', 'yes', 'TRUE', ' Yes '])('%j turns auth ON', async v => {
+    process.env.REQUIRE_AUTH = v;
+    const res = await ask({});
+    assert.equal(res.status, 401, res.raw.slice(0, 200));
+    assert.equal(res.json.code, 'SIGN_IN');
+  });
+  test.each(['', '0', 'false', 'off', 'no', 'FALSE', ' Off ', ' NO\n'])('%j turns auth OFF', async v => {
+    process.env.REQUIRE_AUTH = v;
+    assert.equal((await ask({})).status, 200);
+  });
+});
+
+describe('GET /api/health reports auth and counters (D3e)', () => {
+  test('auth follows REQUIRE_AUTH', async () => {
+    assert.equal((await get('/api/health')).json.auth, false);
+    process.env.REQUIRE_AUTH = 'true';
+    assert.equal((await get('/api/health')).json.auth, true);
+  });
+  test('counters: memory with no store, upstash with either pair', async () => {
+    assert.equal((await get('/api/health')).json.counters, 'memory');
+    process.env.UPSTASH_REDIS_REST_URL = 'https://u.example.test';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 't';
+    assert.equal((await get('/api/health')).json.counters, 'upstash');
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.KV_REST_API_URL = 'https://kv.example.test';
+    process.env.KV_REST_API_TOKEN = 't';
+    assert.equal((await get('/api/health')).json.counters, 'upstash');
+    delete process.env.KV_REST_API_TOKEN;
+    assert.equal((await get('/api/health')).json.counters, 'memory', 'a URL without its token is not a store');
+  });
+  test('the old fields stay', async () => {
+    const h = (await get('/api/health')).json;
+    assert.equal(h.status, 'ok');
+    assert.ok('model' in h && 'voice' in h);
   });
 });
 

@@ -2,6 +2,7 @@
 //  backend/auth.js: Firebase ID-token checks for the AI routes (deploy D3).
 //  verifyIdToken(token, { projectId, fetchCerts, now }) → { uid, email },
 //  or throws an AuthError (its `code` says why; never the token itself).
+//  Only Google sign-ins (firebase.sign_in_provider 'google.com') pass.
 //  Node built-ins only: node:crypto for RS256, the global fetch for
 //  Google's public certs (cached for the reply's Cache-Control max-age).
 // ─────────────────────────────────────────────────────────────
@@ -95,6 +96,9 @@ async function verifyIdToken(token, { projectId, fetchCerts, now = Date.now } = 
   if (typeof exp !== 'number' || !Number.isFinite(exp) || !(exp > nowS)) refuse('EXPIRED');
   if (typeof iat !== 'number' || !Number.isFinite(iat) || !(iat <= nowS + IAT_SKEW_S)) refuse('BAD_IAT');
   if (typeof sub !== 'string' || !sub || sub.length > MAX_SUB_LEN) refuse('BAD_SUB');
+  // Google sign-ins only: not anonymous, password, or any other provider.
+  const fb = payload.firebase;
+  if (!fb || typeof fb !== 'object' || fb.sign_in_provider !== 'google.com') refuse('NOT_GOOGLE');
 
   const key = (await certKeys(fetchCerts, nowMs)).get(header.kid);
   if (!key) refuse('BAD_KID');

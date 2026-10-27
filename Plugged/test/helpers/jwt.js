@@ -17,7 +17,8 @@ function sign(privateKey, { header = {}, payload = {}, now = NOW_S, tamper } = {
   const h = { alg: 'RS256', kid: 'kid1', typ: 'JWT', ...header };
   const p = {
     iss: `https://securetoken.google.com/${PROJECT}`, aud: PROJECT, sub: 'user-1', email: 'a@example.com',
-    iat: now - 60, exp: now + 3600, auth_time: now - 60, ...payload,
+    iat: now - 60, exp: now + 3600, auth_time: now - 60,
+    firebase: { sign_in_provider: 'google.com', identities: { 'google.com': ['123'] } }, ...payload,
   };
   for (const o of [h, p]) for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k];
   const input = `${b64u(h)}.${b64u(p)}`;

@@ -322,8 +322,8 @@
   // names a part keyword, a NEW_BUILD word or "fix": the server must treat
   // question + context exactly as the question alone. So the ±12 V bench
   // supply reads "12 V rails assumed (…)", its unpowered bp "the bp rail
-  // left unconnected", an off-board lead "a lead leaves the board at c14",
-  // and a chip asked about "the photo's U1 not added (…)" (photo fix B4).
+  // left unconnected", an off-board lead "c14 is not open (…off the
+  // board)", and a chip asked about "the photo's U1 not added (…)" (photo fix B4).
   const UNSURE = { polarity: 'direction', value: 'value', moved: 'holes', shorted: 'shorted',
                    source: 'kind', position: 'holes', mismatch: 'holes', type: 'kind' };
   function photoContext(result) {
@@ -331,7 +331,9 @@
     const supply = !!result && result.power === 'supply12';
     const said = ((result && result.flags) || []).map(f => {
       if (f.kind === 'rails')    return 'rail signs';
-      if (f.kind === 'offboard') return f.hole ? `a lead leaves the board at ${f.hole}` : `the photo's ${f.id} leaves the board`;
+      if (f.kind === 'offboard') {
+        return f.hole ? `${f.hole} is not open (a lead from it goes to something off the board)` : `the photo's ${f.id} goes to something off the board`;
+      }
       if (f.id == null && f.kind === 'source') {
         if (f.rail) return `the ${f.rail} rail left unconnected`;
         return supply ? '12 V rails assumed (+12 V on tp, ground on tn, −12 V on bn)' : 'no cell seen, a 9 V one assumed';

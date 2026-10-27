@@ -14,7 +14,7 @@
 //
 //  FLOW
 //  ────
-//    photo.js gets a Reading → PhotoConfirm.open(reading, image, grid, onBuild)
+//    photo.js gets a Reading → PhotoConfirm.open(reading, image, grid, onBuild[, { ownBoard }])
 //    → '?' endpoints snapped from their pt → draw
 //    tap a dot (selected) → tap anywhere → it moves to grid.snap(point).hole
 //    ⇄ swaps an LED's legs (or picks its + when unknown) · × deletes
@@ -32,7 +32,8 @@
 //    + Add a part → resistor / LED / wire → tap two holes (snapped)
 //    #photo-power (photo fix B4): ±12 V bench supply / 9 V battery, showing
 //    result.power; her pick is C.power (null: PhotoImport's auto). Hidden
-//    while the Reading has its own power entries (result.power 'reading').
+//    while the Reading has its own power entries (result.power 'reading'),
+//    and on a rehearsed sample that builds its own board (open's ownBoard).
 //    every edit re-runs PhotoImport.build(reading, { components: [], power })
 //    and redraws; a row is amber (.photo-flagged) with each flag's why,
 //    greyed (.photo-notbuilt) if skipped
@@ -58,7 +59,7 @@
 //  EXPORTS
 //  ───────
 //  Browser: window.PhotoConfirm = { reading, result, selected, dots(), built, power, placing,
-//                                   open(reading, image, grid, onBuild), cancelMove(),
+//                                   open(reading, image, grid, onBuild, opts), cancelMove(),
 //                                   place(id, entry), startPlacing(ids), stopPlacing() }
 //  (power: her #photo-power pick, 'supply12' | 'battery9', null until she
 //   picks; placing: a Set of the ids whose crop line hasn't arrived; dots(): one
@@ -89,6 +90,7 @@
   let adding = null;   // + Add a part: { type, pts } until its second tap
   let touched = new Set();   // ids she has edited since open(): their crop lines are ignored
   let sent = 0;              // crops out this round, for "Placing legs N/M…"
+  let ownBoard = false;      // open()'s opts.ownBoard: no power picker
 
   const C = window.PhotoConfirm = {
     reading: null, result: null, selected: null, built: null, power: null, placing: new Set(),
@@ -107,7 +109,10 @@
     return m ? C.reading.power[+m[1]] : C.reading.parts.find(p => p.id === id) || C.reading.wires.find(w => w.id === id);
   };
 
-  function open(reading, img, g, built) {
+  // opts.ownBoard: a rehearsed sample whose Build it builds its own board
+  // (photo.js), so the power picker stays hidden.
+  function open(reading, img, g, built, opts) {
+    ownBoard   = !!(opts && opts.ownBoard);
     C.reading  = JSON.parse(JSON.stringify(reading));
     C.selected = null;
     C.built    = null;
@@ -169,7 +174,7 @@
   function rebuild() {
     C.result = PhotoImport.build(C.reading, { components: [], power: C.power });
     buildB.disabled = unknown();
-    powerB.hidden = C.result.power === 'reading';
+    powerB.hidden = ownBoard || C.result.power === 'reading';
     if (!powerB.hidden) powerB.value = C.result.power;
   }
 

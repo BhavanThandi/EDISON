@@ -159,7 +159,8 @@ test('B4 the context for an off-board lead names the hole (c14) and says it leav
   assert.ok(result.flags.some(f => f.kind === 'offboard'), 'the fixture raises offboard');
   const ctx = context(result);
   assert.match(ctx, /c14/, ctx);
-  assert.match(ctx, /leaves the board|off the board|leaves? the board/i, ctx);
+  assert.match(ctx, /off the board/i, 'says the hole is wired to something off the board: ' + ctx);
+  assert.match(ctx, /not open|isn'?t open/i, 'and that it is not left open: ' + ctx);
   assert.deepStrictEqual(keywordsIn(ctx), []);
 });
 

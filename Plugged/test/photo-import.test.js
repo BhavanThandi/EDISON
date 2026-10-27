@@ -659,12 +659,14 @@ test('build never throws on junk entries: each bad one is listed in skipped, the
     wires: [
       { id: 'WX1', color: 'red', ends: [end('a50')], confidence: 0.9, unsure: [] },                  // one end
       { id: 'WX2', color: 'red', ends: [{ hole: null }, { hole: 7 }], confidence: 0.9, unsure: [] },  // not strings
+      null,                                                                                          // not a wire (key wire3)
+      {},                                                                                            // no id, no ends (key wire4)
       wire('W1', 'red', 'rail:aOuter:10', 'b10'),
     ],
     power: [battery('rail:aOuter:3', 'rail:aInner:3')],
   };
   const out = build(rd);
-  assert.deepStrictEqual(skippedIds(out).slice().sort(), ['WX1', 'WX2', 'X1', 'X2', 'X3', 'part4']);
+  assert.deepStrictEqual(skippedIds(out).slice().sort(), ['WX1', 'WX2', 'X1', 'X2', 'X3', 'part4', 'wire3', 'wire4']);
   assert.deepStrictEqual(placesOf(out), [{ tool: 'place_resistor', holeA: 'a10', holeB: 'a14', resistance: 470 }]);
   assert.strictEqual(out.labels.R1, 'R1');
   assert.strictEqual(out.labels.W1, 'W3');

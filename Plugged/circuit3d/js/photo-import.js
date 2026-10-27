@@ -302,7 +302,7 @@
       const ends = list(w && w.ends).map((e, k) => ({ at: at(e && e.hole), owner: `${id}.${k}` }));
       if (ends.length !== 2 || ends.some(e => !e.at)) {
         claim(ends);
-        const on = holesOf(w.ends).filter(h => h.trim().toLowerCase() === 'off').length === 1 && ends.find(e => e.at);
+        const on = holesOf(w && w.ends).filter(h => h.trim().toLowerCase() === 'off').length === 1 && ends.find(e => e.at);
         if (ends.length === 2 && on) {   // a lead to an instrument off the board
           return notBuilt(id, 'wire', 'offboard', `${id} leaves the board at ${said(on.at)}: connect your signal source or meter there.`, { hole: on.at.hole });
         }

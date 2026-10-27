@@ -1152,3 +1152,41 @@ test('B4: power picker, a Reading without op-amps preselects 9 V battery', async
   expect(await actionTools(page)).not.toContain('place_bench_supply');
   expect(errors).toEqual([]);
 });
+
+// ── B4 fix round 1: when the picker shows ─────────────────────────────────
+
+test('B4: power picker, a Reading with a battery entry hides #photo-power; removing the battery with its × shows it, preselected by result.power', async ({ page }) => {
+  const errors = watchErrors(page);
+  await openEditor(page);
+  const r = opampReading();
+  r.power = [{ kind: 'battery_9v', volts: 9, plus: end('rail:aOuter:3'), minus: end('rail:aInner:3'), unsure: [] }];
+  await openConfirm(page, r);
+  expect(await resultPower(page)).toBe('reading');
+  await expect(page.locator('#photo-power'), 'the photo\'s own battery is built: nothing to pick').toBeHidden();
+
+  await rowOf(page, 'power:0').locator('.photo-del').click();
+  expect(await resultPower(page)).toBe('supply12');
+  await expect(page.locator('#photo-power')).toBeVisible();
+  await expect(page.locator('#photo-power')).toHaveValue('supply12');
+  expect(errors).toEqual([]);
+});
+
+test('B4: power picker, the rehearsed ensc-lab sample (it has its own board) hides #photo-power', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors = watchErrors(page);
+  await openEditor(page);
+  await page.locator('#photo-btn').click();
+  await page.locator('#photo-sample').click();
+  await expect(page.locator('#photo-samples')).toBeVisible();
+  await page.locator('#photo-samples [data-sample="ensc-lab"]').click();
+  await expect(page.locator('#photo-ok')).toBeDisabled();
+  const size = { width: 1030, height: 500 };
+  for (const [px, py] of [[887, 227], [103, 210], [98, 347], [887, 367]]) {
+    const box = await page.locator('#photo-canvas').boundingBox();
+    await page.mouse.click(box.x + px * box.width / size.width, box.y + py * box.height / size.height);
+  }
+  await page.locator('#photo-ok').click();
+  await expect(page.locator('#photo-confirm')).toBeVisible({ timeout: 25_000 });
+  await expect(page.locator('#photo-power'), 'Build it builds the sample\'s board, so a power choice would mislead').toBeHidden();
+  expect(errors).toEqual([]);
+});

@@ -15,7 +15,8 @@
 //         then Looks right builds that sample's board as its tile does, and
 //         window.PhotoCanned = its canned answers for chat.js (no /api/photo).
 //         With a recorded `reading` (#20), READING then the confirm screen on
-//         it (flattened with her grid, no crop round); Build it → the board
+//         it (flattened with her grid, no crop round, no power picker:
+//         open's { ownBoard: true }); Build it → the board
 //    📷 → Use sample photo (or the error card's) → the sample picker
 //         (#photo-samples, #182): a tile per offered window.PhotoSamples
 //         entry (all but offered: false, #200), its photo, title and credit
@@ -486,7 +487,7 @@
     corners.hidden = true;
     showStatus('', false);
     credit.textContent = s.credit || '';
-    PhotoConfirm.open(structuredClone(s.reading), flat, grid, board);
+    PhotoConfirm.open(structuredClone(s.reading), flat, grid, board, { ownBoard: true });   // no power picker: Build it builds s.board
   }
 
   // The corner step's canvas alone, showing the photo: no prompt, no

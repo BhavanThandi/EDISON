@@ -18,6 +18,8 @@ const meta = (html, attr, key) => {
 test.each(PAGES)('%s carries the link-preview tags, pointing at the schematic image', page => {
   const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
   assert.match(meta(html, 'property', 'og:title') || '', /Edison/);
+  // LinkedIn shows og:site_name under a link card's title; without it, the full redirected URL
+  assert.equal(meta(html, 'property', 'og:site_name'), 'Edison');
   assert.ok((meta(html, 'property', 'og:description') || '').length > 40, 'og:description');
   assert.equal(meta(html, 'property', 'og:image'), `${SITE}/og-image.png`);
   assert.equal(meta(html, 'property', 'og:image:width'), '1200');
